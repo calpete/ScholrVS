@@ -54,6 +54,56 @@ For substantive answers, end with one brief follow-up: a question that deepens u
 
 let documents = {};
 
+// --- Suggested questions cache ---
+let questionsCache = null;
+
+function invalidateQuestionsCache() {
+  questionsCache = null;
+  console.log('🔄 Suggested questions cache cleared');
+}
+
+async function generateSuggestedQuestions() {
+  if (Object.keys(documents).length === 0) return [];
+
+  const sample = Object.entries(documents).map(([name, doc]) => {
+    const preview = doc.chunks.slice(0, 5).map(c => c.text).join(' ');
+    return `[${name}]\n${preview}`;
+  }).join('\n\n').slice(0, 2000);
+
+  const prompt = `Read these university course material excerpts and write exactly 3 short student questions about the content. Each question must be under 8 words. Output only a JSON array on a single line with no newlines inside it.
+
+EXCERPTS:
+${sample}
+
+Output example (single line): ["Short question one?","Short question two?","Short question three?"]`;
+
+  const result = await ai.models.generateContent({
+    model: MODEL,
+    contents: prompt,
+    config: { temperature: 0.5, maxOutputTokens: 1024 },
+  });
+
+  const raw = result.text.trim();
+  console.log('Gemini suggested questions:', raw);
+
+  let questions = [];
+  try {
+    const arrayMatch = raw.match(/\[.*?\]/s);
+    if (arrayMatch) questions = JSON.parse(arrayMatch[0]);
+  } catch {
+    const matches = raw.match(/"([^"]{5,60})"/g);
+    if (matches) questions = matches.map(m => m.replace(/"/g, '')).slice(0, 3);
+  }
+
+  return Array.isArray(questions) && questions.length > 0
+    ? questions.slice(0, 3)
+    : [
+        "What are the main topics in this course?",
+        "Summarize the key concepts from the materials",
+        "What should I focus on for the exam?"
+      ];
+}
+
 function extractPdfText(buffer) {
   return new Promise((resolve, reject) => {
     const parser = new PDFParser(null, 1);
@@ -124,6 +174,14 @@ app.post('/upload', async (req, res) => {
     const chunks = chunkText(text);
     documents[file.name] = { text, chunks, uploadedAt: new Date().toISOString() };
     console.log(`✅ Uploaded: ${file.name} — ${chunks.length} chunks`);
+
+    // Invalidate cache and regenerate in background
+    invalidateQuestionsCache();
+    generateSuggestedQuestions().then(q => {
+      questionsCache = q;
+      console.log('✅ Suggested questions cached');
+    }).catch(err => console.error('Cache generation error:', err.message));
+
     res.json({ success: true, fileName: file.name, chunkCount: chunks.length, charCount: text.length });
   } catch (err) {
     console.error('Upload error:', err);
@@ -141,6 +199,16 @@ app.delete('/document/:name', (req, res) => {
   const name = decodeURIComponent(req.params.name);
   if (!documents[name]) return res.status(404).json({ error: 'Not found' });
   delete documents[name];
+  invalidateQuestionsCache();
+
+  // Regenerate in background if other docs still exist
+  if (Object.keys(documents).length > 0) {
+    generateSuggestedQuestions().then(q => {
+      questionsCache = q;
+      console.log('✅ Suggested questions re-cached after delete');
+    }).catch(err => console.error('Cache regeneration error:', err.message));
+  }
+
   res.json({ success: true });
 });
 
@@ -179,7 +247,7 @@ ${message}`;
       config: {
         systemInstruction: SYSTEM_PROMPT,
         temperature: 0.4,
-        maxOutputTokens: 2048,
+        maxOutputTokens: 500,
       },
     });
     const answer = result.text || '';
@@ -194,6 +262,29 @@ ${message}`;
   } catch (err) {
     console.error('Chat error:', err.message);
     res.status(500).json({ error: `Error: ${err.message}` });
+  }
+});
+
+app.get('/suggested-questions', async (req, res) => {
+  try {
+    if (Object.keys(documents).length === 0) return res.json({ questions: [] });
+
+    // Return cache instantly if available
+    if (questionsCache) {
+      return res.json({ questions: questionsCache });
+    }
+
+    // Otherwise generate and cache
+    const questions = await generateSuggestedQuestions();
+    questionsCache = questions;
+    res.json({ questions });
+  } catch (err) {
+    console.error('Suggested questions error:', err.message);
+    res.json({ questions: [
+      "What are the main topics in this course?",
+      "Summarize the key concepts from the materials",
+      "What should I focus on for the exam?"
+    ]});
   }
 });
 

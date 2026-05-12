@@ -215,7 +215,6 @@ function TeacherView({ onExit }) {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-gray-50 fixed inset-0">
-      {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-gray-100 flex flex-col flex-shrink-0">
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center gap-2 mb-4">
@@ -248,8 +247,6 @@ function TeacherView({ onExit }) {
           </button>
         </div>
       </aside>
-
-      {/* Main */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 border-b border-gray-100 bg-white flex items-center justify-between px-8 flex-shrink-0">
           <div>
@@ -265,7 +262,6 @@ function TeacherView({ onExit }) {
             </button>
           </div>
         </header>
-
         <div className="flex-1 overflow-y-auto p-8">
           {mods.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center max-w-sm mx-auto">
@@ -302,7 +298,6 @@ function TeacherView({ onExit }) {
           )}
         </div>
       </main>
-
       {toast && (
         <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-5 py-3 rounded-xl text-white text-sm font-medium shadow-xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
           {toast.type === 'error' ? <AlertCircle size={16} /> : <ShieldCheck size={16} />}
@@ -319,10 +314,32 @@ function StudentView({ onExit }) {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [selectedCitation, setSelectedCitation] = useState(null);
+  const [documents, setDocuments] = useState([]);
+  const [suggestedQuestions, setSuggestedQuestions] = useState([
+    "What are the main topics in this course?",
+    "Summarize the key concepts from the materials",
+    "What should I focus on for the exam?",
+  ]);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
   const active = chats.find(c => c.id === chatId) || chats[0];
+
+  useEffect(() => {
+    fetch(`${API}/documents`)
+      .then(res => res.json())
+      .then(data => setDocuments(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (documents.length > 0) {
+      fetch(`${API}/suggested-questions`)
+        .then(r => r.json())
+        .then(data => { if (data.questions?.length) setSuggestedQuestions(data.questions); })
+        .catch(() => {});
+    }
+  }, [documents]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -367,15 +384,8 @@ function StudentView({ onExit }) {
     inputRef.current?.focus();
   };
 
-  const suggestedQuestions = [
-    "What are the main topics in this course?",
-    "Summarize the key concepts from the materials",
-    "What should I focus on for the exam?",
-  ];
-
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-gray-50 fixed inset-0">
-      {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-gray-100 flex flex-col flex-shrink-0">
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center gap-2 mb-4">
@@ -389,13 +399,11 @@ function StudentView({ onExit }) {
             <span className="text-green-700 text-xs font-semibold">Student Portal</span>
           </div>
         </div>
-
         <div className="px-4 pt-4">
           <button onClick={createNewChat} className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 hover:border-gray-300 transition-colors">
             <Plus size={15} /> New conversation
           </button>
         </div>
-
         <nav className="flex-1 overflow-y-auto px-4 py-3 space-y-1">
           <p className="text-xs text-gray-400 font-medium px-2 mb-2 uppercase tracking-wide">Recent</p>
           {chats.map(c => (
@@ -406,7 +414,6 @@ function StudentView({ onExit }) {
             </button>
           ))}
         </nav>
-
         <div className="p-4 border-t border-gray-100">
           <div className="text-xs text-gray-400 mb-3">Answers grounded in your course materials only</div>
           <button onClick={onExit} className="flex items-center gap-2 text-gray-500 hover:text-red-500 transition-colors text-sm font-medium">
@@ -415,7 +422,6 @@ function StudentView({ onExit }) {
         </div>
       </aside>
 
-      {/* Main chat */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 border-b border-gray-100 bg-white flex items-center justify-between px-8 flex-shrink-0">
           <div>
@@ -434,16 +440,25 @@ function StudentView({ onExit }) {
               <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-5">
                 <Search size={28} className="text-blue-400" />
               </div>
-              <h3 className="text-gray-800 font-semibold text-lg mb-2">Ask anything about your course</h3>
-              <p className="text-gray-400 text-sm text-center max-w-xs mb-8">Every answer is grounded in your professor's uploaded materials with citations so you know exactly where information comes from.</p>
-              <div className="grid grid-cols-1 gap-2 w-full max-w-sm">
-                {suggestedQuestions.map((q, i) => (
-                  <button key={i} onClick={() => { setInput(q); inputRef.current?.focus(); }}
-                    className="text-left px-4 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-all">
-                    {q}
-                  </button>
-                ))}
-              </div>
+              {documents.length === 0 ? (
+                <>
+                  <h3 className="text-gray-800 font-semibold text-lg mb-2">No materials uploaded yet</h3>
+                  <p className="text-gray-400 text-sm text-center max-w-xs">Your instructor hasn't uploaded any course materials yet. Check back once they've added content.</p>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-gray-800 font-semibold text-lg mb-2">Ask anything about your course</h3>
+                  <p className="text-gray-400 text-sm text-center max-w-xs mb-8">Every answer is grounded in your professor's uploaded materials with citations so you know exactly where information comes from.</p>
+                  <div className="grid grid-cols-1 gap-2 w-full max-w-sm">
+                    {suggestedQuestions.map((q, i) => (
+                      <button key={i} onClick={() => { setInput(q); inputRef.current?.focus(); }}
+                        className="text-left px-4 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-all">
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -480,10 +495,9 @@ function StudentView({ onExit }) {
               <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
                 <Sparkles size={14} className="text-white" />
               </div>
-              <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-sm px-4 py-3 flex gap-1 items-center shadow-sm">
-                <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{animationDelay:'0ms'}} />
-                <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{animationDelay:'150ms'}} />
-                <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{animationDelay:'300ms'}} />
+              <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                <span className="text-sm text-gray-400">Searching your course materials...</span>
               </div>
             </div>
           )}
