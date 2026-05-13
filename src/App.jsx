@@ -14,52 +14,25 @@ function formatTime(date) {
   return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function CitationBadge({ number, onClick }) {
-  return (
-    <button onClick={onClick} className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold rounded-full bg-blue-600 text-white hover:bg-blue-500 cursor-pointer mx-0.5 align-super leading-none">
-      {number}
-    </button>
-  );
-}
-
-function processCitations(children, citations, onCitationClick) {
-  if (typeof children === 'string') {
-    if (!citations || citations.length === 0) return children;
-    const parts = children.split(/(\[\d+\])/g);
-    return parts.map((part, i) => {
-      const match = part.match(/^\[(\d+)\]$/);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        const citation = citations[num - 1];
-        if (citation) return <CitationBadge key={i} number={num} onClick={() => onCitationClick(citation)} />;
-      }
-      return <React.Fragment key={i}>{part}</React.Fragment>;
-    });
-  }
-  if (Array.isArray(children)) {
-    return children.map((c, i) => <React.Fragment key={i}>{processCitations(c, citations, onCitationClick)}</React.Fragment>);
-  }
-  return children;
-}
-
 function PlainMessage({ content }) {
   return <p className="m-0 leading-relaxed whitespace-pre-wrap">{content}</p>;
 }
 
-function MarkdownMessage({ content, citations, onCitationClick }) {
-  const cite = (children) => processCitations(children, citations, onCitationClick);
+function MarkdownMessage({ content }) {
+  // Strip the SOURCES: line from display
+  const cleanContent = content.replace(/\nSOURCES:.*$/m, '').trim();
   return (
     <div className="text-sm leading-relaxed text-gray-800">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-        p: ({ children }) => <p className="my-2 first:mt-0 last:mb-0">{cite(children)}</p>,
-        h1: ({ children }) => <h1 className="text-base font-bold text-gray-900 mt-3 mb-2 first:mt-0">{cite(children)}</h1>,
-        h2: ({ children }) => <h2 className="text-base font-bold text-gray-900 mt-3 mb-2 first:mt-0">{cite(children)}</h2>,
-        h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-900 mt-2 mb-1 first:mt-0">{cite(children)}</h3>,
+        p: ({ children }) => <p className="my-2 first:mt-0 last:mb-0">{children}</p>,
+        h1: ({ children }) => <h1 className="text-base font-bold text-gray-900 mt-3 mb-2 first:mt-0">{children}</h1>,
+        h2: ({ children }) => <h2 className="text-base font-bold text-gray-900 mt-3 mb-2 first:mt-0">{children}</h2>,
+        h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-900 mt-2 mb-1 first:mt-0">{children}</h3>,
         ul: ({ children }) => <ul className="list-disc list-outside pl-5 my-2 space-y-1">{children}</ul>,
         ol: ({ children }) => <ol className="list-decimal list-outside pl-5 my-2 space-y-1">{children}</ol>,
-        li: ({ children }) => <li className="text-gray-800">{cite(children)}</li>,
-        strong: ({ children }) => <strong className="font-semibold text-gray-900">{cite(children)}</strong>,
-        em: ({ children }) => <em className="italic text-gray-700">{cite(children)}</em>,
+        li: ({ children }) => <li className="text-gray-800">{children}</li>,
+        strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+        em: ({ children }) => <em className="italic text-gray-700">{children}</em>,
         code: ({ inline, children }) => inline
           ? <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[12px] text-blue-700 font-mono">{children}</code>
           : <code className="block bg-gray-50 border border-gray-200 rounded-md p-3 my-2 overflow-x-auto text-[12px] text-gray-800 font-mono">{children}</code>,
@@ -68,18 +41,18 @@ function MarkdownMessage({ content, citations, onCitationClick }) {
         a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-700 underline">{children}</a>,
         hr: () => <hr className="my-3 border-gray-200" />,
         table: ({ children }) => <table className="my-2 border-collapse w-full">{children}</table>,
-        th: ({ children }) => <th className="border border-gray-200 px-2 py-1 text-left text-gray-900 font-semibold text-xs bg-gray-50">{cite(children)}</th>,
-        td: ({ children }) => <td className="border border-gray-200 px-2 py-1 text-gray-800 text-xs">{cite(children)}</td>,
+        th: ({ children }) => <th className="border border-gray-200 px-2 py-1 text-left text-gray-900 font-semibold text-xs bg-gray-50">{children}</th>,
+        td: ({ children }) => <td className="border border-gray-200 px-2 py-1 text-gray-800 text-xs">{children}</td>,
       }}>
-        {content}
+        {cleanContent}
       </ReactMarkdown>
     </div>
   );
 }
 
-function MessageText({ role, content, citations, onCitationClick }) {
+function MessageText({ role, content }) {
   if (role === 'user') return <PlainMessage content={content} />;
-  return <MarkdownMessage content={content} citations={citations} onCitationClick={onCitationClick} />;
+  return <MarkdownMessage content={content} />;
 }
 
 function CitationPanel({ citation, onClose }) {
@@ -89,16 +62,12 @@ function CitationPanel({ citation, onClose }) {
       <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl border border-gray-100" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-start mb-4">
           <div>
-            <p className="text-blue-600 text-xs font-semibold uppercase tracking-wide mb-1">Source [{citation.number}]</p>
-            <p className="text-gray-900 font-semibold">{citation.source}</p>
-            <p className="text-gray-500 text-sm">Page {citation.page}</p>
+            <p className="text-blue-600 text-xs font-semibold uppercase tracking-wide mb-1">Source</p>
+            <p className="text-gray-900 font-semibold">{citation}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors"><X size={18} /></button>
         </div>
-        <div className="bg-blue-50 rounded-xl p-4 border-l-4 border-blue-500">
-          <p className="text-gray-700 text-sm leading-relaxed italic">"{citation.excerpt}"</p>
-        </div>
-        <p className="text-gray-400 text-xs mt-3">Exact passage from your course materials</p>
+        <p className="text-gray-400 text-xs mt-3">This document was used to answer your question</p>
       </div>
     </div>
   );
@@ -313,7 +282,7 @@ function StudentView({ onExit }) {
   const [chatId, setChatId] = useState(1);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [selectedCitation, setSelectedCitation] = useState(null);
+  const [selectedSource, setSelectedSource] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [suggestedQuestions, setSuggestedQuestions] = useState([
     "What are the main topics in this course?",
@@ -334,10 +303,13 @@ function StudentView({ onExit }) {
 
   useEffect(() => {
     if (documents.length > 0) {
-      fetch(`${API}/suggested-questions`)
-        .then(r => r.json())
-        .then(data => { if (data.questions?.length) setSuggestedQuestions(data.questions); })
-        .catch(() => {});
+      const timer = setTimeout(() => {
+        fetch(`${API}/suggested-questions`)
+          .then(r => r.json())
+          .then(data => { if (data.questions?.length) setSuggestedQuestions(data.questions); })
+          .catch(() => {});
+      }, 500);
+      return () => clearTimeout(timer);
     }
   }, [documents]);
 
@@ -358,28 +330,79 @@ function StudentView({ onExit }) {
 
   const onSend = async () => {
     if (!input.trim() || isTyping) return;
-    const userMsg = { role: 'user', content: input, citations: [], ts: Date.now() };
+    const userMsg = { role: 'user', content: input, sources: [], ts: Date.now() };
     const isFirstMessage = active.messages.length === 0;
     const newTitle = isFirstMessage ? generateTitle(input) : null;
-    setChats(prev => prev.map(c => c.id === chatId
+    const currentChatId = chatId;
+
+    setChats(prev => prev.map(c => c.id === currentChatId
       ? { ...c, messages: [...c.messages, userMsg], ...(newTitle ? { title: newTitle } : {}) }
       : c
     ));
     setInput('');
     setIsTyping(true);
+
+    const streamingMsgId = Date.now();
+    setChats(prev => prev.map(c => c.id === currentChatId
+      ? { ...c, messages: [...c.messages, { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true }] }
+      : c
+    ));
+
     try {
-      const res = await fetch(`${API}/chat`, {
+      const response = await fetch(`${API}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: input })
       });
-      const data = await res.json();
-      const aiMsg = { role: 'assistant', content: data.answer || data.error || 'No response.', citations: data.citations || [], ts: Date.now() };
-      setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: [...c.messages, aiMsg] } : c));
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+            if (event.type === 'token') {
+              setChats(prev => prev.map(c => c.id === currentChatId
+                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: m.content + event.token } : m) }
+                : c
+              ));
+              bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+            } else if (event.type === 'sources') {
+              setChats(prev => prev.map(c => c.id === currentChatId
+                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, sources: event.sources } : m) }
+                : c
+              ));
+            } else if (event.type === 'done') {
+              setChats(prev => prev.map(c => c.id === currentChatId
+                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) }
+                : c
+              ));
+            } else if (event.type === 'error') {
+              setChats(prev => prev.map(c => c.id === currentChatId
+                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'Error: ' + event.error, streaming: false } : m) }
+                : c
+              ));
+            }
+          } catch {}
+        }
+      }
     } catch {
-      const errMsg = { role: 'assistant', content: 'Server unreachable. Is it running?', citations: [], ts: Date.now() };
-      setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: [...c.messages, errMsg] } : c));
+      setChats(prev => prev.map(c => c.id === currentChatId
+        ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'Server unreachable. Is it running?', streaming: false } : m) }
+        : c
+      ));
     }
+
     setIsTyping(false);
     inputRef.current?.focus();
   };
@@ -463,7 +486,7 @@ function StudentView({ onExit }) {
           )}
 
           {active.messages.map((m, i) => (
-            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'items-start gap-3'}`}>
+            <div key={m.id || i} className={`flex ${m.role === 'user' ? 'justify-end' : 'items-start gap-3'}`}>
               {m.role === 'assistant' && (
                 <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0 mt-1">
                   <Sparkles size={14} className="text-white" />
@@ -472,35 +495,33 @@ function StudentView({ onExit }) {
               <div className={`px-4 py-3 rounded-2xl text-sm max-w-xl shadow-sm ${m.role === 'user'
                 ? 'bg-blue-600 text-white rounded-br-sm'
                 : 'bg-white border border-gray-100 text-gray-800 rounded-bl-sm'}`}>
-                <MessageText role={m.role} content={m.content} citations={[]} onCitationClick={setSelectedCitation} />
-                {m.role === 'assistant' && m.citations && m.citations.length > 0 && (
+                {m.role === 'assistant' && m.content === '' && m.streaming ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                    <span className="text-sm text-gray-400">Searching your course materials...</span>
+                  </div>
+                ) : (
+                  <MessageText role={m.role} content={m.content} />
+                )}
+                {m.role === 'assistant' && m.streaming && m.content && (
+                  <span className="inline-block w-0.5 h-4 bg-blue-500 animate-pulse ml-0.5 align-middle" />
+                )}
+                {m.role === 'assistant' && m.sources && m.sources.length > 0 && !m.streaming && (
                   <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
                     <p className="text-xs text-gray-400 font-medium">Sources from your course materials</p>
-                    {m.citations.map(c => (
-                      <button key={c.number} onClick={() => setSelectedCitation(c)}
-                        className="flex items-center gap-2 text-xs text-gray-500 hover:text-blue-600 transition-colors w-full text-left">
-                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-100 text-blue-600 font-bold text-[10px] flex-shrink-0">{c.number}</span>
-                        {c.source} · p.{c.page}
-                      </button>
+                    {m.sources.map((source, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-xs text-gray-500">
+                        <FileText size={12} className="text-blue-400 flex-shrink-0" />
+                        <span>{source}</span>
+                      </div>
                     ))}
                   </div>
                 )}
-                <span className="block text-xs mt-2 opacity-40">{formatTime(m.ts)}</span>
+                {!m.streaming && <span className="block text-xs mt-2 opacity-40">{formatTime(m.ts)}</span>}
               </div>
             </div>
           ))}
 
-          {isTyping && (
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-                <Sparkles size={14} className="text-white" />
-              </div>
-              <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                <span className="text-sm text-gray-400">Searching your course materials...</span>
-              </div>
-            </div>
-          )}
           <div ref={bottomRef} />
         </div>
 
@@ -523,7 +544,9 @@ function StudentView({ onExit }) {
         </div>
       </main>
 
-      <CitationPanel citation={selectedCitation} onClose={() => setSelectedCitation(null)} />
+      {selectedSource && (
+        <CitationPanel citation={selectedSource} onClose={() => setSelectedSource(null)} />
+      )}
     </div>
   );
 }
