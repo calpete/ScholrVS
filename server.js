@@ -222,7 +222,9 @@ function chunkText(text, chunkSize = 800, overlap = 100) {
   return chunks;
 }
 
-app.use(cors());
+app.use(cors({
+  origin: '*'
+}));
 app.use(express.json());
 app.use(fileUpload({ limits: { fileSize: 50 * 1024 * 1024 } }));
 
