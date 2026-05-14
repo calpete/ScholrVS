@@ -6,8 +6,19 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import { createRequire } from 'module';
+import fs from 'fs';
+import os from 'os';
 
 dotenv.config();
+
+// ── Google Credentials from env var (for cloud deployment) ──────────────────
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+  const tmpPath = path.join(os.tmpdir(), 'gcp-credentials.json');
+  fs.writeFileSync(tmpPath, process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = tmpPath;
+  console.log('✅ GCP credentials written from env var');
+}
+// ────────────────────────────────────────────────────────────────────────────
 
 const require = createRequire(import.meta.url);
 const PDFParser = require('pdf2json');
@@ -73,7 +84,6 @@ Smart, warm, encouraging. Like a TA who genuinely cares.`;
 
 let documents = {};
 let questionsCache = null;
-
 let questionLog = [];
 
 function logQuestion(question, confident = true) {
@@ -145,8 +155,7 @@ function invalidateQuestionsCache() {
 
 async function generateSuggestedQuestions() {
   if (Object.keys(documents).length === 0) return [];
-  const docEntries = Object.entries(documents);
-  const firstDoc = docEntries[0];
+  const firstDoc = Object.entries(documents)[0];
   try {
     const pdfPart = { inlineData: { mimeType: 'application/pdf', data: firstDoc[1].buffer.toString('base64') } };
     const result = await ai.models.generateContent({
@@ -231,7 +240,7 @@ app.post('/upload', async (req, res) => {
       console.warn('Text extraction failed, using native PDF only:', e.message);
     }
     documents[file.name] = { buffer, text, chunks, uploadedAt: new Date().toISOString() };
-    console.log(`✅ Uploaded: ${file.name} — stored as native PDF + ${chunks.length} text chunks`);
+    console.log(`✅ Uploaded: ${file.name} — ${chunks.length} chunks`);
     invalidateQuestionsCache();
     generateSuggestedQuestions().then(q => { questionsCache = q; console.log('✅ Questions cached'); }).catch(() => {});
     res.json({ success: true, fileName: file.name, chunkCount: chunks.length, charCount: text.length });
@@ -269,6 +278,13 @@ app.get('/insights', (req, res) => {
   res.json(getInsights());
 });
 
+app.post('/auth', (req, res) => {
+  const { password } = req.body;
+  const correct = process.env.ACCESS_PASSWORD || 'scholr2026';
+  if (password === correct) return res.json({ success: true });
+  res.status(401).json({ error: 'Invalid password' });
+});
+
 app.post('/chat', async (req, res) => {
   try {
     const { message } = req.body;
@@ -289,7 +305,6 @@ app.post('/chat', async (req, res) => {
     }
 
     parts.push({ text: `\nSTUDENT QUESTION: ${message}` });
-
     res.write(`data: ${JSON.stringify({ type: 'citations', citations: [] })}\n\n`);
 
     const stream = await ai.models.generateContentStream({
@@ -308,12 +323,9 @@ app.post('/chat', async (req, res) => {
     }
 
     const sourcesMatch = fullText.match(/\nSOURCES:\s*(.+)$/m);
-    let sources = [];
-    if (sourcesMatch) {
-      sources = sourcesMatch[1].split(',').map(s => s.trim()).filter(s => s.length > 0);
-    } else {
-      sources = docNames;
-    }
+    let sources = sourcesMatch
+      ? sourcesMatch[1].split(',').map(s => s.trim()).filter(s => s.length > 0)
+      : docNames;
 
     const confident = !fullText.toLowerCase().includes("doesn't appear to be in your uploaded");
     logQuestion(message, confident);
@@ -344,13 +356,4 @@ app.get('/suggested-questions', async (req, res) => {
   }
 });
 
-
-// Auth endpoint
-app.post('/auth', (req, res) => {
-  const { password } = req.body;
-  const correct = process.env.ACCESS_PASSWORD || 'scholr2026';
-  if (password === correct) return res.json({ success: true });
-  res.status(401).json({ error: 'Invalid password' });
-});
-
-app.listen(PORT, () => console.log(`✅ ScholrAI running on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`✅ ScholrAI running on port ${PORT}`));
