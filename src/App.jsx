@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   MessageSquare, GraduationCap, Send, LogOut,
   Trash2, ShieldCheck, Plus, BookOpen, FileText,
-  ChevronRight, Users, AlertCircle, X,
-  UploadCloud, Search, BarChart2, Zap, Clock, Hash, CheckCircle2
+  ChevronRight, Users, AlertCircle,
+  UploadCloud, Search, BarChart2, Zap, Clock, Hash, CheckCircle2, Copy, Check
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -76,43 +76,32 @@ function DocumentCard({ m, onDelete }) {
   const displayName = cleanFileName(m.name);
   const initials = displayName.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
   const colors = [
-    { bg: 'from-blue-500 to-blue-600', light: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-100' },
-    { bg: 'from-violet-500 to-violet-600', light: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-100' },
-    { bg: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-100' },
-    { bg: 'from-amber-500 to-orange-500', light: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100' },
-    { bg: 'from-rose-500 to-pink-500', light: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-100' },
+    { bg: 'from-blue-500 to-blue-600' },
+    { bg: 'from-violet-500 to-violet-600' },
+    { bg: 'from-emerald-500 to-emerald-600' },
+    { bg: 'from-amber-500 to-orange-500' },
+    { bg: 'from-rose-500 to-pink-500' },
   ];
   const color = colors[Math.abs(m.name.charCodeAt(0) + m.name.charCodeAt(1)) % colors.length];
 
   return (
     <div className="group relative bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:shadow-gray-100/80 hover:border-gray-200 transition-all duration-200">
-      {/* Top color bar */}
       <div className={`h-1 w-full bg-gradient-to-r ${color.bg}`} />
-
       <div className="p-5">
-        {/* Header row */}
         <div className="flex items-start justify-between mb-4">
           <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${color.bg} flex items-center justify-center shadow-sm flex-shrink-0`}>
             <span className="text-white text-xs font-bold tracking-tight">{initials}</span>
           </div>
-          <button
-            onClick={() => onDelete(m)}
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400">
+          <button onClick={() => onDelete(m)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400">
             <Trash2 size={13} />
           </button>
         </div>
-
-        {/* File name */}
         <p className="text-gray-900 text-sm font-semibold leading-snug mb-1 line-clamp-2">{displayName}</p>
-
-        {/* Meta */}
         <div className="flex items-center gap-2 mb-4">
           <span className="text-gray-400 text-[11px]">{m.chars ? Math.round(m.chars / 1000) : 0}k chars</span>
           <span className="w-1 h-1 rounded-full bg-gray-200"></span>
           <span className="text-gray-400 text-[11px]">{m.chunks || 0} sections</span>
         </div>
-
-        {/* Footer */}
         <div className="flex items-center justify-between pt-3 border-t border-gray-50">
           <div className="flex items-center gap-1.5">
             <CheckCircle2 size={12} className="text-green-500" />
@@ -128,7 +117,66 @@ function DocumentCard({ m, onDelete }) {
   );
 }
 
+function LoadingPortal({ label, color }) {
+  return (
+    <div className="fixed inset-0 bg-white flex flex-col items-center justify-center z-50" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600&display=swap');`}</style>
+      <div className={`w-12 h-12 rounded-2xl ${color} flex items-center justify-center mb-4 shadow-lg`}>
+        <GraduationCap size={22} className="text-white" />
+      </div>
+      <p className="text-gray-500 text-sm font-medium mb-6">{label}</p>
+      <div className="flex gap-1.5">
+        <div className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: '0ms' }} />
+        <div className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: '150ms' }} />
+        <div className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: '300ms' }} />
+      </div>
+    </div>
+  );
+}
+
+const DEFAULT_QUESTIONS = [
+  "What are the main topics in this course?",
+  "Summarize the key concepts from the materials",
+  "What should I focus on for the exam?",
+];
+
 function LoginScreen({ onSelect }) {
+  const [loading, setLoading] = useState(null);
+
+  const handleSelect = async (role) => {
+    setLoading(role);
+
+    if (role === 'student') {
+      // Fetch questions and documents in parallel during loading screen
+      try {
+        const [docsRes, qRes] = await Promise.all([
+          fetch(`${API}/documents`),
+          fetch(`${API}/suggested-questions`)
+        ]);
+        const docs = await docsRes.json();
+        const qData = await qRes.json();
+        const questions = qData.questions?.length ? qData.questions : DEFAULT_QUESTIONS;
+        const documents = Array.isArray(docs) ? docs : [];
+        // Small buffer so loading screen shows for at least 600ms
+        await new Promise(r => setTimeout(r, 600));
+        onSelect(role, { questions, documents });
+      } catch {
+        await new Promise(r => setTimeout(r, 600));
+        onSelect(role, { questions: DEFAULT_QUESTIONS, documents: [] });
+      }
+    } else {
+      await new Promise(r => setTimeout(r, 600));
+      onSelect(role, {});
+    }
+  };
+
+  if (loading) {
+    return <LoadingPortal
+      label={loading === 'student' ? 'Loading Student Portal...' : 'Loading Instructor Portal...'}
+      color={loading === 'student' ? 'bg-blue-600' : 'bg-indigo-600'}
+    />;
+  }
+
   return (
     <div className="min-h-screen w-screen bg-white flex flex-col" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <style>{`
@@ -149,7 +197,6 @@ function LoginScreen({ onSelect }) {
           Powered by Google Vertex AI
         </div>
       </nav>
-
       <div className="flex-1 flex items-center justify-center px-4">
         <div className="w-full max-w-3xl">
           <div className="text-center mb-12">
@@ -165,41 +212,40 @@ function LoginScreen({ onSelect }) {
               AI answers tied directly to what your professor uploaded — cited, trustworthy, grounded.
             </p>
           </div>
-
           <div className="grid grid-cols-2 gap-4 max-w-2xl mx-auto mb-10">
-            <button onClick={() => onSelect('student')}
-              className="portal-card group text-left p-7 rounded-2xl border border-gray-200 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-50/80 bg-white">
+            <button onClick={() => handleSelect('student')} className="portal-card group text-left p-7 rounded-2xl border border-gray-200 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-50/80 bg-white">
               <div className="w-11 h-11 rounded-xl bg-blue-600 flex items-center justify-center mb-5 shadow-sm group-hover:bg-blue-700 transition-colors">
                 <Users size={20} className="text-white" />
               </div>
               <h2 className="text-gray-900 font-semibold text-base mb-1.5">Student Portal</h2>
               <p className="text-gray-400 text-sm mb-5 leading-relaxed">Ask questions, get cited answers from your professor's materials.</p>
               <div className="flex items-center gap-1.5 text-blue-600 text-sm font-medium">
-                Enter as student
-                <ChevronRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
+                Enter as student <ChevronRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
               </div>
             </button>
-
-            <button onClick={() => onSelect('teacher')}
-              className="portal-card group text-left p-7 rounded-2xl border border-gray-200 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-50/80 bg-white">
+            <button onClick={() => handleSelect('teacher')} className="portal-card group text-left p-7 rounded-2xl border border-gray-200 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-50/80 bg-white">
               <div className="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center mb-5 shadow-sm group-hover:bg-indigo-700 transition-colors">
                 <BookOpen size={20} className="text-white" />
               </div>
               <h2 className="text-gray-900 font-semibold text-base mb-1.5">Instructor Portal</h2>
               <p className="text-gray-400 text-sm mb-5 leading-relaxed">Upload course materials and deploy an AI tutor for your class.</p>
               <div className="flex items-center gap-1.5 text-indigo-600 text-sm font-medium">
-                Enter as instructor
-                <ChevronRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
+                Enter as instructor <ChevronRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
               </div>
             </button>
           </div>
-
-          <div className="flex items-center justify-center gap-8 text-gray-300 text-xs">
-            <span className="flex items-center gap-1.5"><span>🔒</span> FERPA aligned</span>
-            <span className="w-1 h-1 rounded-full bg-gray-200"></span>
-            <span>Answers from your materials only</span>
-            <span className="w-1 h-1 rounded-full bg-gray-200"></span>
-            <span>Powered by Vertex AI</span>
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gray-50 border border-gray-100">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
+              <span className="text-xs text-gray-500 font-medium">Powered by the same Google AI that powers NotebookLM</span>
+            </div>
+            <div className="flex items-center gap-6 text-gray-300 text-xs">
+              <span className="flex items-center gap-1.5"><span>🔒</span> FERPA aligned</span>
+              <span className="w-1 h-1 rounded-full bg-gray-200"></span>
+              <span>Answers from your materials only</span>
+              <span className="w-1 h-1 rounded-full bg-gray-200"></span>
+              <span>Built for classrooms</span>
+            </div>
           </div>
         </div>
       </div>
@@ -262,7 +308,6 @@ function TeacherView({ onExit }) {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#f8f9fb] fixed inset-0" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');`}</style>
-
       <aside className="w-60 bg-white border-r border-gray-100 flex flex-col flex-shrink-0">
         <div className="px-5 py-5 border-b border-gray-100">
           <div className="flex items-center gap-2 mb-5">
@@ -279,20 +324,16 @@ function TeacherView({ onExit }) {
             <p className="text-indigo-200 text-[10px] mt-0.5">Course management</p>
           </div>
         </div>
-
         <nav className="p-3 flex-1">
           <p className="text-[10px] text-gray-300 font-semibold px-2 mb-1.5 uppercase tracking-widest">Navigation</p>
           <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold">
-            <FileText size={14} />
-            Course Materials
+            <FileText size={14} />Course Materials
           </div>
           <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-gray-300 text-xs cursor-not-allowed mt-0.5">
-            <BarChart2 size={14} />
-            Student Insights
+            <BarChart2 size={14} />Student Insights
             <span className="ml-auto text-[9px] bg-gray-100 text-gray-300 px-1.5 py-0.5 rounded-full font-semibold">Soon</span>
           </div>
         </nav>
-
         <div className="p-4 border-t border-gray-100">
           <div className="flex items-center gap-2 mb-3">
             <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
@@ -303,7 +344,6 @@ function TeacherView({ onExit }) {
           </button>
         </div>
       </aside>
-
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white border-b border-gray-100 px-8 py-4 flex-shrink-0">
           <div className="flex items-center justify-between mb-3">
@@ -335,14 +375,9 @@ function TeacherView({ onExit }) {
             </div>
           </div>
         </header>
-
         <div className="flex-1 overflow-y-auto p-8">
           {mods.length === 0 ? (
-            <div
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={onDrop}
-              onClick={() => fileRef.current.click()}
+            <div onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={onDrop} onClick={() => fileRef.current.click()}
               className={`flex flex-col items-center justify-center h-64 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'}`}>
               <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-colors ${dragOver ? 'bg-blue-100' : 'bg-gray-100'}`}>
                 <UploadCloud size={24} className={dragOver ? 'text-blue-500' : 'text-gray-400'} />
@@ -352,25 +387,18 @@ function TeacherView({ onExit }) {
             </div>
           ) : (
             <div>
-              <div
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={onDrop}
-                className={`mb-6 flex items-center gap-3 px-5 py-3.5 rounded-xl border border-dashed cursor-pointer transition-all ${dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300 bg-white'}`}
-                onClick={() => fileRef.current.click()}>
+              <div onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={onDrop} onClick={() => fileRef.current.click()}
+                className={`mb-6 flex items-center gap-3 px-5 py-3.5 rounded-xl border border-dashed cursor-pointer transition-all ${dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
                 <UploadCloud size={15} className="text-gray-300" />
                 <span className="text-gray-400 text-xs">Drop another PDF here or click to browse</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {mods.map(m => (
-                  <DocumentCard key={m.id} m={m} onDelete={onDelete} />
-                ))}
+                {mods.map(m => <DocumentCard key={m.id} m={m} onDelete={onDelete} />)}
               </div>
             </div>
           )}
         </div>
       </main>
-
       {toast && (
         <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-5 py-3 rounded-2xl text-white text-xs font-semibold shadow-2xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
           {toast.type === 'error' ? <AlertCircle size={14} /> : <ShieldCheck size={14} />}
@@ -381,44 +409,27 @@ function TeacherView({ onExit }) {
   );
 }
 
-function StudentView({ onExit }) {
+function StudentView({ onExit, initialQuestions, initialDocuments }) {
   const [chats, setChats] = useState([{ id: 1, title: 'New Chat', messages: [] }]);
   const [chatId, setChatId] = useState(1);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [documents, setDocuments] = useState([]);
-  const [suggestedQuestions, setSuggestedQuestions] = useState([
-    "What are the main topics in this course?",
-    "Summarize the key concepts from the materials",
-    "What should I focus on for the exam?",
-  ]);
+  const [documents, setDocuments] = useState(initialDocuments || []);
+  const [suggestedQuestions, setSuggestedQuestions] = useState(initialQuestions || DEFAULT_QUESTIONS);
+  const [copiedId, setCopiedId] = useState(null);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
   const active = chats.find(c => c.id === chatId) || chats[0];
 
-  useEffect(() => {
-    fetch(`${API}/documents`)
-      .then(res => res.json())
-      .then(data => setDocuments(Array.isArray(data) ? data : []))
-      .catch(() => {});
-  }, []);
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
+    }, 50);
+  };
 
-  useEffect(() => {
-    if (documents.length > 0) {
-      const timer = setTimeout(() => {
-        fetch(`${API}/suggested-questions`)
-          .then(r => r.json())
-          .then(data => { if (data.questions?.length) setSuggestedQuestions(data.questions); })
-          .catch(() => {});
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [documents]);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [active.messages, isTyping]);
+  // No need to fetch documents or questions on mount — already preloaded
+  useEffect(() => { scrollToBottom(); }, [active.messages, isTyping]);
 
   const createNewChat = () => {
     const newChat = { id: Date.now(), title: 'New Chat', messages: [] };
@@ -431,11 +442,19 @@ function StudentView({ onExit }) {
     return words.length < message.trim().length ? words + '...' : words;
   };
 
-  const onSend = async () => {
-    if (!input.trim() || isTyping) return;
-    const userMsg = { role: 'user', content: input, sources: [], ts: Date.now() };
+  const copyMessage = (content, id) => {
+    const clean = content.replace(/\nSOURCES:.*$/m, '').trim();
+    navigator.clipboard.writeText(clean);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const onSend = async (messageOverride) => {
+    const message = messageOverride || input;
+    if (!message.trim() || isTyping) return;
+    const userMsg = { role: 'user', content: message, sources: [], ts: Date.now() };
     const isFirstMessage = active.messages.length === 0;
-    const newTitle = isFirstMessage ? generateTitle(input) : null;
+    const newTitle = isFirstMessage ? generateTitle(message) : null;
     const currentChatId = chatId;
 
     setChats(prev => prev.map(c => c.id === currentChatId
@@ -455,7 +474,7 @@ function StudentView({ onExit }) {
       const response = await fetch(`${API}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: input })
+        body: JSON.stringify({ message })
       });
 
       const reader = response.body.getReader();
@@ -477,7 +496,7 @@ function StudentView({ onExit }) {
                 ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: m.content + event.token } : m) }
                 : c
               ));
-              bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+              scrollToBottom();
             } else if (event.type === 'sources') {
               setChats(prev => prev.map(c => c.id === currentChatId
                 ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, sources: event.sources } : m) }
@@ -511,7 +530,6 @@ function StudentView({ onExit }) {
   return (
     <div className="flex h-screen w-screen overflow-hidden fixed inset-0" style={{ background: '#f8f9fb', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');`}</style>
-
       <aside className="w-60 bg-white border-r border-gray-100 flex flex-col flex-shrink-0">
         <div className="px-5 py-5 border-b border-gray-100">
           <div className="flex items-center gap-2 mb-5">
@@ -528,14 +546,11 @@ function StudentView({ onExit }) {
             <p className="text-gray-500 text-[10px] mt-0.5">{documents.length} document{documents.length !== 1 ? 's' : ''} available</p>
           </div>
         </div>
-
         <div className="px-3 pt-3">
-          <button onClick={createNewChat}
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-gray-200 text-gray-500 text-xs font-medium hover:bg-gray-50 hover:border-gray-300 transition-colors">
+          <button onClick={createNewChat} className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-gray-200 text-gray-500 text-xs font-medium hover:bg-gray-50 hover:border-gray-300 transition-colors">
             <Plus size={13} /> New conversation
           </button>
         </div>
-
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           <p className="text-[10px] text-gray-300 font-semibold px-2 mb-2 uppercase tracking-widest">Conversations</p>
           {chats.map(c => (
@@ -546,7 +561,6 @@ function StudentView({ onExit }) {
             </button>
           ))}
         </nav>
-
         <div className="p-4 border-t border-gray-100">
           <p className="text-[10px] text-gray-300 mb-3 leading-relaxed">Answers grounded in your professor's uploaded materials only</p>
           <button onClick={onExit} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs">
@@ -554,7 +568,6 @@ function StudentView({ onExit }) {
           </button>
         </div>
       </aside>
-
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-8 flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -567,17 +580,16 @@ function StudentView({ onExit }) {
             AI Active
           </div>
         </header>
-
         <div className="flex-1 overflow-y-auto px-8 py-6 flex flex-col gap-6">
           {active.messages.length === 0 && (
             <div className="flex flex-col items-center justify-center flex-1 pb-10">
               {documents.length === 0 ? (
                 <div className="text-center max-w-xs">
                   <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-4 mx-auto">
-                    <Search size={22} className="text-gray-300" />
+                    <Clock size={22} className="text-gray-300" />
                   </div>
-                  <h3 className="text-gray-700 font-semibold text-sm mb-2">No materials uploaded yet</h3>
-                  <p className="text-gray-400 text-xs leading-relaxed">Your instructor hasn't uploaded any course materials yet. Check back once they've added content.</p>
+                  <h3 className="text-gray-700 font-semibold text-sm mb-2">Your course is being set up</h3>
+                  <p className="text-gray-400 text-xs leading-relaxed">Your instructor is still uploading course materials. Check back soon — everything will be ready before your next class.</p>
                 </div>
               ) : (
                 <div className="text-center max-w-md w-full">
@@ -588,7 +600,7 @@ function StudentView({ onExit }) {
                   <p className="text-gray-400 text-sm mb-8 leading-relaxed">Every answer is grounded in your professor's uploaded materials — cited, trustworthy, and accurate.</p>
                   <div className="grid grid-cols-1 gap-2">
                     {suggestedQuestions.map((q, i) => (
-                      <button key={i} onClick={() => { setInput(q); inputRef.current?.focus(); }}
+                      <button key={i} onClick={() => onSend(q)}
                         className="text-left px-4 py-3 rounded-xl bg-white border border-gray-200 text-gray-600 text-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-all shadow-sm">
                         <span className="text-gray-300 mr-2 text-xs font-mono">{i + 1}.</span>
                         {q}
@@ -599,7 +611,6 @@ function StudentView({ onExit }) {
               )}
             </div>
           )}
-
           {active.messages.map((m, i) => (
             <div key={m.id || i} className={`flex ${m.role === 'user' ? 'justify-end' : 'items-start gap-3'}`}>
               {m.role === 'assistant' && (
@@ -607,10 +618,15 @@ function StudentView({ onExit }) {
                   <span className="text-white text-[11px] font-bold">S</span>
                 </div>
               )}
-              <div className={`rounded-2xl text-sm ${m.role === 'user'
+              <div className={`relative group/msg rounded-2xl text-sm ${m.role === 'user'
                 ? 'bg-gray-900 text-white px-4 py-3 rounded-br-sm max-w-sm'
                 : 'bg-white border border-gray-100 text-gray-800 px-5 py-4 rounded-bl-sm max-w-[62%] shadow-sm'}`}>
-
+                {m.role === 'assistant' && !m.streaming && m.content && (
+                  <button onClick={() => copyMessage(m.content, m.id || i)}
+                    className="absolute top-3 right-3 opacity-0 group-hover/msg:opacity-100 transition-opacity p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+                    {copiedId === (m.id || i) ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                  </button>
+                )}
                 {m.role === 'assistant' && m.content === '' && m.streaming ? (
                   <div className="flex items-center gap-2 py-1">
                     <div className="flex gap-1">
@@ -623,18 +639,15 @@ function StudentView({ onExit }) {
                 ) : (
                   <MessageText role={m.role} content={m.content} />
                 )}
-
                 {m.role === 'assistant' && m.streaming && m.content && (
                   <span className="inline-block w-0.5 h-4 bg-blue-500 animate-pulse ml-0.5 align-middle" />
                 )}
-
                 {m.role === 'assistant' && m.sources && m.sources.length > 0 && !m.streaming && (
                   <div className="mt-4 pt-3 border-t border-gray-100">
                     <div className="flex flex-wrap gap-1.5 items-center">
                       <span className="text-[10px] text-gray-300 font-medium uppercase tracking-wide mr-0.5">From</span>
                       {m.sources.map((source, idx) => (
-                        <span key={idx}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 border border-blue-100 text-blue-600 text-[11px] font-medium">
+                        <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-50 border border-blue-100 text-blue-600 text-[11px] font-medium">
                           <FileText size={9} className="flex-shrink-0" />
                           <span className="max-w-[180px] truncate">{cleanFileName(source)}</span>
                         </span>
@@ -643,7 +656,6 @@ function StudentView({ onExit }) {
                     </div>
                   </div>
                 )}
-
                 {m.role === 'assistant' && (!m.sources || m.sources.length === 0) && !m.streaming && (
                   <span className="block text-[10px] mt-2 text-gray-300">{formatTime(m.ts)}</span>
                 )}
@@ -653,10 +665,8 @@ function StudentView({ onExit }) {
               </div>
             </div>
           ))}
-
           <div ref={bottomRef} />
         </div>
-
         <div className="px-8 py-4 bg-white border-t border-gray-100 flex-shrink-0">
           <div className="flex gap-3 items-center max-w-3xl mx-auto">
             <div className="flex-1 flex items-center bg-white border border-gray-200 rounded-2xl px-4 py-3 focus-within:border-blue-400 focus-within:shadow-sm focus-within:shadow-blue-100 transition-all">
@@ -669,7 +679,7 @@ function StudentView({ onExit }) {
                 placeholder="Ask about your course material..."
               />
             </div>
-            <button onClick={onSend} disabled={!input.trim() || isTyping}
+            <button onClick={() => onSend()} disabled={!input.trim() || isTyping}
               className="w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-30 text-white flex items-center justify-center flex-shrink-0 transition-colors shadow-sm shadow-blue-200">
               <Send size={15} />
             </button>
@@ -683,7 +693,18 @@ function StudentView({ onExit }) {
 
 export default function App() {
   const [role, setRole] = useState(null);
-  if (!role) return <LoginScreen onSelect={setRole} />;
+  const [preloaded, setPreloaded] = useState({});
+
+  const handleSelect = (role, data) => {
+    setPreloaded(data || {});
+    setRole(role);
+  };
+
+  if (!role) return <LoginScreen onSelect={handleSelect} />;
   if (role === 'teacher') return <TeacherView onExit={() => setRole(null)} />;
-  return <StudentView onExit={() => setRole(null)} />;
+  return <StudentView
+    onExit={() => setRole(null)}
+    initialQuestions={preloaded.questions}
+    initialDocuments={preloaded.documents}
+  />;
 }
