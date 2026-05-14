@@ -148,7 +148,6 @@ function LoadingPortal({ label, color }) {
   );
 }
 
-// ── Classroom Mode ────────────────────────────────────────────────────────────
 function ClassroomMode({ onExit }) {
   const [questions, setQuestions] = useState([]);
   const [newCount, setNewCount] = useState(0);
@@ -160,9 +159,7 @@ function ClassroomMode({ onExit }) {
         const res = await fetch(`${API}/insights`);
         const data = await res.json();
         const incoming = (data.recent || []).filter(q => new Date(q.ts).getTime() > lastSeen - 30000);
-        if (incoming.length > questions.length) {
-          setNewCount(incoming.length - questions.length);
-        }
+        if (incoming.length > questions.length) setNewCount(incoming.length - questions.length);
         setQuestions(incoming.slice(0, 20));
       } catch {}
     };
@@ -176,8 +173,6 @@ function ClassroomMode({ onExit }) {
   return (
     <div className="fixed inset-0 bg-gray-950 flex flex-col z-50" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');`}</style>
-
-      {/* Header */}
       <div className="flex items-center justify-between px-10 py-5 border-b border-gray-800">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
@@ -193,17 +188,12 @@ function ClassroomMode({ onExit }) {
           <X size={14} /> End Class
         </button>
       </div>
-
-      {/* New questions banner */}
       {newCount > 0 && (
-        <button onClick={dismiss}
-          className="mx-8 mt-4 flex items-center justify-between px-5 py-3 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-400 text-sm font-medium hover:bg-blue-500/30 transition-colors">
+        <button onClick={dismiss} className="mx-8 mt-4 flex items-center justify-between px-5 py-3 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-400 text-sm font-medium hover:bg-blue-500/30 transition-colors">
           <span>{newCount} new question{newCount > 1 ? 's' : ''} just came in</span>
           <span className="text-blue-300 text-xs">Tap to refresh</span>
         </button>
       )}
-
-      {/* Question feed */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
         {questions.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
@@ -216,20 +206,15 @@ function ClassroomMode({ onExit }) {
         ) : (
           <div className="space-y-3 max-w-3xl mx-auto">
             {questions.map((q, i) => (
-              <div key={q.id || i}
-                className="flex items-start gap-4 p-5 rounded-2xl bg-gray-900 border border-gray-800">
+              <div key={q.id || i} className="flex items-start gap-4 p-5 rounded-2xl bg-gray-900 border border-gray-800">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-white text-xs font-bold">S</span>
+                  <Sparkles size={13} className="text-white" />
                 </div>
                 <div className="flex-1">
                   <p className="text-white text-base leading-relaxed">{q.question}</p>
                   <div className="flex items-center gap-3 mt-2">
                     <span className="text-gray-500 text-xs">{formatRelativeDate(q.ts)}</span>
-                    {!q.confident && (
-                      <span className="flex items-center gap-1 text-amber-400 text-xs">
-                        <AlertTriangle size={10} /> Needs attention
-                      </span>
-                    )}
+                    {!q.confident && <span className="flex items-center gap-1 text-amber-400 text-xs"><AlertTriangle size={10} /> Needs attention</span>}
                   </div>
                 </div>
               </div>
@@ -237,7 +222,6 @@ function ClassroomMode({ onExit }) {
           </div>
         )}
       </div>
-
       <div className="px-8 py-4 border-t border-gray-800 text-center">
         <p className="text-gray-600 text-xs">Questions update every 8 seconds · Students are using the Student Portal</p>
       </div>
@@ -245,7 +229,6 @@ function ClassroomMode({ onExit }) {
   );
 }
 
-// ── Student Insights Tab ──────────────────────────────────────────────────────
 function StudentInsights({ onStartClassMode }) {
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -256,15 +239,11 @@ function StudentInsights({ onStartClassMode }) {
     try {
       const res = await fetch(`${API}/insights`);
       const data = await res.json();
-      if (lastCount > 0 && data.totalQuestions > lastCount) {
-        setNewCount(data.totalQuestions - lastCount);
-      }
+      if (lastCount > 0 && data.totalQuestions > lastCount) setNewCount(data.totalQuestions - lastCount);
       setLastCount(data.totalQuestions);
       setInsights(data);
       setLoading(false);
-    } catch {
-      setLoading(false);
-    }
+    } catch { setLoading(false); }
   };
 
   useEffect(() => {
@@ -287,29 +266,36 @@ function StudentInsights({ onStartClassMode }) {
 
   const noData = !insights || insights.totalQuestions === 0;
 
+  // Helper to format time saved cleanly
+  const formatTimeSaved = () => {
+    const h = insights.timeSavedHours;
+    const m = insights.timeSavedMinutes;
+    if (h === 0 && m === 0) return <span>0<span className="text-base font-medium text-gray-400 ml-1">min</span></span>;
+    return (
+      <>
+        {h > 0 && <>{h}<span className="text-base font-medium text-gray-400 ml-1">hr</span>{m > 0 ? ' ' : ''}</>}
+        {m > 0 && <>{m}<span className="text-base font-medium text-gray-400 ml-1">min</span></>}
+      </>
+    );
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-8">
-      {/* Header row */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-gray-900 text-base font-semibold">Student Insights</h2>
           <p className="text-gray-400 text-xs mt-0.5">Live data from student interactions</p>
         </div>
-        <button onClick={onStartClassMode}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold transition-colors shadow-sm">
+        <button onClick={onStartClassMode} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold transition-colors shadow-sm">
           <Radio size={13} />
           Start Class Mode
         </button>
       </div>
 
-      {/* New questions banner */}
       {newCount > 0 && (
         <button onClick={() => { setNewCount(0); fetchInsights(); }}
           className="w-full mb-5 flex items-center justify-between px-5 py-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-sm font-medium hover:bg-blue-100 transition-colors">
-          <span className="flex items-center gap-2">
-            <Activity size={14} />
-            {newCount} new question{newCount > 1 ? 's' : ''} since you last checked
-          </span>
+          <span className="flex items-center gap-2"><Activity size={14} />{newCount} new question{newCount > 1 ? 's' : ''} since you last checked</span>
           <span className="text-blue-500 text-xs">Refresh</span>
         </button>
       )}
@@ -324,27 +310,20 @@ function StudentInsights({ onStartClassMode }) {
         </div>
       ) : (
         <div className="space-y-5">
-
-          {/* Stat cards */}
           <div className="grid grid-cols-3 gap-4">
-            {/* Time saved */}
+            {/* ── Time saved card — FIXED ── */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
               <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-1">Your time saved this week</p>
-              <p className="text-3xl font-bold text-gray-900 mb-1">
-                {insights.timeSavedHours}
-                <span className="text-base font-medium text-gray-400 ml-1">hrs</span>
-              </p>
+              <p className="text-3xl font-bold text-gray-900 mb-1">{formatTimeSaved()}</p>
               <p className="text-xs text-gray-400">Based on {insights.weekQuestions} questions answered</p>
             </div>
 
-            {/* Total questions */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
               <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-1">Total questions answered</p>
               <p className="text-3xl font-bold text-gray-900 mb-1">{insights.totalQuestions}</p>
               <p className="text-xs text-gray-400">{insights.weekQuestions} this week</p>
             </div>
 
-            {/* Last question */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
               <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-1">Last question asked</p>
               {insights.lastQuestion ? (
@@ -352,13 +331,10 @@ function StudentInsights({ onStartClassMode }) {
                   <p className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2 mb-1">{insights.lastQuestion.question}</p>
                   <p className="text-xs text-gray-400">{formatRelativeDate(insights.lastQuestion.ts)}</p>
                 </>
-              ) : (
-                <p className="text-sm text-gray-400">No questions yet</p>
-              )}
+              ) : <p className="text-sm text-gray-400">No questions yet</p>}
             </div>
           </div>
 
-          {/* What students are confused about */}
           {insights.topTopics && insights.topTopics.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
               <div className="flex items-center gap-2 mb-4">
@@ -366,7 +342,7 @@ function StudentInsights({ onStartClassMode }) {
                 <h3 className="text-sm font-semibold text-gray-900">What students are asking about</h3>
               </div>
               <div className="space-y-3">
-                {insights.topTopics.map((t, i) => (
+                {insights.topTopics.map((t) => (
                   <div key={t.topic} className="flex items-center gap-3">
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
@@ -374,10 +350,8 @@ function StudentInsights({ onStartClassMode }) {
                         <span className="text-xs text-gray-400">{t.count} question{t.count !== 1 ? 's' : ''}</span>
                       </div>
                       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full transition-all"
-                          style={{ width: `${Math.round((t.count / insights.weekQuestions) * 100)}%` }}
-                        />
+                        <div className="h-full bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full transition-all"
+                          style={{ width: `${Math.round((t.count / insights.weekQuestions) * 100)}%` }} />
                       </div>
                     </div>
                   </div>
@@ -386,7 +360,6 @@ function StudentInsights({ onStartClassMode }) {
             </div>
           )}
 
-          {/* Needs attention — flagged questions */}
           {insights.flagged && insights.flagged.length > 0 && (
             <div className="bg-amber-50 rounded-2xl border border-amber-100 p-5">
               <div className="flex items-center gap-2 mb-3">
@@ -407,7 +380,6 @@ function StudentInsights({ onStartClassMode }) {
             </div>
           )}
 
-          {/* Live question feed */}
           <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
             <div className="flex items-center gap-2 mb-4">
               <Activity size={14} className="text-gray-400" />
@@ -419,38 +391,22 @@ function StudentInsights({ onStartClassMode }) {
             </div>
             <div className="space-y-2">
               {insights.recent.slice(0, 15).map((q, i) => {
-                const tag = getTopicColor(
-                  (() => {
-                    const text = q.question.toLowerCase();
-                    if (/grade|score|percent|exam|quiz|assignment/.test(text)) return 'Grading';
-                    if (/when|due|deadline|schedule/.test(text)) return 'Logistics';
-                    if (/how|what|explain|define/.test(text)) return 'Concepts';
-                    if (/study|prepare|focus|review/.test(text)) return 'Exam Prep';
-                    return 'General';
-                  })()
-                );
-                const topicLabel = (() => {
-                  const text = q.question.toLowerCase();
-                  if (/grade|score|percent|exam|quiz|assignment/.test(text)) return 'Grading';
-                  if (/when|due|deadline|schedule/.test(text)) return 'Logistics';
-                  if (/how|what|explain|define/.test(text)) return 'Concepts';
-                  if (/study|prepare|focus|review/.test(text)) return 'Exam Prep';
-                  return 'General';
-                })();
+                const text = q.question.toLowerCase();
+                const topicLabel = /grade|score|percent|exam|quiz|assignment/.test(text) ? 'Grading'
+                  : /when|due|deadline|schedule/.test(text) ? 'Logistics'
+                  : /how|what|explain|define/.test(text) ? 'Concepts'
+                  : /study|prepare|focus|review/.test(text) ? 'Exam Prep'
+                  : 'General';
                 return (
-                  <div key={q.id || i} className="flex items-start gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors group">
+                  <div key={q.id || i} className="flex items-start gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors">
                     <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 mt-0.5">
                       <Users size={10} className="text-gray-400" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-gray-700 leading-relaxed">{q.question}</p>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${tag}`}>{topicLabel}</span>
-                        {!q.confident && (
-                          <span className="flex items-center gap-1 text-[10px] text-amber-500">
-                            <AlertTriangle size={9} /> Flagged
-                          </span>
-                        )}
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${getTopicColor(topicLabel)}`}>{topicLabel}</span>
+                        {!q.confident && <span className="flex items-center gap-1 text-[10px] text-amber-500"><AlertTriangle size={9} /> Flagged</span>}
                       </div>
                     </div>
                     <span className="text-[10px] text-gray-300 flex-shrink-0 mt-1">{formatRelativeDate(q.ts)}</span>
@@ -459,7 +415,6 @@ function StudentInsights({ onStartClassMode }) {
               })}
             </div>
           </div>
-
         </div>
       )}
     </div>
@@ -479,10 +434,7 @@ function LoginScreen({ onSelect }) {
     setLoading(role);
     if (role === 'student') {
       try {
-        const [docsRes, qRes] = await Promise.all([
-          fetch(`${API}/documents`),
-          fetch(`${API}/suggested-questions`)
-        ]);
+        const [docsRes, qRes] = await Promise.all([fetch(`${API}/documents`), fetch(`${API}/suggested-questions`)]);
         const docs = await docsRes.json();
         const qData = await qRes.json();
         const questions = qData.questions?.length ? qData.questions : DEFAULT_QUESTIONS;
@@ -530,8 +482,7 @@ function LoginScreen({ onSelect }) {
         <div className="w-full max-w-3xl">
           <div className="text-center mb-10">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-100 text-blue-600 text-xs font-medium mb-7">
-              <Zap size={11} />
-              Built for universities
+              <Zap size={11} />Built for universities
             </div>
             <h1 className="serif text-6xl text-gray-900 mb-4 leading-tight">
               Learning grounded in<br />
@@ -591,19 +542,13 @@ function TeacherView({ onExit }) {
   const [classroomMode, setClassroomMode] = useState(false);
   const fileRef = useRef(null);
 
-  const showToast = (msg, type = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  };
+  const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
   useEffect(() => {
-    fetch(`${API}/documents`)
-      .then(res => res.json())
-      .then(data => {
-        const docs = Array.isArray(data) ? data : (data.documents || []);
-        setMods(docs.map(d => ({ id: d.name, name: d.name, chars: d.charCount, chunks: d.chunkCount, uploaded: new Date(d.uploadedAt) })));
-      })
-      .catch(() => showToast('Could not load documents from server.', 'error'));
+    fetch(`${API}/documents`).then(res => res.json()).then(data => {
+      const docs = Array.isArray(data) ? data : (data.documents || []);
+      setMods(docs.map(d => ({ id: d.name, name: d.name, chars: d.charCount, chunks: d.chunkCount, uploaded: new Date(d.uploadedAt) })));
+    }).catch(() => showToast('Could not load documents from server.', 'error'));
   }, []);
 
   const handleFile = async (file) => {
@@ -617,12 +562,8 @@ function TeacherView({ onExit }) {
       if (res.ok && data.success) {
         setMods(prev => [{ id: data.fileName, name: data.fileName, chars: data.charCount, chunks: data.chunkCount, uploaded: new Date() }, ...prev]);
         showToast(`"${file.name}" uploaded and indexed.`);
-      } else {
-        showToast(data.error || 'Upload failed.', 'error');
-      }
-    } catch {
-      showToast('Server unreachable.', 'error');
-    }
+      } else { showToast(data.error || 'Upload failed.', 'error'); }
+    } catch { showToast('Server unreachable.', 'error'); }
     setUploading(false);
   };
 
@@ -659,13 +600,11 @@ function TeacherView({ onExit }) {
         </div>
         <nav className="p-3 flex-1">
           <p className="text-[10px] text-gray-300 font-semibold px-2 mb-1.5 uppercase tracking-widest">Navigation</p>
-          <button
-            onClick={() => setActiveTab('materials')}
+          <button onClick={() => setActiveTab('materials')}
             className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${activeTab === 'materials' ? 'bg-blue-50 text-blue-700' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}>
             <FileText size={14} />Course Materials
           </button>
-          <button
-            onClick={() => setActiveTab('insights')}
+          <button onClick={() => setActiveTab('insights')}
             className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold transition-colors mt-0.5 ${activeTab === 'insights' ? 'bg-blue-50 text-blue-700' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}>
             <BarChart2 size={14} />Student Insights
           </button>
@@ -694,8 +633,7 @@ function TeacherView({ onExit }) {
                   <input type="file" ref={fileRef} onChange={onUpload} className="hidden" accept=".pdf" />
                   <button onClick={() => fileRef.current.click()} disabled={uploading}
                     className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm shadow-blue-200">
-                    <UploadCloud size={14} />
-                    {uploading ? 'Indexing...' : 'Upload PDF'}
+                    <UploadCloud size={14} />{uploading ? 'Indexing...' : 'Upload PDF'}
                   </button>
                 </div>
               </div>
@@ -766,13 +704,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
   const inputRef = useRef(null);
 
   const active = chats.find(c => c.id === chatId) || chats[0];
-
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
-    }, 50);
-  };
-
+  const scrollToBottom = () => { setTimeout(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' }); }, 50); };
   useEffect(() => { scrollToBottom(); }, [active.messages, isTyping]);
 
   const createNewChat = () => {
@@ -806,29 +738,22 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
     const currentChatId = chatId;
 
     setChats(prev => prev.map(c => c.id === currentChatId
-      ? { ...c, messages: [...c.messages, userMsg], ...(newTitle ? { title: newTitle } : {}) }
-      : c
-    ));
+      ? { ...c, messages: [...c.messages, userMsg], ...(newTitle ? { title: newTitle } : {}) } : c));
     setInput('');
     setIsTyping(true);
 
     const streamingMsgId = Date.now();
     setChats(prev => prev.map(c => c.id === currentChatId
-      ? { ...c, messages: [...c.messages, { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true }] }
-      : c
-    ));
+      ? { ...c, messages: [...c.messages, { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true }] } : c));
 
     try {
       const response = await fetch(`${API}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message })
       });
-
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -841,36 +766,25 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
             const event = JSON.parse(line.slice(6));
             if (event.type === 'token') {
               setChats(prev => prev.map(c => c.id === currentChatId
-                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: m.content + event.token } : m) }
-                : c
-              ));
+                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: m.content + event.token } : m) } : c));
               scrollToBottom();
             } else if (event.type === 'sources') {
               setChats(prev => prev.map(c => c.id === currentChatId
-                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, sources: event.sources } : m) }
-                : c
-              ));
+                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, sources: event.sources } : m) } : c));
             } else if (event.type === 'done') {
               setChats(prev => prev.map(c => c.id === currentChatId
-                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) }
-                : c
-              ));
+                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) } : c));
             } else if (event.type === 'error') {
               setChats(prev => prev.map(c => c.id === currentChatId
-                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'Error: ' + event.error, streaming: false } : m) }
-                : c
-              ));
+                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'Error: ' + event.error, streaming: false } : m) } : c));
             }
           } catch {}
         }
       }
     } catch {
       setChats(prev => prev.map(c => c.id === currentChatId
-        ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'Server unreachable. Is it running?', streaming: false } : m) }
-        : c
-      ));
+        ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'Server unreachable. Is it running?', streaming: false } : m) } : c));
     }
-
     setIsTyping(false);
     inputRef.current?.focus();
   };
@@ -968,9 +882,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
             return (
               <div key={msgId} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`flex flex-col ${m.role === 'user' ? 'items-end max-w-xl' : 'items-start max-w-2xl w-full'}`}>
-                  <div className={`rounded-2xl text-sm w-full ${m.role === 'user'
-                    ? 'bg-gray-900 text-white px-4 py-3 rounded-br-sm'
-                    : 'text-gray-800 py-1'}`}>
+                  <div className={`rounded-2xl text-sm w-full ${m.role === 'user' ? 'bg-gray-900 text-white px-4 py-3 rounded-br-sm' : 'text-gray-800 py-1'}`}>
                     {m.role === 'assistant' && m.content === '' && m.streaming ? (
                       <div className="flex items-center gap-2 py-2">
                         <div className="flex gap-1">
@@ -980,9 +892,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
                         </div>
                         <span className="text-xs text-gray-400">Searching your materials</span>
                       </div>
-                    ) : (
-                      <MessageText role={m.role} content={m.content} />
-                    )}
+                    ) : <MessageText role={m.role} content={m.content} />}
                     {m.role === 'assistant' && m.streaming && m.content && (
                       <span className="inline-block w-0.5 h-4 bg-blue-500 animate-pulse ml-0.5 align-middle" />
                     )}
@@ -999,9 +909,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
                         </div>
                       </div>
                     )}
-                    {m.role === 'user' && (
-                      <span className="block text-[10px] mt-1.5 opacity-40">{formatTime(m.ts)}</span>
-                    )}
+                    {m.role === 'user' && <span className="block text-[10px] mt-1.5 opacity-40">{formatTime(m.ts)}</span>}
                   </div>
                   {m.role === 'assistant' && !m.streaming && m.content && (
                     <div className="flex items-center gap-0.5 mt-2">
@@ -1030,14 +938,10 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
         <div className="px-8 py-5 bg-white border-t border-gray-100 flex-shrink-0">
           <div className="flex gap-3 items-center max-w-3xl mx-auto">
             <div className="flex-1 flex items-center bg-[#f8f9fb] border border-gray-200 rounded-2xl px-5 py-3.5 focus-within:border-blue-400 focus-within:bg-white focus-within:shadow-sm focus-within:shadow-blue-100 transition-all">
-              <input
-                ref={inputRef}
-                value={input}
-                onChange={e => setInput(e.target.value)}
+              <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && onSend()}
                 className="flex-1 bg-transparent text-gray-800 text-sm outline-none placeholder-gray-400"
-                placeholder="Ask about your course material..."
-              />
+                placeholder="Ask about your course material..." />
             </div>
             <button onClick={() => onSend()} disabled={!input.trim() || isTyping}
               className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:opacity-30 text-white flex items-center justify-center flex-shrink-0 transition-all shadow-md shadow-blue-200">
@@ -1055,16 +959,9 @@ export default function App() {
   const [role, setRole] = useState(null);
   const [preloaded, setPreloaded] = useState({});
 
-  const handleSelect = (role, data) => {
-    setPreloaded(data || {});
-    setRole(role);
-  };
+  const handleSelect = (role, data) => { setPreloaded(data || {}); setRole(role); };
 
   if (!role) return <LoginScreen onSelect={handleSelect} />;
   if (role === 'teacher') return <TeacherView onExit={() => setRole(null)} />;
-  return <StudentView
-    onExit={() => setRole(null)}
-    initialQuestions={preloaded.questions}
-    initialDocuments={preloaded.documents}
-  />;
+  return <StudentView onExit={() => setRole(null)} initialQuestions={preloaded.questions} initialDocuments={preloaded.documents} />;
 }

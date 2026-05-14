@@ -74,17 +74,10 @@ Smart, warm, encouraging. Like a TA who genuinely cares.`;
 let documents = {};
 let questionsCache = null;
 
-// ── Question log for Student Insights ──────────────────────────────────────
 let questionLog = [];
 
 function logQuestion(question, confident = true) {
-  questionLog.push({
-    id: Date.now(),
-    question,
-    ts: new Date().toISOString(),
-    confident,
-  });
-  // Keep last 1000 questions in memory
+  questionLog.push({ id: Date.now(), question, ts: new Date().toISOString(), confident });
   if (questionLog.length > 1000) questionLog = questionLog.slice(-1000);
 }
 
@@ -103,11 +96,10 @@ function getInsights() {
   const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
   const weekQuestions = questionLog.filter(q => new Date(q.ts).getTime() > weekAgo);
 
-  // Time saved: 3 min per question
   const timeSavedMins = weekQuestions.length * 3;
-  const timeSavedHours = (timeSavedMins / 60).toFixed(1);
+  const timeSavedHours = Math.floor(timeSavedMins / 60);
+  const timeSavedMinutes = timeSavedMins % 60;
 
-  // Topic breakdown
   const topicCounts = {};
   weekQuestions.forEach(q => {
     const tag = getTopicTag(q.question);
@@ -118,7 +110,6 @@ function getInsights() {
     .slice(0, 4)
     .map(([topic, count]) => ({ topic, count }));
 
-  // Peak hour
   const hourCounts = {};
   weekQuestions.forEach(q => {
     const hour = new Date(q.ts).getHours();
@@ -129,22 +120,15 @@ function getInsights() {
     ? `${peakHour[0] % 12 || 12}${parseInt(peakHour[0]) < 12 ? 'am' : 'pm'}`
     : null;
 
-  // Low confidence questions (flagged for professor attention)
-  const flagged = questionLog
-    .filter(q => !q.confident)
-    .slice(-10)
-    .reverse();
-
-  // Recent questions (all, newest first)
+  const flagged = questionLog.filter(q => !q.confident).slice(-10).reverse();
   const recent = [...questionLog].reverse().slice(0, 50);
-
-  // Last question
   const lastQuestion = questionLog[questionLog.length - 1] || null;
 
   return {
     totalQuestions: questionLog.length,
     weekQuestions: weekQuestions.length,
     timeSavedHours,
+    timeSavedMinutes,
     timeSavedMins,
     topTopics,
     peakHourLabel,
@@ -153,7 +137,6 @@ function getInsights() {
     lastQuestion,
   };
 }
-// ────────────────────────────────────────────────────────────────────────────
 
 function invalidateQuestionsCache() {
   questionsCache = null;
@@ -165,9 +148,7 @@ async function generateSuggestedQuestions() {
   const docEntries = Object.entries(documents);
   const firstDoc = docEntries[0];
   try {
-    const pdfPart = {
-      inlineData: { mimeType: 'application/pdf', data: firstDoc[1].buffer.toString('base64') }
-    };
+    const pdfPart = { inlineData: { mimeType: 'application/pdf', data: firstDoc[1].buffer.toString('base64') } };
     const result = await ai.models.generateContent({
       model: MODEL,
       contents: [{ role: 'user', parts: [
@@ -277,7 +258,6 @@ app.delete('/document/:name', (req, res) => {
   res.json({ success: true });
 });
 
-// ── New: log a student question ─────────────────────────────────────────────
 app.post('/log-question', (req, res) => {
   const { question, confident } = req.body;
   if (!question) return res.status(400).json({ error: 'No question provided' });
@@ -285,11 +265,9 @@ app.post('/log-question', (req, res) => {
   res.json({ success: true });
 });
 
-// ── New: get insights for instructor portal ─────────────────────────────────
 app.get('/insights', (req, res) => {
   res.json(getInsights());
 });
-// ────────────────────────────────────────────────────────────────────────────
 
 app.post('/chat', async (req, res) => {
   try {
@@ -317,15 +295,10 @@ app.post('/chat', async (req, res) => {
     const stream = await ai.models.generateContentStream({
       model: MODEL,
       contents: [{ role: 'user', parts }],
-      config: {
-        systemInstruction: SYSTEM_PROMPT,
-        temperature: 0.4,
-        maxOutputTokens: 8192,
-      },
+      config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.4, maxOutputTokens: 8192 },
     });
 
     let fullText = '';
-
     for await (const chunk of stream) {
       const token = chunk.text;
       if (token) {
@@ -342,7 +315,6 @@ app.post('/chat', async (req, res) => {
       sources = docNames;
     }
 
-    // Flag low-confidence answers (those that say "not in your materials")
     const confident = !fullText.toLowerCase().includes("doesn't appear to be in your uploaded");
     logQuestion(message, confident);
 
