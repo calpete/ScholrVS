@@ -74,6 +74,87 @@ Smart, warm, encouraging. Like a TA who genuinely cares.`;
 let documents = {};
 let questionsCache = null;
 
+// ── Question log for Student Insights ──────────────────────────────────────
+let questionLog = [];
+
+function logQuestion(question, confident = true) {
+  questionLog.push({
+    id: Date.now(),
+    question,
+    ts: new Date().toISOString(),
+    confident,
+  });
+  // Keep last 1000 questions in memory
+  if (questionLog.length > 1000) questionLog = questionLog.slice(-1000);
+}
+
+function getTopicTag(question) {
+  const q = question.toLowerCase();
+  if (/grade|gpa|score|point|percent|weight|exam|midterm|final|quiz|assignment|homework|rubric|curve/.test(q)) return 'Grading';
+  if (/deadline|due|when|date|schedule|syllabus|office hour|location|room|time/.test(q)) return 'Logistics';
+  if (/how|explain|what is|define|concept|theory|mean|understand|work/.test(q)) return 'Concepts';
+  if (/exam|test|midterm|final|study|prepare|review|focus/.test(q)) return 'Exam Prep';
+  if (/reading|chapter|lecture|slide|note|material|textbook/.test(q)) return 'Materials';
+  return 'General';
+}
+
+function getInsights() {
+  const now = Date.now();
+  const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+  const weekQuestions = questionLog.filter(q => new Date(q.ts).getTime() > weekAgo);
+
+  // Time saved: 3 min per question
+  const timeSavedMins = weekQuestions.length * 3;
+  const timeSavedHours = (timeSavedMins / 60).toFixed(1);
+
+  // Topic breakdown
+  const topicCounts = {};
+  weekQuestions.forEach(q => {
+    const tag = getTopicTag(q.question);
+    topicCounts[tag] = (topicCounts[tag] || 0) + 1;
+  });
+  const topTopics = Object.entries(topicCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([topic, count]) => ({ topic, count }));
+
+  // Peak hour
+  const hourCounts = {};
+  weekQuestions.forEach(q => {
+    const hour = new Date(q.ts).getHours();
+    hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+  });
+  const peakHour = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0];
+  const peakHourLabel = peakHour
+    ? `${peakHour[0] % 12 || 12}${parseInt(peakHour[0]) < 12 ? 'am' : 'pm'}`
+    : null;
+
+  // Low confidence questions (flagged for professor attention)
+  const flagged = questionLog
+    .filter(q => !q.confident)
+    .slice(-10)
+    .reverse();
+
+  // Recent questions (all, newest first)
+  const recent = [...questionLog].reverse().slice(0, 50);
+
+  // Last question
+  const lastQuestion = questionLog[questionLog.length - 1] || null;
+
+  return {
+    totalQuestions: questionLog.length,
+    weekQuestions: weekQuestions.length,
+    timeSavedHours,
+    timeSavedMins,
+    topTopics,
+    peakHourLabel,
+    flagged,
+    recent,
+    lastQuestion,
+  };
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 function invalidateQuestionsCache() {
   questionsCache = null;
   console.log('🔄 Suggested questions cache cleared');
@@ -196,6 +277,20 @@ app.delete('/document/:name', (req, res) => {
   res.json({ success: true });
 });
 
+// ── New: log a student question ─────────────────────────────────────────────
+app.post('/log-question', (req, res) => {
+  const { question, confident } = req.body;
+  if (!question) return res.status(400).json({ error: 'No question provided' });
+  logQuestion(question, confident !== false);
+  res.json({ success: true });
+});
+
+// ── New: get insights for instructor portal ─────────────────────────────────
+app.get('/insights', (req, res) => {
+  res.json(getInsights());
+});
+// ────────────────────────────────────────────────────────────────────────────
+
 app.post('/chat', async (req, res) => {
   try {
     const { message } = req.body;
@@ -217,7 +312,6 @@ app.post('/chat', async (req, res) => {
 
     parts.push({ text: `\nSTUDENT QUESTION: ${message}` });
 
-    // Send empty citations placeholder — sources will come from parsing the response
     res.write(`data: ${JSON.stringify({ type: 'citations', citations: [] })}\n\n`);
 
     const stream = await ai.models.generateContentStream({
@@ -240,20 +334,18 @@ app.post('/chat', async (req, res) => {
       }
     }
 
-    // Parse SOURCES line from the end of the response
     const sourcesMatch = fullText.match(/\nSOURCES:\s*(.+)$/m);
     let sources = [];
     if (sourcesMatch) {
-      sources = sourcesMatch[1]
-        .split(',')
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
+      sources = sourcesMatch[1].split(',').map(s => s.trim()).filter(s => s.length > 0);
     } else {
-      // If no SOURCES line, attribute to all uploaded docs
       sources = docNames;
     }
 
-    // Send sources as a separate event
+    // Flag low-confidence answers (those that say "not in your materials")
+    const confident = !fullText.toLowerCase().includes("doesn't appear to be in your uploaded");
+    logQuestion(message, confident);
+
     res.write(`data: ${JSON.stringify({ type: 'sources', sources })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
     res.end();
