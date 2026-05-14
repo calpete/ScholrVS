@@ -5,7 +5,7 @@ import {
   ChevronRight, Users, AlertCircle,
   UploadCloud, BarChart2, Zap, Clock, Hash, CheckCircle2,
   Copy, Check, ThumbsUp, ThumbsDown, Sparkles,
-  TrendingUp, AlertTriangle, Activity, X, Radio
+  TrendingUp, AlertTriangle, Activity, X, Radio, Lock
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -45,6 +45,95 @@ function getTopicColor(topic) {
   };
   return colors[topic] || colors['General'];
 }
+
+// ── Password Gate ─────────────────────────────────────────────────────────────
+function PasswordGate({ onUnlock }) {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState(false);
+  const [shaking, setShaking] = useState(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API}/auth`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      if (res.ok) {
+        onUnlock();
+      } else {
+        setError(true);
+        setShaking(true);
+        setPassword('');
+        setTimeout(() => { setShaking(false); setError(false); }, 1500);
+      }
+    } catch {
+      setError(true);
+      setShaking(true);
+      setPassword('');
+      setTimeout(() => { setShaking(false); setError(false); }, 1500);
+    }
+  };
+
+  return (
+    <div className="min-h-screen w-screen bg-white flex flex-col items-center justify-center" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap');
+        .serif { font-family: 'DM Serif Display', Georgia, serif; }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          20% { transform: translateX(-8px); }
+          40% { transform: translateX(8px); }
+          60% { transform: translateX(-6px); }
+          80% { transform: translateX(6px); }
+        }
+        .shake { animation: shake 0.4s ease-in-out; }
+      `}</style>
+
+      <div className="flex items-center gap-2.5 mb-12">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
+          <Sparkles size={17} className="text-white" />
+        </div>
+        <span className="text-gray-900 font-semibold text-xl tracking-tight">ScholrAI</span>
+      </div>
+
+      <div className={`w-full max-w-sm px-4 ${shaking ? 'shake' : ''}`}>
+        <div className="text-center mb-8">
+          <div className="w-14 h-14 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center mx-auto mb-4">
+            <Lock size={22} className="text-gray-400" />
+          </div>
+          <h1 className="serif text-3xl text-gray-900 mb-2">Private access</h1>
+          <p className="text-gray-400 text-sm">Enter your access code to continue</p>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div className={`flex items-center bg-white border rounded-2xl px-4 py-3.5 mb-3 transition-all ${error ? 'border-red-300 shadow-sm shadow-red-100' : 'border-gray-200 focus-within:border-blue-400 focus-within:shadow-sm focus-within:shadow-blue-100'}`}>
+            <input
+              ref={inputRef}
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="flex-1 bg-transparent text-gray-800 text-sm outline-none placeholder-gray-300 tracking-widest"
+              placeholder="••••••••"
+            />
+          </div>
+          {error && <p className="text-red-400 text-xs text-center mb-3">Incorrect access code</p>}
+          <button type="submit" disabled={!password.trim()}
+            className="w-full py-3 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:opacity-30 text-white text-sm font-semibold transition-all shadow-md shadow-blue-200">
+            Continue
+          </button>
+        </form>
+      </div>
+
+      <p className="mt-10 text-gray-300 text-xs">ScholrAI · Private Beta</p>
+    </div>
+  );
+}
+// ────────────────────────────────────────────────────────────────────────────
 
 function PlainMessage({ content }) {
   return <p className="m-0 leading-relaxed whitespace-pre-wrap">{content}</p>;
@@ -266,7 +355,6 @@ function StudentInsights({ onStartClassMode }) {
 
   const noData = !insights || insights.totalQuestions === 0;
 
-  // Helper to format time saved cleanly
   const formatTimeSaved = () => {
     const h = insights.timeSavedHours;
     const m = insights.timeSavedMinutes;
@@ -287,8 +375,7 @@ function StudentInsights({ onStartClassMode }) {
           <p className="text-gray-400 text-xs mt-0.5">Live data from student interactions</p>
         </div>
         <button onClick={onStartClassMode} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold transition-colors shadow-sm">
-          <Radio size={13} />
-          Start Class Mode
+          <Radio size={13} />Start Class Mode
         </button>
       </div>
 
@@ -311,19 +398,16 @@ function StudentInsights({ onStartClassMode }) {
       ) : (
         <div className="space-y-5">
           <div className="grid grid-cols-3 gap-4">
-            {/* ── Time saved card — FIXED ── */}
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
               <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-1">Your time saved this week</p>
               <p className="text-3xl font-bold text-gray-900 mb-1">{formatTimeSaved()}</p>
               <p className="text-xs text-gray-400">Based on {insights.weekQuestions} questions answered</p>
             </div>
-
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
               <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-1">Total questions answered</p>
               <p className="text-3xl font-bold text-gray-900 mb-1">{insights.totalQuestions}</p>
               <p className="text-xs text-gray-400">{insights.weekQuestions} this week</p>
             </div>
-
             <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
               <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-1">Last question asked</p>
               {insights.lastQuestion ? (
@@ -576,7 +660,6 @@ function TeacherView({ onExit }) {
   };
 
   const totalChars = mods.reduce((acc, m) => acc + (m.chars || 0), 0);
-
   if (classroomMode) return <ClassroomMode onExit={() => setClassroomMode(false)} />;
 
   return (
@@ -619,7 +702,6 @@ function TeacherView({ onExit }) {
           </button>
         </div>
       </aside>
-
       <main className="flex-1 flex flex-col overflow-hidden">
         {activeTab === 'materials' ? (
           <>
@@ -660,7 +742,7 @@ function TeacherView({ onExit }) {
                     <UploadCloud size={24} className={dragOver ? 'text-blue-500' : 'text-gray-400'} />
                   </div>
                   <h3 className="text-gray-700 text-sm font-semibold mb-1">{dragOver ? 'Drop to upload' : 'Upload your first document'}</h3>
-                  <p className="text-gray-400 text-xs text-center max-w-xs">Drag and drop a PDF, or click to browse. Syllabi, lecture notes, readings — anything students need.</p>
+                  <p className="text-gray-400 text-xs text-center max-w-xs">Drag and drop a PDF, or click to browse.</p>
                 </div>
               ) : (
                 <div>
@@ -680,7 +762,6 @@ function TeacherView({ onExit }) {
           <StudentInsights onStartClassMode={() => setClassroomMode(true)} />
         )}
       </main>
-
       {toast && (
         <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-5 py-3 rounded-2xl text-white text-xs font-semibold shadow-2xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
           {toast.type === 'error' ? <AlertCircle size={14} /> : <ShieldCheck size={14} />}
@@ -830,7 +911,6 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
           </button>
         </div>
       </aside>
-
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-8 flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -843,7 +923,6 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
             AI Active
           </div>
         </header>
-
         <div className="flex-1 overflow-y-auto px-8 py-8 flex flex-col gap-6">
           {active.messages.length === 0 && (
             <div className="flex flex-col items-center justify-center flex-1 pb-10">
@@ -853,7 +932,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
                     <Clock size={22} className="text-gray-300" />
                   </div>
                   <h3 className="text-gray-700 font-semibold text-sm mb-2">Your course is being set up</h3>
-                  <p className="text-gray-400 text-xs leading-relaxed">Your instructor is still uploading course materials. Check back soon — everything will be ready before your next class.</p>
+                  <p className="text-gray-400 text-xs leading-relaxed">Your instructor is still uploading course materials. Check back soon.</p>
                 </div>
               ) : (
                 <div className="text-center max-w-lg w-full">
@@ -875,7 +954,6 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
               )}
             </div>
           )}
-
           {active.messages.map((m, i) => {
             const msgId = m.id || i;
             const fb = feedback[msgId];
@@ -934,7 +1012,6 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
           })}
           <div ref={bottomRef} />
         </div>
-
         <div className="px-8 py-5 bg-white border-t border-gray-100 flex-shrink-0">
           <div className="flex gap-3 items-center max-w-3xl mx-auto">
             <div className="flex-1 flex items-center bg-[#f8f9fb] border border-gray-200 rounded-2xl px-5 py-3.5 focus-within:border-blue-400 focus-within:bg-white focus-within:shadow-sm focus-within:shadow-blue-100 transition-all">
@@ -956,11 +1033,13 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
 }
 
 export default function App() {
+  const [unlocked, setUnlocked] = useState(false);
   const [role, setRole] = useState(null);
   const [preloaded, setPreloaded] = useState({});
 
   const handleSelect = (role, data) => { setPreloaded(data || {}); setRole(role); };
 
+  if (!unlocked) return <PasswordGate onUnlock={() => setUnlocked(true)} />;
   if (!role) return <LoginScreen onSelect={handleSelect} />;
   if (role === 'teacher') return <TeacherView onExit={() => setRole(null)} />;
   return <StudentView onExit={() => setRole(null)} initialQuestions={preloaded.questions} initialDocuments={preloaded.documents} />;

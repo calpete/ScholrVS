@@ -344,4 +344,13 @@ app.get('/suggested-questions', async (req, res) => {
   }
 });
 
+
+// Auth endpoint
+app.post('/auth', (req, res) => {
+  const { password } = req.body;
+  const correct = process.env.ACCESS_PASSWORD || 'scholr2026';
+  if (password === correct) return res.json({ success: true });
+  res.status(401).json({ error: 'Invalid password' });
+});
+
 app.listen(PORT, () => console.log(`✅ ScholrAI running on http://localhost:${PORT}`));
