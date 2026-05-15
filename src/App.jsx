@@ -5,7 +5,7 @@ import {
   ChevronRight, Users, AlertCircle,
   UploadCloud, BarChart2, Zap, Clock, CheckCircle2,
   Copy, Check, ThumbsUp, ThumbsDown,
-  TrendingUp, AlertTriangle, Activity, X, Radio, Lock, WifiOff, Paperclip
+  TrendingUp, AlertTriangle, Activity, X, Radio, Lock, WifiOff, Paperclip, Square
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -734,6 +734,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
   const paperclipRef = useRef(null);
+  const abortRef = useRef(null);
 
   const active = chats.find(c => c.id === chatId) || chats[0];
   const scrollToBottom = () => { setTimeout(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 50); };
@@ -779,6 +780,19 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
     setFeedback(prev => ({ ...prev, [id]: prev[id] === type ? null : type }));
   };
 
+  // Stop in-flight generation
+  const onStop = () => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+    // Mark any streaming message as no longer streaming
+    setChats(prev => prev.map(c => c.id === chatId
+      ? { ...c, messages: c.messages.map(m => m.streaming ? { ...m, streaming: false } : m) }
+      : c));
+    setIsTyping(false);
+  };
+
   const onSend = async (messageOverride) => {
     const message = messageOverride || input;
     if (!message.trim() || isTyping) return;
@@ -796,6 +810,10 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
     setChats(prev => prev.map(c => c.id === currentChatId
       ? { ...c, messages: [...c.messages, { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true }] } : c));
 
+    // Create an AbortController so the stop button can cancel this request
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       let response;
       if (myNotes.length > 0) {
@@ -803,9 +821,9 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
         fd.append('message', message);
         fd.append('history', JSON.stringify(completedMessages.map(m => ({ role: m.role, content: m.content }))));
         myNotes.forEach((n, i) => fd.append(`note_${i}`, new Blob([n.buffer], { type: n.mimeType || 'application/pdf' }), n.name));
-        response = await fetch(`${API}/chat`, { method: 'POST', body: fd });
+        response = await fetch(`${API}/chat`, { method: 'POST', body: fd, signal: controller.signal });
       } else {
-        response = await fetch(`${API}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, history: completedMessages.map(m => ({ role: m.role, content: m.content })) }) });
+        response = await fetch(`${API}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, history: completedMessages.map(m => ({ role: m.role, content: m.content })) }), signal: controller.signal });
       }
 
       const reader = response.body.getReader();
@@ -841,11 +859,47 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
           } catch {}
         }
       }
-    } catch {
-      setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'error:network', streaming: false, isError: true } : m) } : c));
+    } catch (err) {
+      // If user clicked Stop, the AbortError fires here — leave the partial content as-is
+      if (err?.name === 'AbortError') {
+        setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) } : c));
+      } else {
+        setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'error:network', streaming: false, isError: true } : m) } : c));
+      }
     }
+    abortRef.current = null;
     setIsTyping(false);
     inputRef.current?.focus();
+  };
+
+  // Send/Stop button — same slot, swaps content based on state
+  const SendStopButton = () => {
+    if (isTyping) {
+      return (
+        <button
+          onClick={onStop}
+          title="Stop generating"
+          className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0 transition-all"
+        >
+          <Square size={11} fill="currentColor" />
+        </button>
+      );
+    }
+    const disabled = !input.trim();
+    return (
+      <button
+        onClick={() => onSend()}
+        disabled={disabled}
+        title="Send"
+        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
+          disabled
+            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            : 'bg-gray-900 hover:bg-gray-800 text-white'
+        }`}
+      >
+        <Send size={12} />
+      </button>
+    );
   };
 
   return (
@@ -917,11 +971,14 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
                   <p className="text-gray-400 text-xs leading-relaxed">Your instructor is uploading materials. You can also add personal notes in the sidebar.</p>
                 </div>
               ) : (
-                <div className="text-center max-w-md w-full">
-                  <Logo size={36} />
-                  <h3 className="text-gray-900 font-semibold text-lg mt-5 mb-1.5">Ask anything about your course</h3>
+                <div className="text-center max-w-md w-full flex flex-col items-center">
+                  {/* Centered logo */}
+                  <div className="flex justify-center mb-5">
+                    <Logo size={36} />
+                  </div>
+                  <h3 className="text-gray-900 font-semibold text-lg mb-1.5">Ask anything about your course</h3>
                   <p className="text-gray-400 text-sm mb-8">Every answer is grounded in your professor's materials — cited and accurate.</p>
-                  <div className="space-y-2 text-left">
+                  <div className="space-y-2 text-left w-full">
                     {suggestedQuestions.map((q, i) => (
                       <button key={i} onClick={() => onSend(q)}
                         className="w-full text-left px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 text-sm hover:bg-gray-100 hover:border-gray-300 transition-all group">
@@ -994,25 +1051,28 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
           <div ref={bottomRef} />
         </div>
 
-        {/* Input */}
+        {/* Input — send/stop button now lives INSIDE the pill */}
         <div className="px-8 py-4 bg-white border-t border-gray-100 flex-shrink-0">
-          <div className="flex gap-3 items-center max-w-3xl mx-auto">
-            <div className="flex-1 flex items-center bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3 focus-within:border-gray-400 focus-within:bg-white focus-within:shadow-sm transition-all gap-2.5">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2 focus-within:border-gray-400 focus-within:bg-white focus-within:shadow-sm transition-all gap-2">
               <button onClick={() => paperclipRef.current?.click()} title="Attach file"
-                className="flex-shrink-0 text-gray-300 hover:text-gray-600 transition-colors p-0.5">
+                className="flex-shrink-0 text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors p-1.5 rounded-lg">
                 <Paperclip size={15} />
               </button>
               <input ref={paperclipRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp"
                 onChange={e => { handlePaperclipFile(e.target.files[0]); e.target.value = ''; }} />
               <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && onSend()}
-                className="flex-1 bg-transparent text-gray-800 text-sm outline-none placeholder-gray-400"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (isTyping) return; // ignore enter while generating
+                    onSend();
+                  }
+                }}
+                className="flex-1 bg-transparent text-gray-800 text-sm outline-none placeholder-gray-400 py-1.5"
                 placeholder={myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course..."} />
+              <SendStopButton />
             </div>
-            <button onClick={() => onSend()} disabled={!input.trim() || isTyping}
-              className="w-10 h-10 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-30 text-white flex items-center justify-center flex-shrink-0 transition-colors">
-              <Send size={14} />
-            </button>
           </div>
           <p className="text-center text-[10px] text-gray-300 mt-2">
             {myNotes.length > 0 ? `${documents.length} course doc${documents.length !== 1 ? 's' : ''} + ${myNotes.length} note${myNotes.length !== 1 ? 's' : ''} · Vertex AI` : 'Grounded in your course materials · Vertex AI'}
