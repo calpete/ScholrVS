@@ -5,7 +5,7 @@ import {
   ChevronRight, Users, AlertCircle,
   UploadCloud, BarChart2, Zap, Clock, Hash, CheckCircle2,
   Copy, Check, ThumbsUp, ThumbsDown, Sparkles,
-  TrendingUp, AlertTriangle, Activity, X, Radio, Lock, WifiOff
+  TrendingUp, AlertTriangle, Activity, X, Radio, Lock, WifiOff, Paperclip, Image
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -559,10 +559,11 @@ function TeacherView({ onExit }) {
   }, []);
 
   const handleFile = async (file) => {
-    if (!file || !file.name.endsWith('.pdf')) return;
+    const supported = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
+    if (!file || !supported.some(ext => file.name.toLowerCase().endsWith(ext))) return;
     setUploading(true);
     const formData = new FormData();
-    formData.append('pdf', file);
+    formData.append('file', file);
     try {
       const res = await fetch(`${API}/upload`, { method: 'POST', body: formData });
       const data = await res.json();
@@ -615,9 +616,9 @@ function TeacherView({ onExit }) {
               <div className="flex items-center justify-between mb-3">
                 <div><h2 className="text-gray-900 text-base font-semibold">Course Materials</h2><p className="text-gray-400 text-xs mt-0.5">AI tutor reads all uploaded documents</p></div>
                 <div className="flex items-center gap-3">
-                  <input type="file" ref={fileRef} onChange={onUpload} className="hidden" accept=".pdf" />
+                  <input type="file" ref={fileRef} onChange={onUpload} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" />
                   <button onClick={() => fileRef.current.click()} disabled={uploading} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm shadow-blue-200">
-                    <UploadCloud size={14} />{uploading ? 'Uploading...' : 'Upload PDF'}
+                    <UploadCloud size={14} />{uploading ? 'Uploading...' : 'Upload File'}
                   </button>
                 </div>
               </div>
@@ -632,14 +633,14 @@ function TeacherView({ onExit }) {
                   className={`flex flex-col items-center justify-center h-64 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'}`}>
                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-colors ${dragOver ? 'bg-blue-100' : 'bg-gray-100'}`}><UploadCloud size={24} className={dragOver ? 'text-blue-500' : 'text-gray-400'} /></div>
                   <h3 className="text-gray-700 text-sm font-semibold mb-1">{dragOver ? 'Drop to upload' : 'Upload your first document'}</h3>
-                  <p className="text-gray-400 text-xs text-center max-w-xs">Drag and drop a PDF, or click to browse.</p>
+                  <p className="text-gray-400 text-xs text-center max-w-xs">PDFs, JPGs, PNGs — drag and drop or click to browse.</p>
                 </div>
               ) : (
                 <div>
                   <div onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={onDrop} onClick={() => fileRef.current.click()}
                     className={`mb-6 flex items-center gap-3 px-5 py-3.5 rounded-xl border border-dashed cursor-pointer transition-all ${dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
                     <UploadCloud size={15} className="text-gray-300" />
-                    <span className="text-gray-400 text-xs">Drop another PDF here or click to browse</span>
+                    <span className="text-gray-400 text-xs">Drop another file here — PDF or image</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {mods.map(m => <DocumentCard key={m.id} m={m} onDelete={onDelete} />)}
@@ -660,49 +661,45 @@ function TeacherView({ onExit }) {
   );
 }
 
-function StudentNoteUpload({ onFilesChange }) {
-  const [myDocs, setMyDocs] = useState([]);
+function StudentNoteUpload({ myDocs, onFilesChange }) {
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
 
   const handleFile = (file) => {
-    if (!file || !file.name.endsWith('.pdf')) return;
+    const supported = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
+    if (!file || !supported.some(ext => file.name.toLowerCase().endsWith(ext))) return;
     const reader = new FileReader();
     reader.onload = (e) => {
       const buffer = e.target.result;
-      const newDoc = { name: file.name, buffer, size: Math.round(file.size / 1024) };
-      setMyDocs(prev => {
-        const updated = [newDoc, ...prev.filter(d => d.name !== file.name)];
-        onFilesChange(updated);
-        return updated;
-      });
+      const ext = file.name.toLowerCase().split('.').pop();
+      const mimeMap = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+      const mimeType = mimeMap[ext] || 'application/pdf';
+      const newDoc = { name: file.name, buffer, size: Math.round(file.size / 1024), mimeType };
+      const updated = [newDoc, ...myDocs.filter(d => d.name !== file.name)];
+      onFilesChange(updated);
     };
     reader.readAsArrayBuffer(file);
   };
 
   const removeDoc = (name) => {
-    setMyDocs(prev => {
-      const updated = prev.filter(d => d.name !== name);
-      onFilesChange(updated);
-      return updated;
-    });
+    onFilesChange(myDocs.filter(d => d.name !== name));
   };
 
   return (
     <div className="px-3 py-3 border-t border-gray-100">
       <div className="flex items-center justify-between mb-2">
         <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-widest">My Notes</p>
-        <button onClick={() => fileRef.current.click()} className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-600 font-semibold transition-colors"><Plus size={10} /> Add PDF</button>
+        <button onClick={() => fileRef.current.click()} className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-600 font-semibold transition-colors"><Plus size={10} /> Add File</button>
       </div>
-      <input type="file" ref={fileRef} onChange={e => { handleFile(e.target.files[0]); e.target.value = ''; }} className="hidden" accept=".pdf" />
+      <input type="file" ref={fileRef} onChange={e => { handleFile(e.target.files[0]); e.target.value = ''; }} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" />
       {myDocs.length === 0 ? (
         <div onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
           onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
           onClick={() => fileRef.current.click()}
           className={`flex flex-col items-center justify-center py-4 rounded-xl border border-dashed cursor-pointer transition-all ${dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'}`}>
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mb-2 shadow-sm"><UploadCloud size={14} className="text-white" /></div>
-          <p className="text-[11px] text-gray-500 font-medium text-center">Drop your notes here</p>
-          <p className="text-[10px] text-gray-300 mt-0.5">PDF only · Session only</p>
+          <p className="text-[11px] text-gray-500 font-medium text-center">Drop notes or photos here</p>
+          <p className="text-[10px] text-gray-300 mt-0.5">PDF or image · Session only</p>
         </div>
       ) : (
         <div className="space-y-1.5">
@@ -747,6 +744,23 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
   const [myNotes, setMyNotes] = useState([]);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+  const paperclipRef = useRef(null);
+
+  const handlePaperclipFile = (file) => {
+    if (!file) return;
+    const supported = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
+    if (!supported.some(ext => file.name.toLowerCase().endsWith(ext))) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const buffer = e.target.result;
+      const ext = file.name.toLowerCase().split('.').pop();
+      const mimeMap = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+      const mimeType = mimeMap[ext] || 'application/pdf';
+      const newDoc = { name: file.name, buffer, size: Math.round(file.size / 1024), mimeType };
+      setMyNotes(prev => [newDoc, ...prev.filter(d => d.name !== file.name)]);
+    };
+    reader.readAsArrayBuffer(file);
+  };
 
   const active = chats.find(c => c.id === chatId) || chats[0];
   const scrollToBottom = () => { setTimeout(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' }); }, 50); };
@@ -758,9 +772,18 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
     setChatId(newChat.id);
   };
 
-  const generateTitle = (message) => {
-    const words = message.trim().split(/\s+/).slice(0, 5).join(' ');
-    return words.length < message.trim().length ? words + '...' : words;
+  const generateAITitle = async (question, answer) => {
+    try {
+      const res = await fetch(`${API}/generate-title`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, answer })
+      });
+      const data = await res.json();
+      return data.title || question.trim().split(/\s+/).slice(0, 4).join(' ');
+    } catch {
+      return question.trim().split(/\s+/).slice(0, 4).join(' ');
+    }
   };
 
   const copyMessage = (content, id) => {
@@ -780,14 +803,13 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
 
     const userMsg = { role: 'user', content: message, sources: [], ts: Date.now() };
     const isFirstMessage = active.messages.length === 0;
-    const newTitle = isFirstMessage ? generateTitle(message) : null;
     const currentChatId = chatId;
 
     // Build history to send — only completed (non-streaming) messages
     const completedMessages = active.messages.filter(m => !m.streaming);
 
     setChats(prev => prev.map(c => c.id === currentChatId
-      ? { ...c, messages: [...c.messages, userMsg], ...(newTitle ? { title: newTitle } : {}) } : c));
+      ? { ...c, messages: [...c.messages, userMsg] } : c));
     setInput('');
     setIsTyping(true);
 
@@ -803,7 +825,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
         // Send conversation history as JSON string
         formData.append('history', JSON.stringify(completedMessages.map(m => ({ role: m.role, content: m.content }))));
         myNotes.forEach((note, i) => {
-          formData.append(`note_${i}`, new Blob([note.buffer], { type: 'application/pdf' }), note.name);
+          formData.append(`note_${i}`, new Blob([note.buffer], { type: note.mimeType || 'application/pdf' }), note.name);
         });
         response = await fetch(`${API}/chat`, { method: 'POST', body: formData });
       } else {
@@ -840,6 +862,17 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
             } else if (event.type === 'done') {
               setChats(prev => prev.map(c => c.id === currentChatId
                 ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) } : c));
+              // Generate AI title after first message completes
+              if (isFirstMessage) {
+                const currentMsgs = (await new Promise(resolve => {
+                  setChats(prev => { resolve(prev); return prev; });
+                })).find(c => c.id === currentChatId)?.messages || [];
+                const aiMsg = currentMsgs.find(m => m.id === streamingMsgId);
+                const aiContent = aiMsg?.content || '';
+                generateAITitle(message, aiContent).then(title => {
+                  setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title } : c));
+                });
+              }
             } else if (event.type === 'error') {
               setChats(prev => prev.map(c => c.id === currentChatId
                 ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'error:' + event.error, streaming: false, isError: true } : m) } : c));
@@ -884,7 +917,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
             </button>
           ))}
         </nav>
-        <StudentNoteUpload onFilesChange={setMyNotes} />
+        <StudentNoteUpload myDocs={myNotes} onFilesChange={setMyNotes} />
         <div className="p-4 border-t border-gray-100">
           <p className="text-[10px] text-gray-300 mb-3 leading-relaxed">Answers grounded in your professor's materials{myNotes.length > 0 ? ' + your notes' : ''}</p>
           <button onClick={onExit} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs"><LogOut size={12} /> Exit Portal</button>
@@ -1009,7 +1042,21 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
 
         <div className="px-8 py-5 bg-white border-t border-gray-100 flex-shrink-0">
           <div className="flex gap-3 items-center max-w-3xl mx-auto">
-            <div className="flex-1 flex items-center bg-[#f8f9fb] border border-gray-200 rounded-2xl px-5 py-3.5 focus-within:border-blue-400 focus-within:bg-white focus-within:shadow-sm focus-within:shadow-blue-100 transition-all">
+            <div className="flex-1 flex items-center bg-[#f8f9fb] border border-gray-200 rounded-2xl px-4 py-3.5 focus-within:border-blue-400 focus-within:bg-white focus-within:shadow-sm focus-within:shadow-blue-100 transition-all gap-2">
+              <button
+                onClick={() => paperclipRef.current?.click()}
+                title="Attach notes or images"
+                className="flex-shrink-0 p-1 rounded-lg text-gray-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+              >
+                <Paperclip size={15} />
+              </button>
+              <input
+                ref={paperclipRef}
+                type="file"
+                className="hidden"
+                accept=".pdf,.jpg,.jpeg,.png,.webp"
+                onChange={e => { handlePaperclipFile(e.target.files[0]); e.target.value = ''; }}
+              />
               <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && onSend()}
                 className="flex-1 bg-transparent text-gray-800 text-sm outline-none placeholder-gray-400"
