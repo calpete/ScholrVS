@@ -5,7 +5,6 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
-import { createRequire } from 'module';
 import fs from 'fs';
 import os from 'os';
 
@@ -17,9 +16,6 @@ if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
   process.env.GOOGLE_APPLICATION_CREDENTIALS = tmpPath;
   console.log('✅ GCP credentials written from env var');
 }
-
-const require = createRequire(import.meta.url);
-const PDFParser = require('pdf2json');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -188,38 +184,6 @@ async function generateSuggestedQuestions() {
   }
 }
 
-function extractPdfText(buffer) {
-  return new Promise((resolve, reject) => {
-    const parser = new PDFParser(null, 1);
-    parser.on('pdfParser_dataError', err => reject(err));
-    parser.on('pdfParser_dataReady', () => resolve(parser.getRawTextContent()));
-    parser.parseBuffer(buffer);
-  });
-}
-
-function chunkText(text, chunkSize = 800, overlap = 100) {
-  const chunks = [];
-  const pages = text.split(/\f/).filter(p => p.trim().length > 0);
-  if (pages.length > 1) {
-    pages.forEach((pageText, pageIndex) => {
-      let start = 0;
-      while (start < pageText.length) {
-        const content = pageText.slice(start, Math.min(start + chunkSize, pageText.length)).trim();
-        if (content.length > 50) chunks.push({ text: content, page: pageIndex + 1 });
-        start += chunkSize - overlap;
-      }
-    });
-  } else {
-    let start = 0;
-    while (start < text.length) {
-      const content = text.slice(start, Math.min(start + chunkSize, text.length)).trim();
-      if (content.length > 50) chunks.push({ text: content, page: Math.ceil(start / 3000) + 1 });
-      start += chunkSize - overlap;
-    }
-  }
-  return chunks;
-}
-
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(fileUpload({ limits: { fileSize: 50 * 1024 * 1024 } }));
@@ -229,19 +193,12 @@ app.post('/upload', async (req, res) => {
     if (!req.files?.pdf) return res.status(400).json({ error: 'No PDF uploaded' });
     const file = req.files.pdf;
     const buffer = Buffer.from(file.data);
-    let text = '';
-    let chunks = [];
-    try {
-      text = await extractPdfText(buffer);
-      chunks = chunkText(text);
-    } catch (e) {
-      console.warn('Text extraction failed, using native PDF only:', e.message);
-    }
-    documents[file.name] = { buffer, text, chunks, uploadedAt: new Date().toISOString() };
-    console.log(`✅ Uploaded: ${file.name} — ${chunks.length} chunks`);
+    const sizeKb = Math.round(buffer.length / 1024);
+    // Store only the buffer — Gemini reads PDFs natively, no text extraction needed
+    documents[file.name] = { buffer, sizeKb, uploadedAt: new Date().toISOString() };
+    console.log(`✅ Uploaded: ${file.name} — ${sizeKb}kb`);
     invalidateQuestionsCache();
-    // Questions generated lazily on first /suggested-questions request — upload is instant
-    res.json({ success: true, fileName: file.name, chunkCount: chunks.length, charCount: text.length });
+    res.json({ success: true, fileName: file.name, sizeKb });
   } catch (err) {
     console.error('Upload error:', err);
     res.status(500).json({ error: 'Failed to process PDF: ' + err.message });
@@ -250,7 +207,7 @@ app.post('/upload', async (req, res) => {
 
 app.get('/documents', (req, res) => {
   res.json(Object.entries(documents).map(([name, doc]) => ({
-    name, chunkCount: doc.chunks.length, charCount: doc.text.length, uploadedAt: doc.uploadedAt
+    name, sizeKb: doc.sizeKb, uploadedAt: doc.uploadedAt
   })));
 });
 
