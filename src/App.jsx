@@ -811,6 +811,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buf = '';
+      let fullResponseText = '';
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -822,6 +823,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
           try {
             const event = JSON.parse(line.slice(6));
             if (event.type === 'token') {
+              fullResponseText += event.token;
               setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: m.content + event.token } : m) } : c));
               scrollToBottom();
             } else if (event.type === 'sources') {
@@ -829,9 +831,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
             } else if (event.type === 'done') {
               setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) } : c));
               if (isFirstMessage) {
-                const currentMsgs = (await new Promise(resolve => { setChats(prev => { resolve(prev); return prev; }); })).find(c => c.id === currentChatId)?.messages || [];
-                const aiContent = currentMsgs.find(m => m.id === streamingMsgId)?.content || '';
-                generateAITitle(message, aiContent).then(title => {
+                generateAITitle(message, fullResponseText).then(title => {
                   setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title } : c));
                 });
               }
