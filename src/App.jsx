@@ -22,6 +22,13 @@ const FONT = `
   .shake { animation: shake 0.35s ease-in-out; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
   .fade-up { animation: fadeUp 0.4s ease forwards; }
+  @keyframes eq1 { 0%,100%{width:8px} 50%{width:18px} }
+  @keyframes eq2 { 0%,100%{width:16px} 50%{width:6px} }
+  @keyframes eq3 { 0%,100%{width:11px} 30%{width:18px} 70%{width:5px} }
+  .eq-bar { height:2px; border-radius:2px; background:#6b7280; display:block; }
+  .eq1 { animation: eq1 0.8s ease-in-out infinite; }
+  .eq2 { animation: eq2 0.95s ease-in-out infinite 0.15s; }
+  .eq3 { animation: eq3 0.75s ease-in-out infinite 0.08s; }
 `;
 
 function formatTime(date) {
@@ -120,8 +127,8 @@ function PasswordGate({ onUnlock }) {
 }
 
 // ── Markdown rendering ────────────────────────────────────────────────────────
-function PlainMessage({ content }) {
-  return <p className="m-0 leading-relaxed whitespace-pre-wrap text-gray-800">{content}</p>;
+function PlainMessage({ content, isUser }) {
+  return <p className={`m-0 leading-relaxed whitespace-pre-wrap ${isUser ? 'text-white' : 'text-gray-800'}`}>{content}</p>;
 }
 function MarkdownMessage({ content }) {
   const cleanContent = content.replace(/\nSOURCES:.*$/m, '').trim();
@@ -152,7 +159,7 @@ function MarkdownMessage({ content }) {
   );
 }
 function MessageText({ role, content }) {
-  if (role === 'user') return <PlainMessage content={content} />;
+  if (role === 'user') return <PlainMessage content={content} isUser={true} />;
   return <MarkdownMessage content={content} />;
 }
 
@@ -202,8 +209,10 @@ function LoadingScreen({ label }) {
       <style>{FONT}</style>
       <Logo size={36} />
       <p className="text-gray-400 text-sm mt-5 mb-8">{label}</p>
-      <div className="flex gap-1.5">
-        {[0, 150, 300].map(d => <div key={d} className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: `${d}ms` }} />)}
+      <div className="flex flex-col justify-center gap-1" style={{width:'22px'}}>
+        <div className="eq-bar eq1"></div>
+        <div className="eq-bar eq2"></div>
+        <div className="eq-bar eq3"></div>
       </div>
     </div>
   );
@@ -305,7 +314,7 @@ function StudentInsights({ onStartClassMode }) {
     return () => clearInterval(i);
   }, [lastCount]);
 
-  if (loading) return <div className="flex-1 flex items-center justify-center"><div className="flex gap-1.5">{[0,150,300].map(d=><div key={d} className="w-1.5 h-1.5 rounded-full bg-gray-200 animate-bounce" style={{animationDelay:`${d}ms`}}/>)}</div></div>;
+  if (loading) return <div className="flex-1 flex items-center justify-center"><div className="flex gap-1.5"><div className="flex flex-col justify-center gap-1" style={{width:'22px'}}><div className="eq-bar eq1"></div><div className="eq-bar eq2"></div><div className="eq-bar eq3"></div></div></div></div>;
 
   const noData = !insights || insights.totalQuestions === 0;
   const formatTimeSaved = () => {
@@ -934,9 +943,11 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
                 <div className={`flex flex-col ${m.role === 'user' ? 'items-end max-w-xl' : 'items-start max-w-2xl w-full'}`}>
                   <div className={`rounded-2xl text-sm w-full ${m.role === 'user' ? 'bg-gray-900 text-white px-4 py-3 rounded-br-sm' : 'text-gray-800'}`}>
                     {m.role === 'assistant' && m.content === '' && m.streaming ? (
-                      <div className="flex items-center gap-2 py-2">
-                        <div className="flex gap-1">
-                          {[0,150,300].map(d => <div key={d} className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: `${d}ms` }} />)}
+                      <div className="flex items-center gap-3 py-2">
+                        <div className="flex flex-col justify-center gap-1" style={{width:'22px'}}>
+                          <div className="eq-bar eq1"></div>
+                          <div className="eq-bar eq2"></div>
+                          <div className="eq-bar eq3"></div>
                         </div>
                         <span className="text-xs text-gray-400">Reading your materials...</span>
                       </div>
