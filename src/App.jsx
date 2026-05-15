@@ -10,7 +10,9 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-const API = 'https://scholrvs.onrender.com';
+const API = window.location.hostname === 'localhost'
+  ? 'http://localhost:3001'
+  : 'https://scholrvs.onrender.com';
 
 function formatTime(date) {
   return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
