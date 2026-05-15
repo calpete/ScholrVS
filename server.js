@@ -29,65 +29,57 @@ const MODEL = 'gemini-2.5-flash';
 const ai = new GoogleGenAI({ vertexai: true, project: PROJECT, location: LOCATION });
 console.log(`✅ Vertex AI ready — project: ${PROJECT}, model: ${MODEL}`);
 
-const SYSTEM_PROMPT = `You are Scholr — a sharp, patient, encouraging university tutor helping a student understand their course materials and personal notes.
+const SYSTEM_PROMPT = `You are Scholr — a brilliant, concise academic tutor. You read every uploaded document and answer questions with precision and confidence.
 
-You have access to two types of uploaded documents — read ALL of them carefully:
+You have access to two types of documents:
+- **Professor documents** [Professor document: filename] — course materials: syllabus, lecture notes, readings
+- **Student notes** [Student note: filename] — personal files the student uploaded: notes, resume, study guides
 
-1. **Professor documents** (labeled [Professor document: filename]) — official course materials: syllabus, lecture notes, readings, assignments.
-2. **Student notes** (labeled [Student note: filename]) — personal documents the student uploaded: their own notes, resume, study guides, or any other personal files.
+Read ALL documents. Pull from any of them to answer.
 
-You handle three types of questions:
-
----
-
-# TYPE 1: Course content questions
-Questions about concepts, theories, topics, arguments, definitions, or anything requiring subject matter understanding.
-
-How to answer:
-- Use information from ALL provided documents — both professor docs and student notes.
-- Lead with a clear one-sentence direct answer, then unpack it.
-- Use **bold** for key terms and concepts.
-- Use bullet or numbered lists when comparing, listing steps, or enumerating items.
-- Use ## headers only when the answer has 2+ genuinely distinct sections.
-- Keep paragraphs short — 2 to 4 sentences.
-- Cite page numbers when referencing specific content, e.g. (p. 3).
-- End with one brief follow-up question that deepens understanding. Skip for short answers.
+You also have access to the full conversation history. Use it to understand context — if a student says "explain that more" or "what about the second one", refer back to what was just discussed.
 
 ---
 
-# TYPE 2: Logistics and grade questions
-Questions about deadlines, exam dates, grading weights, office hours, policies, grade calculations.
+# HOW TO ANSWER
 
-How to answer:
-- Read ALL documents carefully including all tables and formatted sections.
-- For grading tables: extract every component and its exact percentage weight.
-- For grade calculations: show your math step by step with the actual weights from the document.
-- If the student gives scores, calculate their current grade and project what they need on remaining work.
-- Answer directly — no hedging if the information is clearly in any document.
+**Lead with the answer.** One sharp sentence. No preamble, no "great question", no "based on the document". Just the answer.
+
+**Then support it briefly.** 2-4 sentences max. Use the document's exact numbers, dates, and names. Cite pages inline like (p. 3).
+
+**Use formatting only when it helps:**
+- Bullet lists for 3+ items or steps
+- **Bold** for key terms, names, numbers
+- Tables only for grading breakdowns with 4+ components
+- NO headers unless the answer has truly separate sections
+
+**Keep it tight.** Cut every word that doesn't add meaning. If something can be said in 5 words, don't use 10.
+
+**For broad questions** ("what is his experience", "summarize the course"): give a 2-3 sentence overview, then offer to go deeper on any part. Don't dump everything.
+
+**For grade/logistics questions**: extract the exact numbers. Show calculations step by step. Be precise.
+
+**For personal document questions** (resume, notes): answer directly from what's there. Cross-reference course materials only if genuinely relevant.
+
+**For follow-up questions** ("explain that more", "what about X", "and the second one"): use the conversation history to understand what they're referring to. Never ask "what do you mean?" — infer from context.
 
 ---
 
-# TYPE 3: Personal document questions
-Questions about the student's own uploaded notes, resume, study guides, or personal files.
-
-How to answer:
-- Read the student's uploaded documents carefully.
-- Answer directly from what's in their personal documents.
-- Cross-reference with professor materials when relevant (e.g. "your resume shows X, and based on the syllabus, this is relevant because...").
+# FOLLOW-UP QUESTIONS
+End with one sharp, specific follow-up question — not generic but pointed and useful. Skip it for simple one-word factual answers.
 
 ---
 
-# When nothing is covered
-Say: "**This doesn't appear to be in any of your uploaded documents.**" Never invent an answer.
+# WHEN NOTHING IS FOUND
+Say exactly: "**This doesn't appear to be in any of your uploaded documents.**" Don't guess. Don't pull from general knowledge.
 
-# Source attribution (REQUIRED)
-At the very end of your response, after a blank line, add a line in exactly this format:
+---
+
+# SOURCE LINE (REQUIRED)
+After a blank line at the very end, write:
 SOURCES: DocumentName1.pdf, DocumentName2.pdf
 
-List only the documents you actually referenced. Use the exact document names provided. This line will be parsed and displayed separately — do not include it in the main body of your answer.
-
-# Tone
-Smart, warm, encouraging. Like a TA who genuinely cares.`;
+Only list documents you actually used. This line is parsed separately — do not include it in the answer body.`;
 
 let documents = {};
 let questionsCache = null;
@@ -252,6 +244,8 @@ app.post('/auth', (req, res) => {
 app.post('/chat', async (req, res) => {
   try {
     const message = req.body?.message;
+    const history = req.body?.history || []; // conversation history from frontend
+
     if (!message) return res.status(400).json({ error: 'No message provided' });
     if (Object.keys(documents).length === 0)
       return res.status(400).json({ error: 'No documents uploaded yet' });
@@ -260,13 +254,13 @@ app.post('/chat', async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    const parts = [];
     const docNames = Object.keys(documents);
 
-    // Professor documents
+    // Build document parts (PDFs + labels)
+    const docParts = [];
     for (const [name, doc] of Object.entries(documents)) {
-      parts.push({ inlineData: { mimeType: 'application/pdf', data: doc.buffer.toString('base64') } });
-      parts.push({ text: `[Professor document: ${name}]` });
+      docParts.push({ inlineData: { mimeType: 'application/pdf', data: doc.buffer.toString('base64') } });
+      docParts.push({ text: `[Professor document: ${name}]` });
     }
 
     // Student notes (sent as multipart files)
@@ -274,20 +268,57 @@ app.post('/chat', async (req, res) => {
       Object.entries(req.files).forEach(([key, file]) => {
         if (key.startsWith('note_')) {
           const buf = Buffer.from(file.data);
-          parts.push({ inlineData: { mimeType: 'application/pdf', data: buf.toString('base64') } });
-          parts.push({ text: `[Student note: ${file.name}]` });
+          docParts.push({ inlineData: { mimeType: 'application/pdf', data: buf.toString('base64') } });
+          docParts.push({ text: `[Student note: ${file.name}]` });
           docNames.push(file.name);
         }
       });
     }
 
-    parts.push({ text: `\nSTUDENT QUESTION: ${message}` });
+    // Build conversation contents with full history
+    // First message always includes the documents so Gemini has context throughout
+    const contents = [];
+
+    if (history.length === 0) {
+      // First message in conversation — include docs
+      contents.push({
+        role: 'user',
+        parts: [...docParts, { text: `STUDENT QUESTION: ${message}` }]
+      });
+    } else {
+      // Subsequent messages — include docs in first turn, then conversation history, then new message
+      const firstUserMsg = history[0];
+      contents.push({
+        role: 'user',
+        parts: [...docParts, { text: `STUDENT QUESTION: ${firstUserMsg.content}` }]
+      });
+
+      // Add rest of history (alternating user/assistant)
+      for (let i = 1; i < history.length; i++) {
+        const msg = history[i];
+        // Strip SOURCES line from assistant messages
+        const content = msg.role === 'assistant'
+          ? msg.content.replace(/\nSOURCES:.*$/m, '').trim()
+          : msg.content;
+        contents.push({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: content }]
+        });
+      }
+
+      // Add new message
+      contents.push({
+        role: 'user',
+        parts: [{ text: `STUDENT QUESTION: ${message}` }]
+      });
+    }
+
     res.write(`data: ${JSON.stringify({ type: 'citations', citations: [] })}\n\n`);
 
     const stream = await ai.models.generateContentStream({
       model: MODEL,
-      contents: [{ role: 'user', parts }],
-      config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.4, maxOutputTokens: 8192 },
+      contents,
+      config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.3, maxOutputTokens: 4096 },
     });
 
     let fullText = '';

@@ -5,7 +5,7 @@ import {
   ChevronRight, Users, AlertCircle,
   UploadCloud, BarChart2, Zap, Clock, Hash, CheckCircle2,
   Copy, Check, ThumbsUp, ThumbsDown, Sparkles,
-  TrendingUp, AlertTriangle, Activity, X, Radio, Lock
+  TrendingUp, AlertTriangle, Activity, X, Radio, Lock, WifiOff
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -48,17 +48,18 @@ function getTopicColor(topic) {
   return colors[topic] || colors['General'];
 }
 
-// ── Password Gate ─────────────────────────────────────────────────────────────
 function PasswordGate({ onUnlock }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
   const [shaking, setShaking] = useState(false);
+  const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     try {
       const res = await fetch(`${API}/auth`, {
         method: 'POST',
@@ -80,6 +81,7 @@ function PasswordGate({ onUnlock }) {
       setPassword('');
       setTimeout(() => { setShaking(false); setError(false); }, 1500);
     }
+    setLoading(false);
   };
 
   return (
@@ -87,26 +89,16 @@ function PasswordGate({ onUnlock }) {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap');
         .serif { font-family: 'DM Serif Display', Georgia, serif; }
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          20% { transform: translateX(-8px); }
-          40% { transform: translateX(8px); }
-          60% { transform: translateX(-6px); }
-          80% { transform: translateX(6px); }
-        }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-8px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(6px); } }
         .shake { animation: shake 0.4s ease-in-out; }
       `}</style>
       <div className="flex items-center gap-2.5 mb-12">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
-          <Sparkles size={17} className="text-white" />
-        </div>
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm"><Sparkles size={17} className="text-white" /></div>
         <span className="text-gray-900 font-semibold text-xl tracking-tight">ScholrAI</span>
       </div>
       <div className={`w-full max-w-sm px-4 ${shaking ? 'shake' : ''}`}>
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center mx-auto mb-4">
-            <Lock size={22} className="text-gray-400" />
-          </div>
+          <div className="w-14 h-14 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center mx-auto mb-4"><Lock size={22} className="text-gray-400" /></div>
           <h1 className="serif text-3xl text-gray-900 mb-2">Private access</h1>
           <p className="text-gray-400 text-sm">Enter your access code to continue</p>
         </div>
@@ -117,11 +109,12 @@ function PasswordGate({ onUnlock }) {
               placeholder="••••••••" />
           </div>
           {error && <p className="text-red-400 text-xs text-center mb-3">Incorrect access code — try again</p>}
-          <button type="submit" disabled={!password.trim()}
-            className="w-full py-3 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:opacity-30 text-white text-sm font-semibold transition-all shadow-md shadow-blue-200">
-            Continue
+          <button type="submit" disabled={!password.trim() || loading}
+            className="w-full py-3 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:opacity-50 text-white text-sm font-semibold transition-all shadow-md shadow-blue-200">
+            {loading ? 'Connecting...' : 'Continue'}
           </button>
         </form>
+        {loading && <p className="text-center text-gray-300 text-xs mt-3">First load may take a moment...</p>}
       </div>
       <p className="mt-10 text-gray-300 text-xs">ScholrAI · Private Beta</p>
     </div>
@@ -156,9 +149,7 @@ function MarkdownMessage({ content }) {
         table: ({ children }) => <div className="overflow-x-auto my-3 rounded-lg border border-gray-200"><table className="border-collapse w-full">{children}</table></div>,
         th: ({ children }) => <th className="border-b border-gray-200 px-4 py-2.5 text-left text-gray-700 font-semibold text-xs bg-gray-50 uppercase tracking-wide">{children}</th>,
         td: ({ children }) => <td className="border-b border-gray-100 px-4 py-2.5 text-gray-700 text-xs last:border-0">{children}</td>,
-      }}>
-        {cleanContent}
-      </ReactMarkdown>
+      }}>{cleanContent}</ReactMarkdown>
     </div>
   );
 }
@@ -166,6 +157,25 @@ function MarkdownMessage({ content }) {
 function MessageText({ role, content }) {
   if (role === 'user') return <PlainMessage content={content} />;
   return <MarkdownMessage content={content} />;
+}
+
+// ── Error message component ───────────────────────────────────────────────────
+function ErrorMessage({ content }) {
+  const isNetworkError = content.includes('unreachable') || content.includes('fetch');
+  const isServerError = content.includes('Error:');
+  return (
+    <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-red-50 border border-red-100">
+      <WifiOff size={14} className="text-red-400 mt-0.5 flex-shrink-0" />
+      <div>
+        <p className="text-sm text-red-700 font-medium">
+          {isNetworkError ? 'Connection issue — the server may be waking up' : 'Something went wrong'}
+        </p>
+        <p className="text-xs text-red-400 mt-0.5">
+          {isNetworkError ? 'Wait a moment and try again. First load can take ~30 seconds.' : 'Try asking again.'}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function DocumentCard({ m, onDelete }) {
@@ -214,9 +224,7 @@ function LoadingPortal({ label, color }) {
   return (
     <div className="fixed inset-0 bg-white flex flex-col items-center justify-center z-50" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600&display=swap');`}</style>
-      <div className={`w-12 h-12 rounded-2xl ${color} flex items-center justify-center mb-4 shadow-lg`}>
-        <Sparkles size={22} className="text-white" />
-      </div>
+      <div className={`w-12 h-12 rounded-2xl ${color} flex items-center justify-center mb-4 shadow-lg`}><Sparkles size={22} className="text-white" /></div>
       <p className="text-gray-500 text-sm font-medium mb-6">{label}</p>
       <div className="flex gap-1.5">
         <div className="w-1.5 h-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -254,9 +262,7 @@ function ClassroomMode({ onExit }) {
       <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');`}</style>
       <div className="flex items-center justify-between px-10 py-5 border-b border-gray-800">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-            <Sparkles size={15} className="text-white" />
-          </div>
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center"><Sparkles size={15} className="text-white" /></div>
           <span className="text-white font-semibold text-base tracking-tight">ScholrAI</span>
           <div className="flex items-center gap-2 ml-4 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/30">
             <div className="w-2 h-2 rounded-full bg-red-400 animate-pulse"></div>
@@ -276,9 +282,7 @@ function ClassroomMode({ onExit }) {
       <div className="flex-1 overflow-y-auto px-8 py-6">
         {questions.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center mb-4">
-              <Radio size={24} className="text-gray-500" />
-            </div>
+            <div className="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center mb-4"><Radio size={24} className="text-gray-500" /></div>
             <p className="text-gray-400 text-lg font-medium mb-2">Waiting for student questions</p>
             <p className="text-gray-600 text-sm">Questions will appear here as students ask them</p>
           </div>
@@ -286,9 +290,7 @@ function ClassroomMode({ onExit }) {
           <div className="space-y-3 max-w-3xl mx-auto">
             {questions.map((q, i) => (
               <div key={q.id || i} className="flex items-start gap-4 p-5 rounded-2xl bg-gray-900 border border-gray-800">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Sparkles size={13} className="text-white" />
-                </div>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0 mt-0.5"><Sparkles size={13} className="text-white" /></div>
                 <div className="flex-1">
                   <p className="text-white text-base leading-relaxed">{q.question}</p>
                   <div className="flex items-center gap-3 mt-2">
@@ -352,17 +354,11 @@ function StudentInsights({ onStartClassMode }) {
   return (
     <div className="flex-1 overflow-y-auto p-8">
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-gray-900 text-base font-semibold">Student Insights</h2>
-          <p className="text-gray-400 text-xs mt-0.5">Live data from student interactions</p>
-        </div>
-        <button onClick={onStartClassMode} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold transition-colors shadow-sm">
-          <Radio size={13} />Start Class Mode
-        </button>
+        <div><h2 className="text-gray-900 text-base font-semibold">Student Insights</h2><p className="text-gray-400 text-xs mt-0.5">Live data from student interactions</p></div>
+        <button onClick={onStartClassMode} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold transition-colors shadow-sm"><Radio size={13} />Start Class Mode</button>
       </div>
       {newCount > 0 && (
-        <button onClick={() => { setNewCount(0); fetchInsights(); }}
-          className="w-full mb-5 flex items-center justify-between px-5 py-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-sm font-medium hover:bg-blue-100 transition-colors">
+        <button onClick={() => { setNewCount(0); fetchInsights(); }} className="w-full mb-5 flex items-center justify-between px-5 py-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-sm font-medium hover:bg-blue-100 transition-colors">
           <span className="flex items-center gap-2"><Activity size={14} />{newCount} new question{newCount > 1 ? 's' : ''} since you last checked</span>
           <span className="text-blue-500 text-xs">Refresh</span>
         </button>
@@ -604,12 +600,8 @@ function TeacherView({ onExit }) {
         </div>
         <nav className="p-3 flex-1">
           <p className="text-[10px] text-gray-300 font-semibold px-2 mb-1.5 uppercase tracking-widest">Navigation</p>
-          <button onClick={() => setActiveTab('materials')} className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${activeTab === 'materials' ? 'bg-blue-50 text-blue-700' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}>
-            <FileText size={14} />Course Materials
-          </button>
-          <button onClick={() => setActiveTab('insights')} className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold transition-colors mt-0.5 ${activeTab === 'insights' ? 'bg-blue-50 text-blue-700' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}>
-            <BarChart2 size={14} />Student Insights
-          </button>
+          <button onClick={() => setActiveTab('materials')} className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${activeTab === 'materials' ? 'bg-blue-50 text-blue-700' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}><FileText size={14} />Course Materials</button>
+          <button onClick={() => setActiveTab('insights')} className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-semibold transition-colors mt-0.5 ${activeTab === 'insights' ? 'bg-blue-50 text-blue-700' : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}><BarChart2 size={14} />Student Insights</button>
         </nav>
         <div className="p-4 border-t border-gray-100">
           <div className="flex items-center gap-2 mb-3"><div className="w-1.5 h-1.5 rounded-full bg-green-400"></div><span className="text-[10px] text-gray-400">Vertex AI connected</span></div>
@@ -668,7 +660,6 @@ function TeacherView({ onExit }) {
   );
 }
 
-// ── Student Note Upload Component ─────────────────────────────────────────────
 function StudentNoteUpload({ onFilesChange }) {
   const [myDocs, setMyDocs] = useState([]);
   const [dragOver, setDragOver] = useState(false);
@@ -701,22 +692,15 @@ function StudentNoteUpload({ onFilesChange }) {
     <div className="px-3 py-3 border-t border-gray-100">
       <div className="flex items-center justify-between mb-2">
         <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-widest">My Notes</p>
-        <button onClick={() => fileRef.current.click()}
-          className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-600 font-semibold transition-colors">
-          <Plus size={10} /> Add PDF
-        </button>
+        <button onClick={() => fileRef.current.click()} className="flex items-center gap-1 text-[10px] text-blue-500 hover:text-blue-600 font-semibold transition-colors"><Plus size={10} /> Add PDF</button>
       </div>
       <input type="file" ref={fileRef} onChange={e => { handleFile(e.target.files[0]); e.target.value = ''; }} className="hidden" accept=".pdf" />
       {myDocs.length === 0 ? (
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={() => setDragOver(false)}
+        <div onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
           onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
           onClick={() => fileRef.current.click()}
           className={`flex flex-col items-center justify-center py-4 rounded-xl border border-dashed cursor-pointer transition-all ${dragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'}`}>
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mb-2 shadow-sm">
-            <UploadCloud size={14} className="text-white" />
-          </div>
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mb-2 shadow-sm"><UploadCloud size={14} className="text-white" /></div>
           <p className="text-[11px] text-gray-500 font-medium text-center">Drop your notes here</p>
           <p className="text-[10px] text-gray-300 mt-0.5">PDF only · Session only</p>
         </div>
@@ -724,21 +708,15 @@ function StudentNoteUpload({ onFilesChange }) {
         <div className="space-y-1.5">
           {myDocs.map((doc, i) => (
             <div key={i} className="group flex items-center gap-2 px-2.5 py-2 rounded-lg bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100">
-              <div className="w-6 h-6 rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
-                <FileText size={10} className="text-white" />
-              </div>
+              <div className="w-6 h-6 rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center flex-shrink-0"><FileText size={10} className="text-white" /></div>
               <div className="flex-1 min-w-0">
                 <p className="text-[11px] text-gray-700 font-medium truncate">{cleanFileName(doc.name)}</p>
                 <p className="text-[10px] text-gray-400">{doc.size}kb</p>
               </div>
-              <button onClick={() => removeDoc(doc.name)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-red-50 text-gray-300 hover:text-red-400">
-                <X size={10} />
-              </button>
+              <button onClick={() => removeDoc(doc.name)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-red-50 text-gray-300 hover:text-red-400"><X size={10} /></button>
             </div>
           ))}
-          <button
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
+          <button onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
             onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
             onClick={() => fileRef.current.click()}
             className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border border-dashed border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all cursor-pointer">
@@ -799,10 +777,14 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
   const onSend = async (messageOverride) => {
     const message = messageOverride || input;
     if (!message.trim() || isTyping) return;
+
     const userMsg = { role: 'user', content: message, sources: [], ts: Date.now() };
     const isFirstMessage = active.messages.length === 0;
     const newTitle = isFirstMessage ? generateTitle(message) : null;
     const currentChatId = chatId;
+
+    // Build history to send — only completed (non-streaming) messages
+    const completedMessages = active.messages.filter(m => !m.streaming);
 
     setChats(prev => prev.map(c => c.id === currentChatId
       ? { ...c, messages: [...c.messages, userMsg], ...(newTitle ? { title: newTitle } : {}) } : c));
@@ -814,19 +796,24 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
       ? { ...c, messages: [...c.messages, { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true }] } : c));
 
     try {
-      // If student has uploaded notes, send as multipart form with note buffers
       let response;
       if (myNotes.length > 0) {
         const formData = new FormData();
         formData.append('message', message);
+        // Send conversation history as JSON string
+        formData.append('history', JSON.stringify(completedMessages.map(m => ({ role: m.role, content: m.content }))));
         myNotes.forEach((note, i) => {
           formData.append(`note_${i}`, new Blob([note.buffer], { type: 'application/pdf' }), note.name);
         });
         response = await fetch(`${API}/chat`, { method: 'POST', body: formData });
       } else {
         response = await fetch(`${API}/chat`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message })
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message,
+            history: completedMessages.map(m => ({ role: m.role, content: m.content }))
+          })
         });
       }
 
@@ -855,14 +842,14 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
                 ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) } : c));
             } else if (event.type === 'error') {
               setChats(prev => prev.map(c => c.id === currentChatId
-                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'Error: ' + event.error, streaming: false } : m) } : c));
+                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'error:' + event.error, streaming: false, isError: true } : m) } : c));
             }
           } catch {}
         }
       }
     } catch {
       setChats(prev => prev.map(c => c.id === currentChatId
-        ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'Server unreachable. Is it running?', streaming: false } : m) } : c));
+        ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'error:network', streaming: false, isError: true } : m) } : c));
     }
     setIsTyping(false);
     inputRef.current?.focus();
@@ -882,13 +869,11 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
             <p className="text-gray-500 text-[10px] mt-0.5">{documents.length} course doc{documents.length !== 1 ? 's' : ''} · {myNotes.length} my note{myNotes.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
-
         <div className="px-3 pt-3">
           <button onClick={createNewChat} className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-gray-200 text-gray-500 text-xs font-medium hover:bg-gray-50 hover:border-gray-300 transition-colors">
             <Plus size={13} /> New conversation
           </button>
         </div>
-
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           <p className="text-[10px] text-gray-300 font-semibold px-2 mb-2 uppercase tracking-widest">Conversations</p>
           {chats.map(c => (
@@ -899,15 +884,10 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
             </button>
           ))}
         </nav>
-
-        {/* ── My Notes Upload Section ── */}
         <StudentNoteUpload onFilesChange={setMyNotes} />
-
         <div className="p-4 border-t border-gray-100">
           <p className="text-[10px] text-gray-300 mb-3 leading-relaxed">Answers grounded in your professor's materials{myNotes.length > 0 ? ' + your notes' : ''}</p>
-          <button onClick={onExit} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs">
-            <LogOut size={12} /> Exit Portal
-          </button>
+          <button onClick={onExit} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs"><LogOut size={12} /> Exit Portal</button>
         </div>
       </aside>
 
@@ -916,20 +896,16 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
           <div className="flex items-center gap-3">
             <h2 className="text-gray-800 text-sm font-semibold">{active.title}</h2>
             <span className="text-gray-200">·</span>
-            <p className="text-gray-400 text-xs">
-              {myNotes.length > 0 ? `Course materials + ${myNotes.length} personal note${myNotes.length > 1 ? 's' : ''}` : 'Grounded in your professor\'s materials'}
-            </p>
+            <p className="text-gray-400 text-xs">{myNotes.length > 0 ? `Course materials + ${myNotes.length} personal note${myNotes.length > 1 ? 's' : ''}` : "Grounded in your professor's materials"}</p>
           </div>
           <div className="flex items-center gap-2">
             {myNotes.length > 0 && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-600 text-[11px] font-semibold">
-                <FileText size={10} />
-                {myNotes.length} note{myNotes.length > 1 ? 's' : ''} active
+                <FileText size={10} />{myNotes.length} note{myNotes.length > 1 ? 's' : ''} active
               </div>
             )}
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 border border-green-100 text-green-600 text-[11px] font-semibold">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-              AI Active
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>AI Active
             </div>
           </div>
         </header>
@@ -945,15 +921,12 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
                 </div>
               ) : (
                 <div className="text-center max-w-lg w-full">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mb-5 mx-auto shadow-lg shadow-blue-200/60">
-                    <Sparkles size={24} className="text-white" />
-                  </div>
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mb-5 mx-auto shadow-lg shadow-blue-200/60"><Sparkles size={24} className="text-white" /></div>
                   <h3 className="text-gray-900 font-semibold text-xl mb-2">Ask anything about your course</h3>
                   <p className="text-gray-400 text-sm mb-2 leading-relaxed">Every answer is grounded in your professor's uploaded materials — cited, trustworthy, and accurate.</p>
                   {myNotes.length > 0 && (
                     <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-100 text-blue-600 text-xs font-medium mb-6">
-                      <FileText size={11} />
-                      Also reading your {myNotes.length} personal note{myNotes.length > 1 ? 's' : ''}
+                      <FileText size={11} />Also reading your {myNotes.length} personal note{myNotes.length > 1 ? 's' : ''}
                     </div>
                   )}
                   {!myNotes.length && <div className="mb-6" />}
@@ -961,8 +934,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
                     {suggestedQuestions.map((q, i) => (
                       <button key={i} onClick={() => onSend(q)}
                         className="text-left px-5 py-3.5 rounded-xl bg-white border border-gray-200 text-gray-600 text-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-all shadow-sm group">
-                        <span className="text-gray-300 mr-2 text-xs font-mono group-hover:text-blue-400">{i + 1}.</span>
-                        {q}
+                        <span className="text-gray-300 mr-2 text-xs font-mono group-hover:text-blue-400">{i + 1}.</span>{q}
                       </button>
                     ))}
                   </div>
@@ -974,6 +946,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
           {active.messages.map((m, i) => {
             const msgId = m.id || i;
             const fb = feedback[msgId];
+            const isError = m.isError || m.content?.startsWith('error:');
             return (
               <div key={msgId} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`flex flex-col ${m.role === 'user' ? 'items-end max-w-xl' : 'items-start max-w-2xl w-full'}`}>
@@ -987,11 +960,15 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
                         </div>
                         <span className="text-xs text-gray-400">Searching your materials</span>
                       </div>
-                    ) : <MessageText role={m.role} content={m.content} />}
+                    ) : isError ? (
+                      <ErrorMessage content={m.content} />
+                    ) : (
+                      <MessageText role={m.role} content={m.content} />
+                    )}
                     {m.role === 'assistant' && m.streaming && m.content && (
                       <span className="inline-block w-0.5 h-4 bg-blue-500 animate-pulse ml-0.5 align-middle" />
                     )}
-                    {m.role === 'assistant' && m.sources && m.sources.length > 0 && !m.streaming && (
+                    {m.role === 'assistant' && m.sources && m.sources.length > 0 && !m.streaming && !isError && (
                       <div className="mt-3 pt-3 border-t border-gray-100">
                         <div className="flex flex-wrap gap-1.5 items-center">
                           <span className="text-[10px] text-gray-300 font-medium uppercase tracking-wide mr-0.5">From</span>
@@ -1006,7 +983,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
                     )}
                     {m.role === 'user' && <span className="block text-[10px] mt-1.5 opacity-40">{formatTime(m.ts)}</span>}
                   </div>
-                  {m.role === 'assistant' && !m.streaming && m.content && (
+                  {m.role === 'assistant' && !m.streaming && m.content && !isError && (
                     <div className="flex items-center gap-0.5 mt-2">
                       <button onClick={() => copyMessage(m.content, msgId)} title="Copy"
                         className={`p-1.5 rounded-lg transition-colors ${copiedId === msgId ? 'text-green-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-100'}`}>
@@ -1044,7 +1021,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
             </button>
           </div>
           <p className="text-center text-[10px] text-gray-300 mt-2.5">
-            {myNotes.length > 0 ? `Reading ${documents.length} course doc${documents.length !== 1 ? 's' : ''} + ${myNotes.length} personal note${myNotes.length !== 1 ? 's' : ''} · Powered by Google Vertex AI` : 'Grounded in your professor\'s materials · Powered by Vertex AI'}
+            {myNotes.length > 0 ? `Reading ${documents.length} course doc${documents.length !== 1 ? 's' : ''} + ${myNotes.length} personal note${myNotes.length !== 1 ? 's' : ''} · Powered by Google Vertex AI` : "Grounded in your professor's materials · Powered by Vertex AI"}
           </p>
         </div>
       </main>
