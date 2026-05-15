@@ -11,14 +11,12 @@ import os from 'os';
 
 dotenv.config();
 
-// ── Google Credentials from env var (for cloud deployment) ──────────────────
 if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
   const tmpPath = path.join(os.tmpdir(), 'gcp-credentials.json');
   fs.writeFileSync(tmpPath, process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON);
   process.env.GOOGLE_APPLICATION_CREDENTIALS = tmpPath;
   console.log('✅ GCP credentials written from env var');
 }
-// ────────────────────────────────────────────────────────────────────────────
 
 const require = createRequire(import.meta.url);
 const PDFParser = require('pdf2json');
@@ -222,9 +220,7 @@ function chunkText(text, chunkSize = 800, overlap = 100) {
   return chunks;
 }
 
-app.use(cors({
-  origin: '*'
-}));
+app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(fileUpload({ limits: { fileSize: 50 * 1024 * 1024 } }));
 
@@ -244,7 +240,7 @@ app.post('/upload', async (req, res) => {
     documents[file.name] = { buffer, text, chunks, uploadedAt: new Date().toISOString() };
     console.log(`✅ Uploaded: ${file.name} — ${chunks.length} chunks`);
     invalidateQuestionsCache();
-    generateSuggestedQuestions().then(q => { questionsCache = q; console.log('✅ Questions cached'); }).catch(() => {});
+    // Questions generated lazily on first /suggested-questions request — upload is instant
     res.json({ success: true, fileName: file.name, chunkCount: chunks.length, charCount: text.length });
   } catch (err) {
     console.error('Upload error:', err);
@@ -263,9 +259,6 @@ app.delete('/document/:name', (req, res) => {
   if (!documents[name]) return res.status(404).json({ error: 'Not found' });
   delete documents[name];
   invalidateQuestionsCache();
-  if (Object.keys(documents).length > 0) {
-    generateSuggestedQuestions().then(q => { questionsCache = q; }).catch(() => {});
-  }
   res.json({ success: true });
 });
 
