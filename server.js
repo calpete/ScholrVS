@@ -29,11 +29,14 @@ const MODEL = 'gemini-2.5-flash';
 const ai = new GoogleGenAI({ vertexai: true, project: PROJECT, location: LOCATION });
 console.log(`✅ Vertex AI ready — project: ${PROJECT}, model: ${MODEL}`);
 
-const SYSTEM_PROMPT = `You are Scholr — a sharp, patient, encouraging university tutor helping a student understand their course materials.
+const SYSTEM_PROMPT = `You are Scholr — a sharp, patient, encouraging university tutor helping a student understand their course materials and personal notes.
 
-You have access to the actual uploaded course documents — PDFs that Gemini can read directly including all tables, formatting, and structure.
+You have access to two types of uploaded documents — read ALL of them carefully:
 
-You handle two types of questions:
+1. **Professor documents** (labeled [Professor document: filename]) — official course materials: syllabus, lecture notes, readings, assignments.
+2. **Student notes** (labeled [Student note: filename]) — personal documents the student uploaded: their own notes, resume, study guides, or any other personal files.
+
+You handle three types of questions:
 
 ---
 
@@ -41,7 +44,7 @@ You handle two types of questions:
 Questions about concepts, theories, topics, arguments, definitions, or anything requiring subject matter understanding.
 
 How to answer:
-- Use ONLY information from the provided course documents. Never use outside knowledge.
+- Use information from ALL provided documents — both professor docs and student notes.
 - Lead with a clear one-sentence direct answer, then unpack it.
 - Use **bold** for key terms and concepts.
 - Use bullet or numbered lists when comparing, listing steps, or enumerating items.
@@ -56,16 +59,26 @@ How to answer:
 Questions about deadlines, exam dates, grading weights, office hours, policies, grade calculations.
 
 How to answer:
-- Read the documents carefully including all tables and formatted sections.
+- Read ALL documents carefully including all tables and formatted sections.
 - For grading tables: extract every component and its exact percentage weight.
 - For grade calculations: show your math step by step with the actual weights from the document.
 - If the student gives scores, calculate their current grade and project what they need on remaining work.
-- Answer directly — no hedging if the information is clearly in the document.
+- Answer directly — no hedging if the information is clearly in any document.
+
+---
+
+# TYPE 3: Personal document questions
+Questions about the student's own uploaded notes, resume, study guides, or personal files.
+
+How to answer:
+- Read the student's uploaded documents carefully.
+- Answer directly from what's in their personal documents.
+- Cross-reference with professor materials when relevant (e.g. "your resume shows X, and based on the syllabus, this is relevant because...").
 
 ---
 
 # When nothing is covered
-Say: "**This doesn't appear to be in your uploaded course materials.**" Never invent an answer.
+Say: "**This doesn't appear to be in any of your uploaded documents.**" Never invent an answer.
 
 # Source attribution (REQUIRED)
 At the very end of your response, after a blank line, add a line in exactly this format:
@@ -194,7 +207,6 @@ app.post('/upload', async (req, res) => {
     const file = req.files.pdf;
     const buffer = Buffer.from(file.data);
     const sizeKb = Math.round(buffer.length / 1024);
-    // Store only the buffer — Gemini reads PDFs natively, no text extraction needed
     documents[file.name] = { buffer, sizeKb, uploadedAt: new Date().toISOString() };
     console.log(`✅ Uploaded: ${file.name} — ${sizeKb}kb`);
     invalidateQuestionsCache();
@@ -239,7 +251,7 @@ app.post('/auth', (req, res) => {
 
 app.post('/chat', async (req, res) => {
   try {
-    const { message } = req.body;
+    const message = req.body?.message;
     if (!message) return res.status(400).json({ error: 'No message provided' });
     if (Object.keys(documents).length === 0)
       return res.status(400).json({ error: 'No documents uploaded yet' });
@@ -251,9 +263,22 @@ app.post('/chat', async (req, res) => {
     const parts = [];
     const docNames = Object.keys(documents);
 
+    // Professor documents
     for (const [name, doc] of Object.entries(documents)) {
       parts.push({ inlineData: { mimeType: 'application/pdf', data: doc.buffer.toString('base64') } });
-      parts.push({ text: `[Document: ${name}]` });
+      parts.push({ text: `[Professor document: ${name}]` });
+    }
+
+    // Student notes (sent as multipart files)
+    if (req.files) {
+      Object.entries(req.files).forEach(([key, file]) => {
+        if (key.startsWith('note_')) {
+          const buf = Buffer.from(file.data);
+          parts.push({ inlineData: { mimeType: 'application/pdf', data: buf.toString('base64') } });
+          parts.push({ text: `[Student note: ${file.name}]` });
+          docNames.push(file.name);
+        }
+      });
     }
 
     parts.push({ text: `\nSTUDENT QUESTION: ${message}` });
@@ -279,7 +304,7 @@ app.post('/chat', async (req, res) => {
       ? sourcesMatch[1].split(',').map(s => s.trim()).filter(s => s.length > 0)
       : docNames;
 
-    const confident = !fullText.toLowerCase().includes("doesn't appear to be in your uploaded");
+    const confident = !fullText.toLowerCase().includes("doesn't appear to be in any of your uploaded");
     logQuestion(message, confident);
 
     res.write(`data: ${JSON.stringify({ type: 'sources', sources })}\n\n`);
