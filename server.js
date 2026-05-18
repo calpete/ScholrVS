@@ -29,7 +29,6 @@ const MODEL = 'gemini-2.5-flash';
 const ai = new GoogleGenAI({ vertexai: true, project: PROJECT, location: LOCATION });
 console.log(`✅ Vertex AI ready — project: ${PROJECT}, model: ${MODEL}`);
 
-// Supported file types
 const SUPPORTED_TYPES = {
   'application/pdf': 'application/pdf',
   'image/jpeg': 'image/jpeg',
@@ -160,7 +159,6 @@ function invalidateQuestionsCache() {
 
 async function generateSuggestedQuestions() {
   if (Object.keys(documents).length === 0) return [];
-  // Find first PDF doc for question generation
   const firstPdf = Object.entries(documents).find(([, doc]) => doc.mimeType === 'application/pdf');
   if (!firstPdf) return ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
   try {
@@ -168,7 +166,7 @@ async function generateSuggestedQuestions() {
     const result = await ai.models.generateContent({
       model: MODEL,
       contents: [{ role: 'user', parts: [pdfPart, { text: `Read this course document and write exactly 3 short student questions about the content. Each question must be under 8 words. Output only a JSON array on a single line.\n\nExample: ["Short question one?","Short question two?","Short question three?"]` }] }],
-      config: { temperature: 0.5, maxOutputTokens: 1024 },
+      config: { temperature: 0.5, maxOutputTokens: 256 },
     });
     const raw = result.text.trim();
     let questions = [];
@@ -190,15 +188,16 @@ app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(fileUpload({ limits: { fileSize: 50 * 1024 * 1024 } }));
 
-// ── Upload endpoint — now accepts PDFs and images ─────────────────────────────
+// ── Health check — keeps Render alive via UptimeRobot ────────────────────────
+app.get('/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
+
+// ── Upload ───────────────────────────────────────────────────────────────────
 app.post('/upload', async (req, res) => {
   try {
     const file = req.files?.file || req.files?.pdf;
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
-
     const mimeType = getMimeType(file.name);
     if (!mimeType) return res.status(400).json({ error: 'Unsupported file type. Use PDF, JPG, PNG, or WebP.' });
-
     const buffer = Buffer.from(file.data);
     const sizeKb = Math.round(buffer.length / 1024);
     documents[file.name] = { buffer, sizeKb, mimeType, uploadedAt: new Date().toISOString() };
@@ -241,6 +240,7 @@ app.post('/auth', (req, res) => {
   res.status(401).json({ error: 'Invalid password' });
 });
 
+// ── Chat — main endpoint ─────────────────────────────────────────────────────
 app.post('/chat', async (req, res) => {
   try {
     const message = req.body?.message;
@@ -257,14 +257,12 @@ app.post('/chat', async (req, res) => {
     const docNames = Object.keys(documents);
     const docParts = [];
 
-    // Professor documents (PDFs and images)
     for (const [name, doc] of Object.entries(documents)) {
       docParts.push({ inlineData: { mimeType: doc.mimeType, data: doc.buffer.toString('base64') } });
       const label = isImage(doc.mimeType) ? `[Professor image: ${name}]` : `[Professor document: ${name}]`;
       docParts.push({ text: label });
     }
 
-    // Student notes (PDFs and images sent as multipart)
     if (req.files) {
       Object.entries(req.files).forEach(([key, file]) => {
         if (key.startsWith('note_')) {
@@ -297,7 +295,7 @@ app.post('/chat', async (req, res) => {
     const stream = await ai.models.generateContentStream({
       model: MODEL,
       contents,
-      config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.3, maxOutputTokens: 4096 },
+      config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.3, maxOutputTokens: 1024 },
     });
 
     let fullText = '';
@@ -310,7 +308,7 @@ app.post('/chat', async (req, res) => {
     }
 
     const sourcesMatch = fullText.match(/\nSOURCES:\s*(.+)$/m);
-    let sources = sourcesMatch
+    const sources = sourcesMatch
       ? sourcesMatch[1].split(',').map(s => s.trim()).filter(s => s.length > 0)
       : docNames;
 
@@ -339,20 +337,12 @@ app.get('/suggested-questions', async (req, res) => {
   }
 });
 
-app.post('/generate-title', async (req, res) => {
-  try {
-    const { question, answer } = req.body;
-    if (!question) return res.json({ title: 'New Chat' });
-    const result = await ai.models.generateContent({
-      model: MODEL,
-      contents: [{ role: 'user', parts: [{ text: `A student asked: "${question}"\n\nThe AI answered: "${answer?.slice(0, 300) || ''}"\n\nWrite a short title (3-5 words max) that summarizes what this conversation is about. Like a chapter title — descriptive, not a question. No quotes, no punctuation at the end. Examples: "Final Exam Grade Calculation", "Midterm Study Plan", "Course Grading Breakdown", "Office Hours Policy". Only output the title, nothing else.` }] }],
-      config: { temperature: 0.3, maxOutputTokens: 20 },
-    });
-    const title = result.text.trim().replace(/['"]/g, '').slice(0, 40);
-    res.json({ title });
-  } catch {
-    res.json({ title: 'New Chat' });
-  }
+// ── Generate title — fast, no AI call needed ─────────────────────────────────
+app.post('/generate-title', (req, res) => {
+  const { question } = req.body;
+  if (!question) return res.json({ title: 'New Chat' });
+  const title = question.trim().split(/\s+/).slice(0, 5).join(' ').replace(/[.!?,:]+$/, '');
+  res.json({ title });
 });
 
 app.listen(PORT, () => console.log(`✅ ScholrAI running on port ${PORT}`));

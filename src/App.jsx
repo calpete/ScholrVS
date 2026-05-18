@@ -1118,9 +1118,8 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
             } else if (event.type === 'done') {
               setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) } : c));
               if (isFirstMessage) {
-                generateAITitle(message, fullResponseText).then(title => {
-                  setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title } : c));
-                });
+                const smartTitle = fullResponseText.trim().split(/\s+/).slice(0, 6).join(' ').replace(/[.!?]$/, '');
+setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title: smartTitle || message.trim().split(/\s+/).slice(0, 5).join(' ') } : c));
               }
             } else if (event.type === 'error') {
               setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'error:' + event.error, streaming: false, isError: true } : m) } : c));
