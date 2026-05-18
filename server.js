@@ -295,7 +295,7 @@ app.post('/chat', async (req, res) => {
     const stream = await ai.models.generateContentStream({
       model: MODEL,
       contents,
-      config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.3, maxOutputTokens: 1024 },
+      config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.3, maxOutputTokens: 2048 },
     });
 
     let fullText = '';
