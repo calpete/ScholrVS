@@ -58,7 +58,6 @@ function getTopicColor(topic) {
   return colors[topic] || colors['General'];
 }
 
-// ── Logo mark ─────────────────────────────────────────────────────────────────
 function Logo({ size = 28 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 28 28" fill="none">
@@ -68,7 +67,6 @@ function Logo({ size = 28 }) {
   );
 }
 
-// ── Password Gate ─────────────────────────────────────────────────────────────
 function PasswordGate({ onUnlock }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
@@ -126,7 +124,6 @@ function PasswordGate({ onUnlock }) {
   );
 }
 
-// ── Markdown rendering ────────────────────────────────────────────────────────
 function PlainMessage({ content, isUser }) {
   return <p className={`m-0 leading-relaxed whitespace-pre-wrap ${isUser ? 'text-white' : 'text-gray-800'}`}>{content}</p>;
 }
@@ -176,7 +173,6 @@ function ErrorMessage({ content }) {
   );
 }
 
-// ── Document Card (Teacher) ───────────────────────────────────────────────────
 function DocumentCard({ m, onDelete }) {
   const displayName = cleanFileName(m.name);
   const isImg = /\.(jpg|jpeg|png|webp)$/i.test(m.name);
@@ -202,7 +198,6 @@ function DocumentCard({ m, onDelete }) {
   );
 }
 
-// ── Loading Screen ────────────────────────────────────────────────────────────
 function LoadingScreen({ label }) {
   return (
     <div className="fixed inset-0 bg-[#FAFAFA] flex flex-col items-center justify-center z-50">
@@ -218,7 +213,6 @@ function LoadingScreen({ label }) {
   );
 }
 
-// ── Classroom Mode ────────────────────────────────────────────────────────────
 function ClassroomMode({ onExit }) {
   const [questions, setQuestions] = useState([]);
   const [newCount, setNewCount] = useState(0);
@@ -290,7 +284,6 @@ function ClassroomMode({ onExit }) {
   );
 }
 
-// ── Student Insights ──────────────────────────────────────────────────────────
 function StudentInsights({ onStartClassMode }) {
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -314,7 +307,7 @@ function StudentInsights({ onStartClassMode }) {
     return () => clearInterval(i);
   }, [lastCount]);
 
-  if (loading) return <div className="flex-1 flex items-center justify-center"><div className="flex gap-1.5"><div className="flex flex-col justify-center gap-1" style={{width:'22px'}}><div className="eq-bar eq1"></div><div className="eq-bar eq2"></div><div className="eq-bar eq3"></div></div></div></div>;
+  if (loading) return <div className="flex-1 flex items-center justify-center"><div className="flex flex-col justify-center gap-1" style={{width:'22px'}}><div className="eq-bar eq1"></div><div className="eq-bar eq2"></div><div className="eq-bar eq3"></div></div></div>;
 
   const noData = !insights || insights.totalQuestions === 0;
   const formatTimeSaved = () => {
@@ -434,7 +427,6 @@ const DEFAULT_QUESTIONS = [
   "What should I focus on for the exam?",
 ];
 
-// ── Login Screen ──────────────────────────────────────────────────────────────
 function LoginScreen({ onSelect }) {
   const [loading, setLoading] = useState(null);
 
@@ -528,7 +520,6 @@ function LoginScreen({ onSelect }) {
   );
 }
 
-// ── Teacher View ──────────────────────────────────────────────────────────────
 function TeacherView({ onExit }) {
   const [mods, setMods] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -656,7 +647,6 @@ function TeacherView({ onExit }) {
   );
 }
 
-// ── Student Note Upload ───────────────────────────────────────────────────────
 function StudentNoteUpload({ myDocs, onFilesChange }) {
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
@@ -720,7 +710,6 @@ function StudentNoteUpload({ myDocs, onFilesChange }) {
   );
 }
 
-// ── Student View ──────────────────────────────────────────────────────────────
 function StudentView({ onExit, initialQuestions, initialDocuments }) {
   const [chats, setChats] = useState([{ id: 1, title: 'New Chat', messages: [] }]);
   const [chatId, setChatId] = useState(1);
@@ -760,13 +749,26 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
     setChatId(nc.id);
   };
 
+  // ── Delete chat ──────────────────────────────────────────────────────────
+  const deleteChat = (id) => {
+    const remaining = chats.filter(c => c.id !== id);
+    if (remaining.length === 0) {
+      const nc = { id: Date.now(), title: 'New Chat', messages: [] };
+      setChats([nc]);
+      setChatId(nc.id);
+    } else {
+      setChats(remaining);
+      if (chatId === id) setChatId(remaining[remaining.length - 1].id);
+    }
+  };
+
   const generateAITitle = async (question, answer) => {
     try {
       const res = await fetch(`${API}/generate-title`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question, answer }) });
       const data = await res.json();
-      return data.title || question.trim().split(/\s+/).slice(0, 4).join(' ');
+      return data.title || question.trim().split(/\s+/).slice(0, 5).join(' ');
     } catch {
-      return question.trim().split(/\s+/).slice(0, 4).join(' ');
+      return question.trim().split(/\s+/).slice(0, 5).join(' ');
     }
   };
 
@@ -780,13 +782,8 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
     setFeedback(prev => ({ ...prev, [id]: prev[id] === type ? null : type }));
   };
 
-  // Stop in-flight generation
   const onStop = () => {
-    if (abortRef.current) {
-      abortRef.current.abort();
-      abortRef.current = null;
-    }
-    // Mark any streaming message as no longer streaming
+    if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
     setChats(prev => prev.map(c => c.id === chatId
       ? { ...c, messages: c.messages.map(m => m.streaming ? { ...m, streaming: false } : m) }
       : c));
@@ -803,14 +800,22 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
     const completedMessages = active.messages.filter(m => !m.streaming);
 
     setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: [...c.messages, userMsg] } : c));
-    setInput('');
-    setIsTyping(true);
+setInput('');
+setIsTyping(true);
+
+// Set title immediately when first message is sent
+if (active.messages.length === 0) {
+  const fallback = message.trim().split(/\s+/).slice(0, 5).join(' ');
+  setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title: fallback } : c));
+}
 
     const streamingMsgId = Date.now();
-    setChats(prev => prev.map(c => c.id === currentChatId
-      ? { ...c, messages: [...c.messages, { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true }] } : c));
-
-    // Create an AbortController so the stop button can cancel this request
+const fallback = isFirstMessage ? message.trim().split(/\s+/).slice(0, 5).join(' ') : null;
+setChats(prev => prev.map(c => c.id === currentChatId
+  ? { ...c, 
+      ...(fallback ? { title: fallback } : {}),
+      messages: [...c.messages, { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true }] 
+    } : c));
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -849,6 +854,10 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
             } else if (event.type === 'done') {
               setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) } : c));
               if (isFirstMessage) {
+                // Immediately set fallback title so sidebar never stays "New Chat"
+                const fallback = message.trim().split(/\s+/).slice(0, 5).join(' ');
+                setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title: fallback } : c));
+                // Then upgrade to AI-generated title
                 generateAITitle(message, fullResponseText).then(title => {
                   setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title } : c));
                 });
@@ -860,7 +869,6 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
         }
       }
     } catch (err) {
-      // If user clicked Stop, the AbortError fires here — leave the partial content as-is
       if (err?.name === 'AbortError') {
         setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) } : c));
       } else {
@@ -872,31 +880,19 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
     inputRef.current?.focus();
   };
 
-  // Send/Stop button — same slot, swaps content based on state
   const SendStopButton = () => {
     if (isTyping) {
       return (
-        <button
-          onClick={onStop}
-          title="Stop generating"
-          className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0 transition-all"
-        >
+        <button onClick={onStop} title="Stop generating"
+          className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0 transition-all">
           <Square size={11} fill="currentColor" />
         </button>
       );
     }
     const disabled = !input.trim();
     return (
-      <button
-        onClick={() => onSend()}
-        disabled={disabled}
-        title="Send"
-        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
-          disabled
-            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            : 'bg-gray-900 hover:bg-gray-800 text-white'
-        }`}
-      >
+      <button onClick={() => onSend()} disabled={disabled} title="Send"
+        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${disabled ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}>
         <Send size={12} />
       </button>
     );
@@ -928,11 +924,18 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           <p className="text-[10px] text-gray-400 font-medium px-2 mb-2 uppercase tracking-widest">Chats</p>
           {chats.map(c => (
-            <button key={c.id} onClick={() => setChatId(c.id)}
-              className={`flex items-center gap-2 w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors mb-0.5 ${c.id === chatId ? 'bg-white border border-gray-200 text-gray-900 font-medium shadow-sm' : 'text-gray-500 hover:bg-white hover:text-gray-700'}`}>
-              <MessageSquare size={11} className="flex-shrink-0 opacity-40" />
-              <span className="truncate">{c.title}</span>
-            </button>
+            <div key={c.id} className="group relative mb-0.5">
+              <button onClick={() => setChatId(c.id)}
+                className={`flex items-center gap-2 w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors pr-7 ${c.id === chatId ? 'bg-white border border-gray-200 text-gray-900 font-medium shadow-sm' : 'text-gray-500 hover:bg-white hover:text-gray-700'}`}>
+                <MessageSquare size={11} className="flex-shrink-0 opacity-40" />
+                <span className="truncate">{c.title}</span>
+              </button>
+              <button
+                onClick={e => { e.stopPropagation(); deleteChat(c.id); }}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-gray-300 hover:text-red-400">
+                <Trash2 size={10} />
+              </button>
+            </div>
           ))}
         </nav>
 
@@ -946,7 +949,6 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
 
       {/* Main */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
         <header className="h-12 bg-white border-b border-gray-100 flex items-center justify-between px-8 flex-shrink-0">
           <div className="flex items-center gap-3">
             <h2 className="text-gray-900 text-sm font-medium">{active.title}</h2>
@@ -960,7 +962,6 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
           </div>
         </header>
 
-        {/* Messages */}
         <div className="flex-1 overflow-y-auto px-8 py-8 flex flex-col gap-5">
           {active.messages.length === 0 && (
             <div className="flex flex-col items-center justify-center flex-1 pb-10 fade-up">
@@ -972,7 +973,6 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
                 </div>
               ) : (
                 <div className="text-center max-w-md w-full flex flex-col items-center">
-                  {/* Centered logo */}
                   <div className="flex justify-center mb-5">
                     <Logo size={36} />
                   </div>
@@ -1051,7 +1051,6 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
           <div ref={bottomRef} />
         </div>
 
-        {/* Input — send/stop button now lives INSIDE the pill */}
         <div className="px-8 py-4 bg-white border-t border-gray-100 flex-shrink-0">
           <div className="max-w-3xl mx-auto">
             <div className="flex items-center bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2 focus-within:border-gray-400 focus-within:bg-white focus-within:shadow-sm transition-all gap-2">
@@ -1065,7 +1064,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    if (isTyping) return; // ignore enter while generating
+                    if (isTyping) return;
                     onSend();
                   }
                 }}
