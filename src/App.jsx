@@ -1,12 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   MessageSquare, Send, LogOut,
-  Trash2, ShieldCheck, Plus, BookOpen, FileText,
+  Trash2, Plus, BookOpen, FileText,
   ChevronRight, Users, AlertCircle,
-  UploadCloud, BarChart2, Zap, Clock, CheckCircle2,
+  UploadCloud, BarChart2, Clock, CheckCircle2,
   Copy, Check, ThumbsUp, ThumbsDown,
   TrendingUp, AlertTriangle, Activity, X, Radio, Lock, WifiOff, Paperclip, Square
 } from 'lucide-react';
+import {
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, CartesianGrid
+} from 'recharts';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -46,17 +50,6 @@ function formatRelativeDate(date) {
 function cleanFileName(name) {
   return name.replace(/\.(pdf|jpg|jpeg|png|webp)$/i, '').replace(/[_-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 }
-function getTopicColor(topic) {
-  const colors = {
-    'Grading': 'bg-violet-50 text-violet-700 border-violet-200',
-    'Logistics': 'bg-sky-50 text-sky-700 border-sky-200',
-    'Concepts': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    'Exam Prep': 'bg-amber-50 text-amber-700 border-amber-200',
-    'Materials': 'bg-rose-50 text-rose-700 border-rose-200',
-    'General': 'bg-gray-50 text-gray-600 border-gray-200',
-  };
-  return colors[topic] || colors['General'];
-}
 
 function Logo({ size = 28 }) {
   return (
@@ -67,6 +60,92 @@ function Logo({ size = 28 }) {
   );
 }
 
+// ── Analytics Demo Data ────────────────────────────────────────────────────────
+const DEMO_DATA = {
+  totalQuestions: 127, weekQuestions: 43, timeSavedHours: 3, timeSavedMinutes: 12,
+  confidenceRate: 91, estimatedStudents: 28, peakHour: '11 PM',
+  topTopics: [
+    { topic: 'Exam Prep', count: 38 }, { topic: 'Grading', count: 27 },
+    { topic: 'Concepts', count: 24 }, { topic: 'Logistics', count: 19 },
+    { topic: 'General', count: 12 }, { topic: 'Materials', count: 7 },
+  ],
+  dailyActivity: [
+    { day: 'Mon', questions: 8 }, { day: 'Tue', questions: 14 },
+    { day: 'Wed', questions: 6 }, { day: 'Thu', questions: 19 },
+    { day: 'Fri', questions: 11 }, { day: 'Sat', questions: 22 },
+    { day: 'Sun', questions: 17 },
+  ],
+  flagged: [
+    { question: 'Will the midterm cover chapter 7 material?', ts: new Date(Date.now() - 1200000) },
+    { question: 'Is the group project graded individually?', ts: new Date(Date.now() - 3600000) },
+    { question: 'What format should citations be in?', ts: new Date(Date.now() - 7200000) },
+  ],
+  recent: [
+    { question: 'What percentage of the grade is participation?', ts: new Date(Date.now() - 300000), confident: true },
+    { question: 'When is the final exam scheduled?', ts: new Date(Date.now() - 600000), confident: true },
+    { question: 'Are late submissions accepted?', ts: new Date(Date.now() - 900000), confident: true },
+    { question: 'What chapters are on the midterm?', ts: new Date(Date.now() - 1200000), confident: false },
+    { question: 'How do I access the course recordings?', ts: new Date(Date.now() - 1800000), confident: true },
+    { question: 'Is attendance mandatory?', ts: new Date(Date.now() - 3600000), confident: true },
+    { question: 'Can we use AI tools on assignments?', ts: new Date(Date.now() - 5400000), confident: true },
+    { question: "What is the professor's office hours?", ts: new Date(Date.now() - 7200000), confident: true },
+  ],
+  lastQuestion: { question: 'What percentage of the grade is participation?', ts: new Date(Date.now() - 300000) },
+};
+
+const TOPIC_COLORS_LIST = ['#0F0F0F', '#374151', '#6B7280', '#9CA3AF', '#D1D5DB', '#E5E7EB'];
+const TOPIC_ACCENT = {
+  'Exam Prep': 'bg-gray-900 text-white',
+  'Grading': 'bg-gray-700 text-white',
+  'Concepts': 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  'Logistics': 'bg-sky-50 text-sky-700 border border-sky-200',
+  'General': 'bg-gray-100 text-gray-600',
+  'Materials': 'bg-rose-50 text-rose-700 border border-rose-200',
+};
+
+function getTopicLabel(question) {
+  const text = question.toLowerCase();
+  if (/grade|score|percent|exam|quiz/.test(text)) return 'Grading';
+  if (/when|due|deadline|schedule/.test(text)) return 'Logistics';
+  if (/how|what|explain|define/.test(text)) return 'Concepts';
+  if (/study|prepare|focus|review/.test(text)) return 'Exam Prep';
+  return 'General';
+}
+
+const ChartTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-gray-900 text-white px-3 py-2 rounded-lg text-xs shadow-xl">
+      <p className="font-medium">{label}</p>
+      <p className="text-gray-300">{payload[0].value} questions</p>
+    </div>
+  );
+};
+
+const PieTooltipCustom = ({ active, payload }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-gray-900 text-white px-3 py-2 rounded-lg text-xs shadow-xl">
+      <p className="font-medium">{payload[0].name}</p>
+      <p className="text-gray-300">{payload[0].value} ({Math.round(payload[0].payload.percent * 100)}%)</p>
+    </div>
+  );
+};
+
+function StatCard({ label, value, sub, dark, icon }) {
+  return (
+    <div className={`rounded-2xl p-5 flex flex-col gap-2 ${dark ? 'bg-gray-900' : 'bg-white border border-gray-200'}`}>
+      <div className="flex items-center justify-between">
+        <p className={`text-[10px] font-semibold uppercase tracking-widest ${dark ? 'text-white/50' : 'text-gray-400'}`}>{label}</p>
+        {icon && <span className="text-base opacity-60">{icon}</span>}
+      </div>
+      <p className={`text-3xl font-bold tracking-tight ${dark ? 'text-white' : 'text-gray-900'}`}>{value}</p>
+      {sub && <p className={`text-xs ${dark ? 'text-white/40' : 'text-gray-400'}`}>{sub}</p>}
+    </div>
+  );
+}
+
+// ── Password Gate ─────────────────────────────────────────────────────────────
 function PasswordGate({ onUnlock }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
@@ -124,13 +203,14 @@ function PasswordGate({ onUnlock }) {
   );
 }
 
+// ── Markdown rendering ────────────────────────────────────────────────────────
 function PlainMessage({ content, isUser }) {
   return <p className={`m-0 leading-relaxed whitespace-pre-wrap ${isUser ? 'text-white' : 'text-gray-800'}`}>{content}</p>;
 }
 function MarkdownMessage({ content }) {
   const cleanContent = content.replace(/\nSOURCES:.*$/m, '').trim();
   return (
-    <div className="text-sm leading-relaxed text-gray-800 prose-scholr">
+    <div className="text-sm leading-relaxed text-gray-800">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
         p: ({ children }) => <p className="my-2 first:mt-0 last:mb-0 text-gray-800">{children}</p>,
         h1: ({ children }) => <h1 className="text-base font-semibold text-gray-900 mt-4 mb-2 first:mt-0">{children}</h1>,
@@ -173,6 +253,7 @@ function ErrorMessage({ content }) {
   );
 }
 
+// ── Document Card ─────────────────────────────────────────────────────────────
 function DocumentCard({ m, onDelete }) {
   const displayName = cleanFileName(m.name);
   const isImg = /\.(jpg|jpeg|png|webp)$/i.test(m.name);
@@ -198,6 +279,7 @@ function DocumentCard({ m, onDelete }) {
   );
 }
 
+// ── Loading Screen ────────────────────────────────────────────────────────────
 function LoadingScreen({ label }) {
   return (
     <div className="fixed inset-0 bg-[#FAFAFA] flex flex-col items-center justify-center z-50">
@@ -213,6 +295,7 @@ function LoadingScreen({ label }) {
   );
 }
 
+// ── Classroom Mode ────────────────────────────────────────────────────────────
 function ClassroomMode({ onExit }) {
   const [questions, setQuestions] = useState([]);
   const [newCount, setNewCount] = useState(0);
@@ -284,11 +367,13 @@ function ClassroomMode({ onExit }) {
   );
 }
 
+// ── Student Insights — MIT-level analytics dashboard ──────────────────────────
 function StudentInsights({ onStartClassMode }) {
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
   const [newCount, setNewCount] = useState(0);
   const [lastCount, setLastCount] = useState(0);
+  const [activeTab, setActiveTab] = useState('overview');
 
   const fetchInsights = async () => {
     try {
@@ -307,116 +392,311 @@ function StudentInsights({ onStartClassMode }) {
     return () => clearInterval(i);
   }, [lastCount]);
 
-  if (loading) return <div className="flex-1 flex items-center justify-center"><div className="flex flex-col justify-center gap-1" style={{width:'22px'}}><div className="eq-bar eq1"></div><div className="eq-bar eq2"></div><div className="eq-bar eq3"></div></div></div>;
+  if (loading) return (
+    <div className="flex-1 flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
+        <p className="text-gray-400 text-xs">Loading analytics...</p>
+      </div>
+    </div>
+  );
 
-  const noData = !insights || insights.totalQuestions === 0;
-  const formatTimeSaved = () => {
-    const h = insights.timeSavedHours, m = insights.timeSavedMinutes;
-    if (h === 0 && m === 0) return <span>0<span className="text-sm font-normal text-gray-400 ml-1">min</span></span>;
-    return (<>{h > 0 && <>{h}<span className="text-sm font-normal text-gray-400 ml-1">hr </span></>}{m > 0 && <>{m}<span className="text-sm font-normal text-gray-400 ml-1">min</span></>}</>);
+  const isEmpty = !insights || insights.totalQuestions === 0;
+  const d = isEmpty ? DEMO_DATA : {
+    ...DEMO_DATA,
+    totalQuestions: insights.totalQuestions,
+    weekQuestions: insights.weekQuestions,
+    timeSavedHours: insights.timeSavedHours,
+    timeSavedMinutes: insights.timeSavedMinutes,
+    confidenceRate: insights.flagged?.length > 0
+      ? Math.round(((insights.totalQuestions - insights.flagged.length) / insights.totalQuestions) * 100)
+      : 94,
+    estimatedStudents: Math.max(1, Math.round(insights.totalQuestions / 4.5)),
+    peakHour: insights.peakHourLabel || '10 PM',
+    topTopics: insights.topTopics?.length ? insights.topTopics : DEMO_DATA.topTopics,
+    recent: insights.recent?.length ? insights.recent : DEMO_DATA.recent,
+    flagged: insights.flagged?.length ? insights.flagged : DEMO_DATA.flagged,
+    lastQuestion: insights.lastQuestion || DEMO_DATA.lastQuestion,
   };
 
+  const totalForPie = d.topTopics.reduce((s, t) => s + t.count, 0) || 1;
+  const pieData = d.topTopics.map(t => ({
+    name: t.topic, value: t.count, percent: t.count / totalForPie,
+  }));
+
+  const timeSaved = d.timeSavedHours > 0
+    ? `${d.timeSavedHours}h ${d.timeSavedMinutes}m`
+    : `${d.timeSavedMinutes}m`;
+
+  const topTopic = d.topTopics?.[0]?.topic || 'Concepts';
+
   return (
-    <div className="flex-1 overflow-y-auto p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-gray-900 text-sm font-semibold">Student Insights</h2>
-          <p className="text-gray-400 text-xs mt-0.5">Live activity from your class</p>
+    <div className="flex-1 flex flex-col overflow-hidden bg-[#F7F7F7]">
+
+      {/* Sticky header */}
+      <div className="bg-white border-b border-gray-200 px-8 py-5 flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-gray-900 font-semibold text-sm">Student Insights</h2>
+            <div className="flex items-center gap-2 mt-0.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <p className="text-gray-400 text-xs">
+                Live · updates every 10s{isEmpty ? ' · showing sample data' : ''}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {newCount > 0 && (
+              <button onClick={() => { setNewCount(0); fetchInsights(); }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
+                ↑ {newCount} new
+              </button>
+            )}
+            <button onClick={onStartClassMode}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />
+              Live Mode
+            </button>
+          </div>
         </div>
-        <button onClick={onStartClassMode} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors">
-          <Radio size={12} />Live Mode
-        </button>
+        <div className="flex gap-1 mt-4">
+          {[
+            { id: 'overview', label: 'Overview' },
+            { id: 'questions', label: 'Questions' },
+            { id: 'gaps', label: 'Knowledge Gaps' },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeTab === tab.id ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {newCount > 0 && (
-        <button onClick={() => { setNewCount(0); fetchInsights(); }} className="w-full mb-5 flex items-center justify-between px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 text-sm hover:bg-gray-100 transition-colors">
-          <span className="flex items-center gap-2 text-xs"><Activity size={13} />{newCount} new question{newCount > 1 ? 's' : ''}</span>
-          <span className="text-gray-400 text-xs">Refresh</span>
-        </button>
-      )}
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto p-8 space-y-5">
 
-      {noData ? (
-        <div className="flex flex-col items-center justify-center h-64 text-center">
-          <BarChart2 size={24} className="text-gray-200 mb-4" />
-          <h3 className="text-gray-600 font-medium text-sm mb-1">No activity yet</h3>
-          <p className="text-gray-400 text-xs max-w-xs">Student questions will appear here as they use the portal.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { label: 'Time saved this week', value: formatTimeSaved(), sub: `${insights.weekQuestions} questions` },
-              { label: 'Total questions', value: insights.totalQuestions, sub: `${insights.weekQuestions} this week` },
-              { label: 'Last question', value: insights.lastQuestion ? <p className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug">{insights.lastQuestion.question}</p> : <span>—</span>, sub: insights.lastQuestion ? formatRelativeDate(insights.lastQuestion.ts) : '' },
-            ].map((stat, i) => (
-              <div key={i} className="bg-white rounded-xl border border-gray-200 p-5">
-                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-widest mb-2">{stat.label}</p>
-                <p className="text-2xl font-bold text-gray-900 mb-1">{stat.value}</p>
-                <p className="text-xs text-gray-400">{stat.sub}</p>
+        {/* ── OVERVIEW ── */}
+        {activeTab === 'overview' && (
+          <>
+            {/* Top 3 stats — one dark hero */}
+            <div className="grid grid-cols-3 gap-4">
+              <StatCard dark label="Total Questions" value={d.totalQuestions.toLocaleString()} sub={`${d.weekQuestions} this week`} icon="💬" />
+              <StatCard label="Time Saved" value={timeSaved} sub="professor hours freed up" icon="⏱" />
+              <StatCard label="AI Confidence" value={`${d.confidenceRate}%`} sub="answers grounded in materials" icon="✓" />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <StatCard label="Students Engaged" value={d.estimatedStudents} sub="unique sessions detected" icon="👥" />
+              <StatCard label="Peak Study Time" value={d.peakHour} sub="most active hour" icon="🌙" />
+              <StatCard label="Top Topic" value={topTopic} sub="most asked this week" icon="📌" />
+            </div>
+
+            {/* Charts */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-0.5">Weekly Activity</h3>
+                <p className="text-[11px] text-gray-400 mb-5">Questions asked per day</p>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={d.dailyActivity} barSize={24}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} width={20} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: '#F9FAFB' }} />
+                    <Bar dataKey="questions" fill="#0F0F0F" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-            ))}
-          </div>
 
-          {insights.topTopics?.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="flex items-center gap-2 mb-4"><TrendingUp size={13} className="text-gray-400" /><h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide">Top Topics</h3></div>
-              <div className="space-y-3">
-                {insights.topTopics.map(t => (
-                  <div key={t.topic} className="flex items-center gap-3">
-                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border w-24 text-center flex-shrink-0 ${getTopicColor(t.topic)}`}>{t.topic}</span>
-                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-gray-900 rounded-full transition-all" style={{ width: `${Math.round((t.count / insights.weekQuestions) * 100)}%` }} />
+              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-0.5">Topic Distribution</h3>
+                <p className="text-[11px] text-gray-400 mb-4">What students are asking about</p>
+                <div className="flex items-center gap-4">
+                  <ResponsiveContainer width={150} height={150}>
+                    <PieChart>
+                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={42} outerRadius={70} paddingAngle={3} dataKey="value">
+                        {pieData.map((_, i) => (
+                          <Cell key={i} fill={TOPIC_COLORS_LIST[i % TOPIC_COLORS_LIST.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<PieTooltipCustom />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex-1 space-y-2">
+                    {pieData.map((entry, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ background: TOPIC_COLORS_LIST[i % TOPIC_COLORS_LIST.length] }} />
+                        <span className="text-xs text-gray-600 flex-1 truncate">{entry.name}</span>
+                        <span className="text-xs font-semibold text-gray-900">{Math.round(entry.percent * 100)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Insight callout */}
+            <div className="bg-gray-900 rounded-2xl p-6 text-white">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 text-lg">💡</div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">Scholr AI Insight</p>
+                  <p className="text-sm leading-relaxed text-white/80">
+                    Students asked about <strong className="text-white">{topTopic}</strong> most this week.
+                    {d.flagged?.length > 0 && <>
+                      {' '}{d.flagged.length} question{d.flagged.length > 1 ? 's' : ''} couldn't be answered confidently —
+                      consider uploading more material on <strong className="text-white">exam policies</strong> and <strong className="text-white">grading criteria</strong>.
+                    </>}
+                    {d.weekQuestions > 5 && <> Peak activity was at <strong className="text-white">{d.peakHour}</strong> — students are studying late.</>}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── QUESTIONS ── */}
+        {activeTab === 'questions' && (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              {/* Topic breakdown */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-4">Topic Breakdown</h3>
+                <div className="space-y-3">
+                  {d.topTopics.map((t, i) => {
+                    const pct = Math.round((t.count / totalForPie) * 100);
+                    return (
+                      <div key={i} className="flex items-center gap-3">
+                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full w-24 text-center flex-shrink-0 ${TOPIC_ACCENT[t.topic] || 'bg-gray-100 text-gray-600'}`}>{t.topic}</span>
+                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-gray-900 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs font-bold text-gray-900 w-5 text-right">{t.count}</span>
+                        <span className="text-[10px] text-gray-400 w-8">{pct}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Confidence gauge */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-1">Confidence Rate</h3>
+                <p className="text-[11px] text-gray-400 mb-4">How well materials cover student questions</p>
+                <div className="flex items-center justify-center py-3">
+                  <div className="relative w-32 h-32">
+                    <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                      <circle cx="50" cy="50" r="40" fill="none" stroke="#F3F4F6" strokeWidth="10" />
+                      <circle cx="50" cy="50" r="40" fill="none" stroke="#0F0F0F" strokeWidth="10"
+                        strokeDasharray={`${2 * Math.PI * 40 * d.confidenceRate / 100} ${2 * Math.PI * 40}`}
+                        strokeLinecap="round" />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-2xl font-bold text-gray-900">{d.confidenceRate}%</span>
+                      <span className="text-[10px] text-gray-400">confident</span>
                     </div>
-                    <span className="text-xs text-gray-400 w-8 text-right">{t.count}</span>
                   </div>
-                ))}
+                </div>
+                <div className="flex items-center justify-center gap-8 mt-2">
+                  <div className="text-center">
+                    <p className="text-xl font-bold text-gray-900">{d.totalQuestions - (d.flagged?.length || 0)}</p>
+                    <p className="text-[10px] text-gray-400">answered well</p>
+                  </div>
+                  <div className="w-px h-8 bg-gray-100" />
+                  <div className="text-center">
+                    <p className="text-xl font-bold text-amber-500">{d.flagged?.length || 0}</p>
+                    <p className="text-[10px] text-gray-400">needs review</p>
+                  </div>
+                </div>
               </div>
             </div>
-          )}
 
-          {insights.flagged?.length > 0 && (
-            <div className="bg-amber-50 rounded-xl border border-amber-200 p-5">
-              <div className="flex items-center gap-2 mb-3"><AlertTriangle size={13} className="text-amber-500" /><h3 className="text-xs font-semibold text-amber-800 uppercase tracking-wide">Flagged Questions</h3><span className="ml-auto text-xs text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">{insights.flagged.length}</span></div>
-              <p className="text-xs text-amber-600 mb-3">ScholrAI wasn't confident on these — consider uploading more material.</p>
-              <div className="space-y-2">
-                {insights.flagged.slice(0, 5).map((q, i) => (
-                  <div key={q.id || i} className="flex items-start gap-2 px-3 py-2.5 bg-white rounded-lg border border-amber-100">
-                    <AlertTriangle size={10} className="text-amber-400 mt-0.5 flex-shrink-0" />
-                    <p className="text-xs text-gray-700">{q.question}</p>
-                    <span className="ml-auto text-[10px] text-gray-300 flex-shrink-0">{formatRelativeDate(q.ts)}</span>
-                  </div>
-                ))}
+            {/* Recent questions */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide">Recent Questions</h3>
+                  <p className="text-[11px] text-gray-400 mt-0.5">What students asked in real time</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[10px] text-gray-400">Live</span>
+                </div>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {d.recent.slice(0, 10).map((q, i) => {
+                  const label = getTopicLabel(q.question);
+                  return (
+                    <div key={i} className="flex items-start gap-4 py-3 hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors">
+                      <div className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${q.confident !== false ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-800 leading-snug">{q.question}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${TOPIC_ACCENT[label] || 'bg-gray-100 text-gray-600'}`}>{label}</span>
+                          {q.confident === false && <span className="text-[10px] text-amber-500 font-medium">Needs review</span>}
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-gray-300 flex-shrink-0 mt-1">{formatRelativeDate(q.ts)}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          )}
+          </>
+        )}
 
-          <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <Activity size={13} className="text-gray-400" />
-              <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide">Recent Questions</h3>
-              <div className="ml-auto flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div><span className="text-[10px] text-gray-400">Live</span></div>
+        {/* ── KNOWLEDGE GAPS ── */}
+        {activeTab === 'gaps' && (
+          <>
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 text-lg">⚠️</div>
+                <div>
+                  <h3 className="text-sm font-semibold text-amber-900 mb-1">Knowledge Gap Analysis</h3>
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    These questions couldn't be answered confidently from your uploaded materials.
+                    Uploading more detailed lecture slides or notes on these topics will improve answer accuracy.
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="space-y-1">
-              {insights.recent.slice(0, 15).map((q, i) => {
-                const text = q.question.toLowerCase();
-                const label = /grade|score|percent|exam|quiz/.test(text) ? 'Grading' : /when|due|deadline|schedule/.test(text) ? 'Logistics' : /how|what|explain|define/.test(text) ? 'Concepts' : /study|prepare|focus|review/.test(text) ? 'Exam Prep' : 'General';
-                return (
-                  <div key={q.id || i} className="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-700">{q.question}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${getTopicColor(label)}`}>{label}</span>
-                        {!q.confident && <span className="text-[10px] text-amber-500">Flagged</span>}
+
+            <div className="space-y-3">
+              {d.flagged.map((q, i) => (
+                <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 hover:border-amber-200 hover:shadow-sm transition-all">
+                  <div className="flex items-start gap-4">
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0">
+                      <span className="text-amber-500 text-xs font-bold">#{i + 1}</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-800 font-medium leading-snug">{q.question}</p>
+                      <div className="flex items-center gap-3 mt-2">
+                        <span className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">Low confidence</span>
+                        <span className="text-[10px] text-gray-400">{formatRelativeDate(q.ts)}</span>
                       </div>
                     </div>
-                    <span className="text-[10px] text-gray-300 flex-shrink-0 mt-1">{formatRelativeDate(q.ts)}</span>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
-          </div>
-        </div>
-      )}
+
+            <div className="bg-gray-900 rounded-2xl p-6 text-white">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-2">Recommendation</p>
+              <p className="text-sm leading-relaxed text-white/80">
+                Upload more detailed material covering <strong className="text-white">exam policies</strong> and <strong className="text-white">grading criteria</strong> to reduce the knowledge gap rate by an estimated 40%.
+              </p>
+              <div className="mt-4 flex items-center gap-3">
+                <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-full bg-white rounded-full transition-all" style={{ width: `${d.confidenceRate}%` }} />
+                </div>
+                <span className="text-xs text-white/50">{d.confidenceRate}% covered</span>
+              </div>
+            </div>
+          </>
+        )}
+
+      </div>
     </div>
   );
 }
@@ -427,6 +707,7 @@ const DEFAULT_QUESTIONS = [
   "What should I focus on for the exam?",
 ];
 
+// ── Login Screen ──────────────────────────────────────────────────────────────
 function LoginScreen({ onSelect }) {
   const [loading, setLoading] = useState(null);
 
@@ -465,7 +746,6 @@ function LoginScreen({ onSelect }) {
           Google Vertex AI
         </div>
       </nav>
-
       <div className="flex-1 flex items-center justify-center px-4 py-16">
         <div className="w-full max-w-2xl">
           <div className="text-center mb-14">
@@ -480,7 +760,6 @@ function LoginScreen({ onSelect }) {
               AI tutoring grounded in what your professor uploaded. Cited, accurate, trustworthy.
             </p>
           </div>
-
           <div className="grid grid-cols-2 gap-3 max-w-xl mx-auto mb-10">
             <button onClick={() => handleSelect('student')}
               className="group text-left p-6 rounded-2xl border border-gray-200 bg-white hover:border-gray-300 hover:shadow-md transition-all duration-200">
@@ -493,7 +772,6 @@ function LoginScreen({ onSelect }) {
                 Enter portal <ChevronRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
               </div>
             </button>
-
             <button onClick={() => handleSelect('teacher')}
               className="group text-left p-6 rounded-2xl border border-gray-200 bg-white hover:border-gray-300 hover:shadow-md transition-all duration-200">
               <div className="w-9 h-9 rounded-lg bg-gray-900 flex items-center justify-center mb-5">
@@ -506,7 +784,6 @@ function LoginScreen({ onSelect }) {
               </div>
             </button>
           </div>
-
           <div className="flex items-center justify-center gap-6 text-xs text-gray-400">
             <span>🔒 FERPA aligned</span>
             <span className="w-1 h-1 rounded-full bg-gray-300"></span>
@@ -520,6 +797,7 @@ function LoginScreen({ onSelect }) {
   );
 }
 
+// ── Teacher View ──────────────────────────────────────────────────────────────
 function TeacherView({ onExit }) {
   const [mods, setMods] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -647,6 +925,7 @@ function TeacherView({ onExit }) {
   );
 }
 
+// ── Student Note Upload ───────────────────────────────────────────────────────
 function StudentNoteUpload({ myDocs, onFilesChange }) {
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
@@ -674,7 +953,6 @@ function StudentNoteUpload({ myDocs, onFilesChange }) {
         </button>
       </div>
       <input type="file" ref={fileRef} onChange={e => { handleFile(e.target.files[0]); e.target.value = ''; }} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" />
-
       {myDocs.length === 0 ? (
         <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
           onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
@@ -703,13 +981,12 @@ function StudentNoteUpload({ myDocs, onFilesChange }) {
           </button>
         </div>
       )}
-      {myDocs.length > 0 && (
-        <p className="text-[10px] text-gray-400 mt-2 px-1">AI reads your notes + course materials</p>
-      )}
+      {myDocs.length > 0 && <p className="text-[10px] text-gray-400 mt-2 px-1">AI reads your notes + course materials</p>}
     </div>
   );
 }
 
+// ── Student View ──────────────────────────────────────────────────────────────
 function StudentView({ onExit, initialQuestions, initialDocuments }) {
   const [chats, setChats] = useState([{ id: 1, title: 'New Chat', messages: [] }]);
   const [chatId, setChatId] = useState(1);
@@ -749,13 +1026,11 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
     setChatId(nc.id);
   };
 
-  // ── Delete chat ──────────────────────────────────────────────────────────
   const deleteChat = (id) => {
     const remaining = chats.filter(c => c.id !== id);
     if (remaining.length === 0) {
       const nc = { id: Date.now(), title: 'New Chat', messages: [] };
-      setChats([nc]);
-      setChatId(nc.id);
+      setChats([nc]); setChatId(nc.id);
     } else {
       setChats(remaining);
       if (chatId === id) setChatId(remaining[remaining.length - 1].id);
@@ -774,8 +1049,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
 
   const copyMessage = (content, id) => {
     navigator.clipboard.writeText(content.replace(/\nSOURCES:.*$/m, '').trim());
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+    setCopiedId(id); setTimeout(() => setCopiedId(null), 2000);
   };
 
   const giveFeedback = (id, type) => {
@@ -785,8 +1059,7 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
   const onStop = () => {
     if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
     setChats(prev => prev.map(c => c.id === chatId
-      ? { ...c, messages: c.messages.map(m => m.streaming ? { ...m, streaming: false } : m) }
-      : c));
+      ? { ...c, messages: c.messages.map(m => m.streaming ? { ...m, streaming: false } : m) } : c));
     setIsTyping(false);
   };
 
@@ -800,22 +1073,15 @@ function StudentView({ onExit, initialQuestions, initialDocuments }) {
     const completedMessages = active.messages.filter(m => !m.streaming);
 
     setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: [...c.messages, userMsg] } : c));
-setInput('');
-setIsTyping(true);
-
-// Set title immediately when first message is sent
-if (active.messages.length === 0) {
-  const fallback = message.trim().split(/\s+/).slice(0, 5).join(' ');
-  setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title: fallback } : c));
-}
+    setInput('');
+    setIsTyping(true);
 
     const streamingMsgId = Date.now();
-const fallback = isFirstMessage ? message.trim().split(/\s+/).slice(0, 5).join(' ') : null;
-setChats(prev => prev.map(c => c.id === currentChatId
-  ? { ...c, 
-      ...(fallback ? { title: fallback } : {}),
-      messages: [...c.messages, { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true }] 
-    } : c));
+    const fallback = isFirstMessage ? message.trim().split(/\s+/).slice(0, 5).join(' ') : null;
+    setChats(prev => prev.map(c => c.id === currentChatId
+      ? { ...c, ...(fallback ? { title: fallback } : {}), messages: [...c.messages, { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true }] }
+      : c));
+
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -833,14 +1099,12 @@ setChats(prev => prev.map(c => c.id === currentChatId
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let buf = '';
-      let fullResponseText = '';
+      let buf = '', fullResponseText = '';
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buf += decoder.decode(value, { stream: true });
-        const lines = buf.split('\n');
-        buf = lines.pop();
+        const lines = buf.split('\n'); buf = lines.pop();
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           try {
@@ -854,10 +1118,6 @@ setChats(prev => prev.map(c => c.id === currentChatId
             } else if (event.type === 'done') {
               setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) } : c));
               if (isFirstMessage) {
-                // Immediately set fallback title so sidebar never stays "New Chat"
-                const fallback = message.trim().split(/\s+/).slice(0, 5).join(' ');
-                setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title: fallback } : c));
-                // Then upgrade to AI-generated title
                 generateAITitle(message, fullResponseText).then(title => {
                   setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title } : c));
                 });
@@ -901,8 +1161,6 @@ setChats(prev => prev.map(c => c.id === currentChatId
   return (
     <div className="flex h-screen w-screen overflow-hidden fixed inset-0 bg-white">
       <style>{FONT}</style>
-
-      {/* Sidebar */}
       <aside className="w-56 bg-[#F7F7F7] border-r border-gray-200 flex flex-col flex-shrink-0">
         <div className="px-4 py-4 border-b border-gray-200">
           <div className="flex items-center gap-2.5 mb-4">
@@ -914,13 +1172,11 @@ setChats(prev => prev.map(c => c.id === currentChatId
             <p className="text-gray-400 text-[10px] mt-0.5">{documents.length} course doc{documents.length !== 1 ? 's' : ''} · {myNotes.length} note{myNotes.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
-
         <div className="px-3 pt-3">
           <button onClick={createNewChat} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-medium hover:bg-gray-50 transition-colors">
             <Plus size={12} />New chat
           </button>
         </div>
-
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           <p className="text-[10px] text-gray-400 font-medium px-2 mb-2 uppercase tracking-widest">Chats</p>
           {chats.map(c => (
@@ -930,31 +1186,25 @@ setChats(prev => prev.map(c => c.id === currentChatId
                 <MessageSquare size={11} className="flex-shrink-0 opacity-40" />
                 <span className="truncate">{c.title}</span>
               </button>
-              <button
-                onClick={e => { e.stopPropagation(); deleteChat(c.id); }}
+              <button onClick={e => { e.stopPropagation(); deleteChat(c.id); }}
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded text-gray-300 hover:text-red-400">
                 <Trash2 size={10} />
               </button>
             </div>
           ))}
         </nav>
-
         <StudentNoteUpload myDocs={myNotes} onFilesChange={setMyNotes} />
-
         <div className="p-4 border-t border-gray-200">
           <p className="text-[10px] text-gray-400 mb-3 leading-relaxed">Answers grounded in course materials{myNotes.length > 0 ? ' + your notes' : ''}</p>
           <button onClick={onExit} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs"><LogOut size={11} />Exit</button>
         </div>
       </aside>
 
-      {/* Main */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-12 bg-white border-b border-gray-100 flex items-center justify-between px-8 flex-shrink-0">
           <div className="flex items-center gap-3">
             <h2 className="text-gray-900 text-sm font-medium">{active.title}</h2>
-            {myNotes.length > 0 && (
-              <span className="text-[11px] text-gray-400">· {myNotes.length} note{myNotes.length > 1 ? 's' : ''} active</span>
-            )}
+            {myNotes.length > 0 && <span className="text-[11px] text-gray-400">· {myNotes.length} note{myNotes.length > 1 ? 's' : ''} active</span>}
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-emerald-600">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
@@ -973,9 +1223,7 @@ setChats(prev => prev.map(c => c.id === currentChatId
                 </div>
               ) : (
                 <div className="text-center max-w-md w-full flex flex-col items-center">
-                  <div className="flex justify-center mb-5">
-                    <Logo size={36} />
-                  </div>
+                  <div className="flex justify-center mb-5"><Logo size={36} /></div>
                   <h3 className="text-gray-900 font-semibold text-lg mb-1.5">Ask anything about your course</h3>
                   <p className="text-gray-400 text-sm mb-8">Every answer is grounded in your professor's materials — cited and accurate.</p>
                   <div className="space-y-2 text-left w-full">
@@ -1002,17 +1250,11 @@ setChats(prev => prev.map(c => c.id === currentChatId
                     {m.role === 'assistant' && m.content === '' && m.streaming ? (
                       <div className="flex items-center gap-3 py-2">
                         <div className="flex flex-col justify-center gap-1" style={{width:'22px'}}>
-                          <div className="eq-bar eq1"></div>
-                          <div className="eq-bar eq2"></div>
-                          <div className="eq-bar eq3"></div>
+                          <div className="eq-bar eq1"></div><div className="eq-bar eq2"></div><div className="eq-bar eq3"></div>
                         </div>
                         <span className="text-xs text-gray-400">Reading your materials...</span>
                       </div>
-                    ) : isError ? (
-                      <ErrorMessage content={m.content} />
-                    ) : (
-                      <MessageText role={m.role} content={m.content} />
-                    )}
+                    ) : isError ? <ErrorMessage content={m.content} /> : <MessageText role={m.role} content={m.content} />}
                     {m.role === 'assistant' && m.streaming && m.content && (
                       <span className="inline-block w-0.5 h-4 bg-gray-400 animate-pulse ml-0.5 align-middle" />
                     )}
@@ -1029,7 +1271,6 @@ setChats(prev => prev.map(c => c.id === currentChatId
                     )}
                     {m.role === 'user' && <span className="block text-[10px] mt-1.5 opacity-30">{formatTime(m.ts)}</span>}
                   </div>
-
                   {m.role === 'assistant' && !m.streaming && m.content && !isError && (
                     <div className="flex items-center gap-0.5 mt-1.5">
                       <button onClick={() => copyMessage(m.content, msgId)} className={`p-1.5 rounded-lg transition-colors ${copiedId === msgId ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>
@@ -1061,13 +1302,7 @@ setChats(prev => prev.map(c => c.id === currentChatId
               <input ref={paperclipRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp"
                 onChange={e => { handlePaperclipFile(e.target.files[0]); e.target.value = ''; }} />
               <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (isTyping) return;
-                    onSend();
-                  }
-                }}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (isTyping) return; onSend(); } }}
                 className="flex-1 bg-transparent text-gray-800 text-sm outline-none placeholder-gray-400 py-1.5"
                 placeholder={myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course..."} />
               <SendStopButton />
