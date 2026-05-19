@@ -1321,6 +1321,39 @@ export default function App() {
   const [pendingJoinCode, setPendingJoinCode] = useState(null);
 
   useEffect(() => {
+    // Handle Google OAuth callback
+const hash = window.location.hash;
+if (hash && hash.includes('access_token')) {
+  const hashParams = new URLSearchParams(hash.replace('#', '?'));
+  const accessToken = hashParams.get('access_token');
+  if (accessToken) {
+    import('@supabase/supabase-js').then(({ createClient }) => {
+      const supabase = createClient(
+        'https://dtgukefqobgnreejlxyb.supabase.co',
+        'sb_publishable_bmvI67pGsWD52YYoIF3oDw_88izApLs'
+      );
+      supabase.auth.getUser(accessToken).then(({ data: { user } }) => {
+        if (user) {
+          supabase.from('students').upsert(
+            { id: user.id, email: user.email, name: user.user_metadata?.full_name || user.email.split('@')[0] },
+            { onConflict: 'id' }
+          ).then(() => {
+            const studentUser = { id: user.id, email: user.email, name: user.user_metadata?.full_name || user.email.split('@')[0] };
+            localStorage.setItem('scholr_student_token', accessToken);
+            localStorage.setItem('scholr_student_user', JSON.stringify(studentUser));
+            setStudentToken(accessToken);
+            setStudentUser(studentUser);
+            window.history.replaceState({}, '', '/');
+            const pending = sessionStorage.getItem('scholr_pending_join');
+            if (pending) { setScreen('student-dashboard'); }
+            else { setScreen('student-dashboard'); }
+          });
+        }
+      });
+    });
+    return;
+  }
+}
     const params = new URLSearchParams(window.location.search);
     const joinCode = params.get('join');
     if (joinCode) {
