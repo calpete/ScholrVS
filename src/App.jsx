@@ -32,6 +32,13 @@ const FONT = `
   .eq1 { animation: eq1 0.8s ease-in-out infinite; }
   .eq2 { animation: eq2 0.95s ease-in-out infinite 0.15s; }
   .eq3 { animation: eq3 0.75s ease-in-out infinite 0.08s; }
+  .sr { opacity:0; transform:translateY(28px); transition: opacity 0.65s cubic-bezier(.22,1,.36,1), transform 0.65s cubic-bezier(.22,1,.36,1); }
+  .sr.in { opacity:1; transform:translateY(0); }
+  .sr-d1 { transition-delay:0.1s; }
+  .sr-d2 { transition-delay:0.2s; }
+  .sr-d3 { transition-delay:0.3s; }
+  .sr-d4 { transition-delay:0.4s; }
+  .sr-d5 { transition-delay:0.5s; }
 `;
 
 function formatTime(date) { return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
@@ -1206,6 +1213,15 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
 
 // ── Landing Page ──────────────────────────────────────────────────────────────
 function LandingPage({ onStudent, onInstructor, onSignIn }) {
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); }),
+      { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
+    );
+    document.querySelectorAll('.sr').forEach(el => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#FAFAFA] flex flex-col">
       <style>{FONT}</style>
@@ -1222,12 +1238,12 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
       </nav>
 
       <div className="max-w-3xl mx-auto px-6 pt-20 pb-16 text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-gray-200 text-gray-500 text-xs font-medium mb-8">
+        <div className="sr in inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-gray-200 text-gray-500 text-xs font-medium mb-8">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Course-grounded AI tutoring
         </div>
-        <h1 className="serif text-[62px] leading-[1.08] text-gray-900 mb-6">Every answer from<br /><span className="italic">your course materials.</span></h1>
-        <p className="text-gray-500 text-lg max-w-md mx-auto leading-relaxed mb-10">AI tutoring grounded in what your professor uploaded. Cited, accurate, and trustworthy.</p>
-        <div className="flex items-center justify-center gap-3 flex-wrap">
+        <h1 className="sr in sr-d1 serif text-[62px] leading-[1.08] text-gray-900 mb-6">Every answer from<br /><span className="italic">your course materials.</span></h1>
+        <p className="sr in sr-d2 text-gray-500 text-lg max-w-md mx-auto leading-relaxed mb-10">AI tutoring grounded in what your professor uploaded. Cited, accurate, and trustworthy.</p>
+        <div className="sr in sr-d3 flex items-center justify-center gap-3 flex-wrap">
           <button onClick={onInstructor} className="px-7 py-3.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">Get started free →</button>
           <button onClick={onStudent} className="px-7 py-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium transition-colors">Join a course</button>
         </div>
@@ -1236,7 +1252,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
       {/* Product Mockup */}
       <div className="bg-gray-100 border-y border-gray-200 px-6 py-12">
         <div className="max-w-3xl mx-auto">
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden" style={{boxShadow:'0 4px 24px rgba(0,0,0,0.06)'}}>
+          <div className="sr bg-white rounded-2xl border border-gray-200 overflow-hidden" style={{boxShadow:'0 4px 24px rgba(0,0,0,0.06)'}}>
             <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center gap-3">
               <div className="flex gap-1.5">
                 <div className="w-3 h-3 rounded-full bg-red-400" />
@@ -1297,15 +1313,15 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
 
       {/* How it works */}
       <div className="max-w-3xl mx-auto px-6 py-20">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest text-center mb-3">How it works</p>
-        <h2 className="serif text-4xl text-gray-900 text-center mb-14 font-normal">Up and running in minutes</h2>
+        <p className="sr text-xs font-semibold text-gray-400 uppercase tracking-widest text-center mb-3">How it works</p>
+        <h2 className="sr sr-d1 serif text-4xl text-gray-900 text-center mb-14 font-normal">Up and running in minutes</h2>
         <div className="grid grid-cols-3 gap-8">
           {[
-            { n: '1', title: 'Create a course', desc: 'Sign up as an instructor, create a course, and get an instant invite link to share with students.' },
-            { n: '2', title: 'Upload materials', desc: 'Drop in your syllabus, lecture notes, and readings. The AI indexes everything instantly.' },
-            { n: '3', title: 'Students get answers', desc: 'Students ask questions 24/7 and get cited answers grounded only in your materials.' },
+            { n: '1', title: 'Create a course', desc: 'Sign up as an instructor, create a course, and get an instant invite link to share with students.', d: 'sr-d1' },
+            { n: '2', title: 'Upload materials', desc: 'Drop in your syllabus, lecture notes, and readings. The AI indexes everything instantly.', d: 'sr-d2' },
+            { n: '3', title: 'Students get answers', desc: 'Students ask questions 24/7 and get cited answers grounded only in your materials.', d: 'sr-d3' },
           ].map((s, i) => (
-            <div key={i} className="text-center">
+            <div key={i} className={`sr ${s.d} text-center`}>
               <div className="w-9 h-9 rounded-full bg-gray-900 text-white text-sm font-semibold flex items-center justify-center mx-auto mb-4">{s.n}</div>
               <p className="text-gray-900 text-sm font-medium mb-2">{s.title}</p>
               <p className="text-gray-400 text-xs leading-relaxed">{s.desc}</p>
@@ -1317,18 +1333,18 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
       {/* Features */}
       <div className="bg-white border-t border-gray-200 py-20">
         <div className="max-w-3xl mx-auto px-6">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest text-center mb-3">Why Scholr</p>
-          <h2 className="serif text-4xl text-gray-900 text-center mb-14 font-normal">Built for academic integrity</h2>
+          <p className="sr text-xs font-semibold text-gray-400 uppercase tracking-widest text-center mb-3">Why Scholr</p>
+          <h2 className="sr sr-d1 serif text-4xl text-gray-900 text-center mb-14 font-normal">Built for academic integrity</h2>
           <div className="grid grid-cols-3 gap-4">
             {[
-              { icon: <CheckCircle2 size={14} className="text-white" />, title: 'Cited answers', desc: 'Every response traces back to the exact document and page it came from.' },
-              { icon: <Clock size={14} className="text-white" />, title: 'Always available', desc: 'Students get answers at 2am before exams — no waiting for office hours.' },
-              { icon: <Users size={14} className="text-white" />, title: 'Per course AI', desc: 'Each course gets its own tutor. Students only see answers from their class.' },
-              { icon: <BarChart2 size={14} className="text-white" />, title: 'Student insights', desc: 'See what students are confused about before the next class session.' },
-              { icon: <FileText size={14} className="text-white" />, title: 'Materials only', desc: 'The AI never answers from outside your course. No hallucinations.' },
-              { icon: <Lock size={14} className="text-white" />, title: 'FERPA aligned', desc: 'Student data stays private. Built with educational privacy standards in mind.' },
+              { icon: <CheckCircle2 size={14} className="text-white" />, title: 'Cited answers', desc: 'Every response traces back to the exact document and page it came from.', d: 'sr-d1' },
+              { icon: <Clock size={14} className="text-white" />, title: 'Always available', desc: 'Students get answers at 2am before exams — no waiting for office hours.', d: 'sr-d2' },
+              { icon: <Users size={14} className="text-white" />, title: 'Per course AI', desc: 'Each course gets its own tutor. Students only see answers from their class.', d: 'sr-d3' },
+              { icon: <BarChart2 size={14} className="text-white" />, title: 'Student insights', desc: 'See what students are confused about before the next class session.', d: 'sr-d1' },
+              { icon: <FileText size={14} className="text-white" />, title: 'Materials only', desc: 'The AI never answers from outside your course. No hallucinations.', d: 'sr-d2' },
+              { icon: <Lock size={14} className="text-white" />, title: 'FERPA aligned', desc: 'Student data stays private. Built with educational privacy standards in mind.', d: 'sr-d3' },
             ].map((f, i) => (
-              <div key={i} className="bg-[#FAFAFA] border border-gray-200 rounded-2xl p-5">
+              <div key={i} className={`sr ${f.d} bg-[#FAFAFA] border border-gray-200 rounded-2xl p-5`}>
                 <div className="w-8 h-8 rounded-lg bg-gray-900 flex items-center justify-center mb-4">{f.icon}</div>
                 <p className="text-gray-900 text-sm font-medium mb-1.5">{f.title}</p>
                 <p className="text-gray-400 text-xs leading-relaxed">{f.desc}</p>
@@ -1340,7 +1356,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
 
       {/* CTA Banner */}
       <div className="bg-gray-900 py-16">
-        <div className="max-w-xl mx-auto px-6 text-center">
+        <div className="sr max-w-xl mx-auto px-6 text-center">
           <h2 className="serif text-4xl text-white mb-4 font-normal">Ready to get started?</h2>
           <p className="text-gray-400 text-sm mb-8 leading-relaxed">Set up your first course in minutes. Free to start.</p>
           <div className="flex items-center justify-center gap-3">
