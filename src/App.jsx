@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import {
   MessageSquare, Send, LogOut, Trash2, Plus, BookOpen, FileText,
   ChevronRight, Users, AlertCircle, UploadCloud, BarChart2, Clock,
@@ -287,7 +288,6 @@ function StudentLogin({ onLogin, onGoSignup, onBack, pendingJoinCode }) {
   };
 
   const handleGoogle = () => {
-    // Store pending join code so we can enroll after OAuth redirect
     if (pendingJoinCode) sessionStorage.setItem('scholr_pending_join', pendingJoinCode);
     window.location.href = `${API}/student/auth/google`;
   };
@@ -299,24 +299,16 @@ function StudentLogin({ onLogin, onGoSignup, onBack, pendingJoinCode }) {
       <div className={`w-full max-w-sm px-6 ${shaking ? 'shake' : ''}`}>
         <div className="text-center mb-8">
           <h1 className="serif text-3xl text-gray-900 mb-1.5">Student login</h1>
-          <p className="text-gray-400 text-sm">
-            {pendingJoinCode ? 'Sign in to join your course' : 'Sign in to your courses'}
-          </p>
+          <p className="text-gray-400 text-sm">{pendingJoinCode ? 'Sign in to join your course' : 'Sign in to your courses'}</p>
         </div>
-
-        {/* Google OAuth */}
         <button onClick={handleGoogle}
           className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm text-gray-700 text-sm font-medium transition-all mb-4">
           <svg width="16" height="16" viewBox="0 0 16 16"><path d="M15.68 8.18c0-.57-.05-1.11-.14-1.64H8v3.1h4.3a3.67 3.67 0 01-1.59 2.41v2h2.57c1.5-1.38 2.4-3.42 2.4-5.87z" fill="#4285F4"/><path d="M8 16c2.16 0 3.97-.72 5.29-1.94l-2.57-2a4.8 4.8 0 01-7.15-2.52H.96v2.07A8 8 0 008 16z" fill="#34A853"/><path d="M3.57 9.54A4.8 4.8 0 013.32 8c0-.54.09-1.06.25-1.54V4.39H.96A8 8 0 000 8c0 1.29.31 2.51.96 3.61l2.61-2.07z" fill="#FBBC05"/><path d="M8 3.18c1.22 0 2.31.42 3.17 1.24l2.37-2.37A8 8 0 00.96 4.39L3.57 6.46A4.8 4.8 0 018 3.18z" fill="#EA4335"/></svg>
           Continue with Google
         </button>
-
         <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-xs text-gray-400">or</span>
-          <div className="flex-1 h-px bg-gray-200" />
+          <div className="flex-1 h-px bg-gray-200" /><span className="text-xs text-gray-400">or</span><div className="flex-1 h-px bg-gray-200" />
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-3">
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
@@ -379,23 +371,16 @@ function StudentSignup({ onLogin, onGoLogin, onBack, pendingJoinCode }) {
       <div className="w-full max-w-sm px-6">
         <div className="text-center mb-8">
           <h1 className="serif text-3xl text-gray-900 mb-1.5">Create account</h1>
-          <p className="text-gray-400 text-sm">
-            {pendingJoinCode ? "Sign up to join your course" : "Join Scholr as a student"}
-          </p>
+          <p className="text-gray-400 text-sm">{pendingJoinCode ? "Sign up to join your course" : "Join Scholr as a student"}</p>
         </div>
-
         <button onClick={handleGoogle}
           className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm text-gray-700 text-sm font-medium transition-all mb-4">
           <svg width="16" height="16" viewBox="0 0 16 16"><path d="M15.68 8.18c0-.57-.05-1.11-.14-1.64H8v3.1h4.3a3.67 3.67 0 01-1.59 2.41v2h2.57c1.5-1.38 2.4-3.42 2.4-5.87z" fill="#4285F4"/><path d="M8 16c2.16 0 3.97-.72 5.29-1.94l-2.57-2a4.8 4.8 0 01-7.15-2.52H.96v2.07A8 8 0 008 16z" fill="#34A853"/><path d="M3.57 9.54A4.8 4.8 0 013.32 8c0-.54.09-1.06.25-1.54V4.39H.96A8 8 0 000 8c0 1.29.31 2.51.96 3.61l2.61-2.07z" fill="#FBBC05"/><path d="M8 3.18c1.22 0 2.31.42 3.17 1.24l2.37-2.37A8 8 0 00.96 4.39L3.57 6.46A4.8 4.8 0 018 3.18z" fill="#EA4335"/></svg>
           Continue with Google
         </button>
-
         <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 h-px bg-gray-200" />
-          <span className="text-xs text-gray-400">or</span>
-          <div className="flex-1 h-px bg-gray-200" />
+          <div className="flex-1 h-px bg-gray-200" /><span className="text-xs text-gray-400">or</span><div className="flex-1 h-px bg-gray-200" />
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-3">
           <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
@@ -442,12 +427,8 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
 
   useEffect(() => {
     fetchCourses();
-    // Handle pending join from OAuth redirect
     const pendingCode = sessionStorage.getItem('scholr_pending_join');
-    if (pendingCode) {
-      sessionStorage.removeItem('scholr_pending_join');
-      handleJoin(pendingCode);
-    }
+    if (pendingCode) { sessionStorage.removeItem('scholr_pending_join'); handleJoin(pendingCode); }
   }, []);
 
   const handleJoin = async (codeOverride) => {
@@ -455,21 +436,12 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
     if (!code) return;
     setJoining(true); setJoinError('');
     try {
-      // Look up course by join code
       const courseRes = await fetch(`${API}/course/join/${code}`);
       if (!courseRes.ok) { setJoinError('Course not found — check your code'); setJoining(false); return; }
       const course = await courseRes.json();
-
-      // Enroll student
-      const enrollRes = await fetch(`${API}/student/enroll`, {
-        method: 'POST', headers: authHeaders,
-        body: JSON.stringify({ course_id: course.id }),
-      });
+      const enrollRes = await fetch(`${API}/student/enroll`, { method: 'POST', headers: authHeaders, body: JSON.stringify({ course_id: course.id }) });
       const enrollData = await enrollRes.json();
-      if (!enrollRes.ok && !enrollData.already_enrolled) {
-        setJoinError(enrollData.error || 'Could not enroll'); setJoining(false); return;
-      }
-
+      if (!enrollRes.ok && !enrollData.already_enrolled) { setJoinError(enrollData.error || 'Could not enroll'); setJoining(false); return; }
       setJoiningCode(''); setShowJoinInput(false);
       showToast(`Joined ${course.name}!`);
       fetchCourses();
@@ -492,75 +464,42 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
   return (
     <div className="min-h-screen bg-[#F7F7F7]">
       <style>{FONT}</style>
-
-      {/* Header */}
       <div className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Logo size={24} />
-          <span className="text-gray-900 font-semibold text-sm">Scholr</span>
-          <span className="text-gray-300">·</span>
-          <span className="text-gray-500 text-sm">{user.name || user.email}</span>
-        </div>
-        <button onClick={onLogout} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs">
-          <LogOut size={12} />Sign out
-        </button>
+        <div className="flex items-center gap-3"><Logo size={24} /><span className="text-gray-900 font-semibold text-sm">Scholr</span><span className="text-gray-300">·</span><span className="text-gray-500 text-sm">{user.name || user.email}</span></div>
+        <button onClick={onLogout} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs"><LogOut size={12} />Sign out</button>
       </div>
-
       <div className="max-w-4xl mx-auto px-8 py-10">
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">My Courses</h1>
-            <p className="text-gray-400 text-sm mt-1">
-              {enrolledCourses.length} course{enrolledCourses.length !== 1 ? 's' : ''} · Each has its own AI tutor
-            </p>
+            <p className="text-gray-400 text-sm mt-1">{enrolledCourses.length} course{enrolledCourses.length !== 1 ? 's' : ''} · Each has its own AI tutor</p>
           </div>
-          <button onClick={() => setShowJoinInput(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">
-            <Plus size={14} />Join a course
-          </button>
+          <button onClick={() => setShowJoinInput(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors"><Plus size={14} />Join a course</button>
         </div>
-
-        {/* Join course input */}
         {showJoinInput && (
           <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-5">
             <h3 className="text-sm font-semibold text-gray-900 mb-1">Join a course</h3>
             <p className="text-xs text-gray-400 mb-4">Enter the join code your professor shared with you</p>
             <div className="flex gap-3">
-              <input
-                autoFocus
-                type="text"
-                value={joiningCode}
-                onChange={e => { setJoiningCode(e.target.value.toUpperCase()); setJoinError(''); }}
-                onKeyDown={e => e.key === 'Enter' && handleJoin()}
-                placeholder="e.g. BUSA-ABC1"
-                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300 font-mono uppercase tracking-wider"
-              />
+              <input autoFocus type="text" value={joiningCode} onChange={e => { setJoiningCode(e.target.value.toUpperCase()); setJoinError(''); }}
+                onKeyDown={e => e.key === 'Enter' && handleJoin()} placeholder="e.g. A306-UCB2"
+                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300 font-mono uppercase tracking-wider" />
               <button onClick={() => handleJoin()} disabled={!joiningCode.trim() || joining}
-                className="px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">
-                {joining ? 'Joining...' : 'Join'}
-              </button>
+                className="px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">{joining ? 'Joining...' : 'Join'}</button>
               <button onClick={() => { setShowJoinInput(false); setJoiningCode(''); setJoinError(''); }}
-                className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm transition-colors">
-                Cancel
-              </button>
+                className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm transition-colors">Cancel</button>
             </div>
             {joinError && <p className="text-red-500 text-xs mt-2">{joinError}</p>}
           </div>
         )}
-
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
-          </div>
+          <div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" /></div>
         ) : enrolledCourses.length === 0 ? (
           <div className="text-center py-20">
             <BookOpen size={32} className="text-gray-200 mx-auto mb-4" />
             <p className="text-gray-500 font-medium mb-1">No courses yet</p>
             <p className="text-gray-400 text-sm mb-6">Ask your professor for a join code to get started</p>
-            <button onClick={() => setShowJoinInput(true)}
-              className="px-5 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">
-              Join a course
-            </button>
+            <button onClick={() => setShowJoinInput(true)} className="px-5 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">Join a course</button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -568,32 +507,23 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
               <button key={course.id} onClick={() => handleEnterCourse(course)}
                 className="group text-left bg-white rounded-2xl border border-gray-200 p-6 hover:border-gray-300 hover:shadow-md transition-all">
                 <div className="flex items-start justify-between mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center">
-                    <BookOpen size={16} className="text-white" />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    <span className="text-[10px] text-gray-400">AI Active</span>
-                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center"><BookOpen size={16} className="text-white" /></div>
+                  <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-[10px] text-gray-400">AI Active</span></div>
                 </div>
                 <h3 className="text-gray-900 font-semibold text-base mb-1 leading-snug">{course.name}</h3>
                 <p className="text-gray-400 text-xs mb-4">{course.professor_name || 'Instructor'}</p>
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-mono text-gray-300">{course.code}</span>
-                  <div className="flex items-center gap-1 text-gray-900 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                    Open <ChevronRight size={12} />
-                  </div>
+                  <span className="text-[11px] font-mono text-gray-300">{course.join_code || course.code}</span>
+                  <div className="flex items-center gap-1 text-gray-900 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">Open <ChevronRight size={12} /></div>
                 </div>
               </button>
             ))}
           </div>
         )}
       </div>
-
       {toast && (
         <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-xl text-white text-xs font-medium shadow-xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
-          {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle2 size={13} />}
-          {toast.msg}
+          {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle2 size={13} />}{toast.msg}
         </div>
       )}
     </div>
@@ -639,7 +569,6 @@ function ProfessorDashboard({ token, user, onLogout }) {
   };
 
   const copyLink = (course) => {
-    // Use join_code in the link so students go through auth
     const link = `https://scholrvs.onrender.com/join/${course.join_code || course.code}`;
     navigator.clipboard.writeText(link);
     setCopied(course.id); setTimeout(() => setCopied(null), 2000);
@@ -658,54 +587,32 @@ function ProfessorDashboard({ token, user, onLogout }) {
     <div className="min-h-screen bg-[#F7F7F7]">
       <style>{FONT}</style>
       <div className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Logo size={24} />
-          <span className="text-gray-900 font-semibold text-sm">Scholr</span>
-          <span className="text-gray-300">·</span>
-          <span className="text-gray-500 text-sm">{user.name || user.email}</span>
-        </div>
-        <button onClick={onLogout} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs">
-          <LogOut size={12} />Sign out
-        </button>
+        <div className="flex items-center gap-3"><Logo size={24} /><span className="text-gray-900 font-semibold text-sm">Scholr</span><span className="text-gray-300">·</span><span className="text-gray-500 text-sm">{user.name || user.email}</span></div>
+        <button onClick={onLogout} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs"><LogOut size={12} />Sign out</button>
       </div>
-
       <div className="max-w-4xl mx-auto px-8 py-10">
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">Your Courses</h1>
             <p className="text-gray-400 text-sm mt-1">{courses.length} course{courses.length !== 1 ? 's' : ''} · Each gets its own AI tutor and student portal</p>
           </div>
-          <button onClick={() => setCreating(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">
-            <Plus size={14} />New course
-          </button>
+          <button onClick={() => setCreating(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors"><Plus size={14} />New course</button>
         </div>
-
         {creating && (
           <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-5">
             <h3 className="text-sm font-semibold text-gray-900 mb-4">New course</h3>
             <form onSubmit={createCourse} className="flex gap-3">
-              <input autoFocus type="text" value={newCourseName} onChange={e => setNewCourseName(e.target.value)}
-                placeholder="e.g. BUS-A 306 Management Accounting"
+              <input autoFocus type="text" value={newCourseName} onChange={e => setNewCourseName(e.target.value)} placeholder="e.g. BUS-A 306 Management Accounting"
                 className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-              <button type="submit" disabled={!newCourseName.trim()}
-                className="px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">Create</button>
-              <button type="button" onClick={() => { setCreating(false); setNewCourseName(''); }}
-                className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm transition-colors">Cancel</button>
+              <button type="submit" disabled={!newCourseName.trim()} className="px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">Create</button>
+              <button type="button" onClick={() => { setCreating(false); setNewCourseName(''); }} className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm transition-colors">Cancel</button>
             </form>
           </div>
         )}
-
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
-          </div>
+          <div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" /></div>
         ) : courses.length === 0 ? (
-          <div className="text-center py-20">
-            <BookOpen size={32} className="text-gray-200 mx-auto mb-4" />
-            <p className="text-gray-500 font-medium mb-1">No courses yet</p>
-            <p className="text-gray-400 text-sm">Create your first course to get started</p>
-          </div>
+          <div className="text-center py-20"><BookOpen size={32} className="text-gray-200 mx-auto mb-4" /><p className="text-gray-500 font-medium mb-1">No courses yet</p><p className="text-gray-400 text-sm">Create your first course to get started</p></div>
         ) : (
           <div className="space-y-3">
             {courses.map(course => (
@@ -731,14 +638,8 @@ function ProfessorDashboard({ token, user, onLogout }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-4">
-                    <button onClick={() => setSelectedCourse(course)}
-                      className="px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors">
-                      Manage
-                    </button>
-                    <button onClick={() => deleteCourse(course.id)}
-                      className="p-2 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400 transition-colors">
-                      <Trash2 size={13} />
-                    </button>
+                    <button onClick={() => setSelectedCourse(course)} className="px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors">Manage</button>
+                    <button onClick={() => deleteCourse(course.id)} className="p-2 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400 transition-colors"><Trash2 size={13} /></button>
                   </div>
                 </div>
               </div>
@@ -746,11 +647,9 @@ function ProfessorDashboard({ token, user, onLogout }) {
           </div>
         )}
       </div>
-
       {toast && (
         <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-xl text-white text-xs font-medium shadow-xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
-          {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle2 size={13} />}
-          {toast.msg}
+          {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle2 size={13} />}{toast.msg}
         </div>
       )}
     </div>
@@ -812,9 +711,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
       <style>{FONT}</style>
       <aside className="w-56 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
         <div className="px-5 py-5 border-b border-gray-100">
-          <button onClick={onBack} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 text-xs mb-4 transition-colors">
-            <ArrowLeft size={12} />All courses
-          </button>
+          <button onClick={onBack} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 text-xs mb-4 transition-colors"><ArrowLeft size={12} />All courses</button>
           <div className="flex items-center gap-2.5 mb-3"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></div>
           <div className="bg-gray-900 rounded-lg px-3 py-2.5">
             <p className="text-white text-xs font-medium truncate">{course.name}</p>
@@ -830,23 +727,17 @@ function CourseManager({ token, course, onBack, authHeaders }) {
           ))}
         </nav>
         <div className="p-4 border-t border-gray-100 space-y-2">
-          <button onClick={copyLink}
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs font-medium transition-colors">
-            {copied ? <Check size={11} className="text-emerald-500" /> : <ExternalLink size={11} />}
-            {copied ? 'Copied!' : 'Copy student link'}
+          <button onClick={copyLink} className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs font-medium transition-colors">
+            {copied ? <Check size={11} className="text-emerald-500" /> : <ExternalLink size={11} />}{copied ? 'Copied!' : 'Copy student link'}
           </button>
           <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div><span className="text-[10px] text-gray-400">Vertex AI connected</span></div>
         </div>
       </aside>
-
       <main className="flex-1 flex flex-col overflow-hidden">
         {activeTab === 'materials' ? (
           <>
             <header className="bg-white border-b border-gray-200 px-8 py-4 flex-shrink-0 flex items-center justify-between">
-              <div>
-                <h2 className="text-gray-900 text-sm font-semibold">Course Materials</h2>
-                <p className="text-gray-400 text-xs mt-0.5">{mods.length} file{mods.length !== 1 ? 's' : ''} indexed · live for all students</p>
-              </div>
+              <div><h2 className="text-gray-900 text-sm font-semibold">Course Materials</h2><p className="text-gray-400 text-xs mt-0.5">{mods.length} file{mods.length !== 1 ? 's' : ''} indexed · live for all students</p></div>
               <div className="flex items-center gap-3">
                 <input type="file" ref={fileRef} onChange={e => { handleFile(e.target.files[0]); e.target.value = ''; }} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" />
                 <button onClick={() => fileRef.current.click()} disabled={uploading}
@@ -858,8 +749,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
             <div className="flex-1 overflow-y-auto p-8">
               {mods.length === 0 ? (
                 <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
-                  onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
-                  onClick={() => fileRef.current.click()}
+                  onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }} onClick={() => fileRef.current.click()}
                   className={`flex flex-col items-center justify-center h-56 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${dragOver ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300'}`}>
                   <UploadCloud size={24} className="text-gray-300 mb-3" />
                   <p className="text-gray-500 text-sm font-medium mb-1">{dragOver ? 'Drop to upload' : 'Upload course materials'}</p>
@@ -868,11 +758,9 @@ function CourseManager({ token, course, onBack, authHeaders }) {
               ) : (
                 <div>
                   <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
-                    onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
-                    onClick={() => fileRef.current.click()}
+                    onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }} onClick={() => fileRef.current.click()}
                     className={`mb-6 flex items-center gap-3 px-5 py-3 rounded-xl border border-dashed cursor-pointer transition-all ${dragOver ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                    <UploadCloud size={14} className="text-gray-300" />
-                    <span className="text-gray-400 text-xs">Drop another file — PDF or image</span>
+                    <UploadCloud size={14} className="text-gray-300" /><span className="text-gray-400 text-xs">Drop another file — PDF or image</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {mods.map(m => (
@@ -881,9 +769,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
                           <div className="w-9 h-9 rounded-lg bg-gray-900 flex items-center justify-center">
                             {/\.(jpg|jpeg|png|webp)$/i.test(m.name) ? <span className="text-white text-[10px] font-bold">IMG</span> : <FileText size={14} className="text-white" />}
                           </div>
-                          <button onClick={() => onDelete(m)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400 transition-all">
-                            <Trash2 size={12} />
-                          </button>
+                          <button onClick={() => onDelete(m)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400 transition-all"><Trash2 size={12} /></button>
                         </div>
                         <p className="text-gray-900 text-sm font-medium line-clamp-2">{cleanFileName(m.name)}</p>
                         <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
@@ -899,11 +785,9 @@ function CourseManager({ token, course, onBack, authHeaders }) {
           </>
         ) : <CourseInsights courseId={course.id} onStartClassMode={() => setClassroomMode(true)} />}
       </main>
-
       {toast && (
         <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-xl text-white text-xs font-medium shadow-xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
-          {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle2 size={13} />}
-          {toast.msg}
+          {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle2 size={13} />}{toast.msg}
         </div>
       )}
     </div>
@@ -954,203 +838,101 @@ function CourseInsights({ courseId, onStartClassMode }) {
     <div className="flex-1 flex flex-col overflow-hidden bg-[#F7F7F7]">
       <div className="bg-white border-b border-gray-200 px-8 py-5 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-gray-900 font-semibold text-sm">Student Insights</h2>
-            <div className="flex items-center gap-2 mt-0.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <p className="text-gray-400 text-xs">Live · updates every 10s{isEmpty ? ' · showing sample data' : ''}</p>
-            </div>
+          <div><h2 className="text-gray-900 font-semibold text-sm">Student Insights</h2>
+            <div className="flex items-center gap-2 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><p className="text-gray-400 text-xs">Live · updates every 10s{isEmpty ? ' · showing sample data' : ''}</p></div>
           </div>
           <div className="flex items-center gap-3">
-            {newCount > 0 && (
-              <button onClick={() => { setNewCount(0); fetchInsights(); }} className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
-                ↑ {newCount} new
-              </button>
-            )}
-            <button onClick={onStartClassMode} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />Live Mode
-            </button>
+            {newCount > 0 && <button onClick={() => { setNewCount(0); fetchInsights(); }} className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">↑ {newCount} new</button>}
+            <button onClick={onStartClassMode} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors"><span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />Live Mode</button>
           </div>
         </div>
         <div className="flex gap-1 mt-4">
           {[{ id: 'overview', label: 'Overview' }, { id: 'questions', label: 'Questions' }, { id: 'gaps', label: 'Knowledge Gaps' }].map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeTab === tab.id ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}>
-              {tab.label}
-            </button>
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeTab === tab.id ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}>{tab.label}</button>
           ))}
         </div>
       </div>
-
       <div className="flex-1 overflow-y-auto p-8 space-y-5">
-        {activeTab === 'overview' && (
-          <>
-            <div className="grid grid-cols-3 gap-4">
-              <StatCard dark label="Total Questions" value={d.totalQuestions.toLocaleString()} sub={`${d.weekQuestions} this week`} icon="💬" />
-              <StatCard label="Time Saved" value={timeSaved} sub="professor hours freed up" icon="⏱" />
-              <StatCard label="AI Confidence" value={`${d.confidenceRate}%`} sub="answers grounded in materials" icon="✓" />
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <StatCard label="Students Engaged" value={d.estimatedStudents} sub="unique sessions detected" icon="👥" />
-              <StatCard label="Peak Study Time" value={d.peakHour} sub="most active hour" icon="🌙" />
-              <StatCard label="Top Topic" value={topTopic} sub="most asked this week" icon="📌" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-0.5">Weekly Activity</h3>
-                <p className="text-[11px] text-gray-400 mb-5">Questions asked per day</p>
-                <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={d.dailyActivity} barSize={24}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                    <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} width={20} />
-                    <Tooltip content={<ChartTooltip />} cursor={{ fill: '#F9FAFB' }} />
-                    <Bar dataKey="questions" fill="#0F0F0F" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-0.5">Topic Distribution</h3>
-                <p className="text-[11px] text-gray-400 mb-4">What students are asking about</p>
-                <div className="flex items-center gap-4">
-                  <ResponsiveContainer width={150} height={150}>
-                    <PieChart>
-                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={42} outerRadius={70} paddingAngle={3} dataKey="value">
-                        {pieData.map((_, i) => <Cell key={i} fill={TOPIC_COLORS[i % TOPIC_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip content={<PieTooltipCustom />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="flex-1 space-y-2">
-                    {pieData.map((entry, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: TOPIC_COLORS[i % TOPIC_COLORS.length] }} />
-                        <span className="text-xs text-gray-600 flex-1 truncate">{entry.name}</span>
-                        <span className="text-xs font-semibold text-gray-900">{Math.round(entry.percent * 100)}%</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="bg-gray-900 rounded-2xl p-6 text-white">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 text-lg">💡</div>
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">Scholr AI Insight</p>
-                  <p className="text-sm leading-relaxed text-white/80">
-                    Students asked about <strong className="text-white">{topTopic}</strong> most this week.
-                    {d.flagged?.length > 0 && <> {d.flagged.length} question{d.flagged.length > 1 ? 's' : ''} couldn't be answered confidently.</>}
-                    {d.weekQuestions > 5 && <> Peak activity was at <strong className="text-white">{d.peakHour}</strong>.</>}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        {activeTab === 'questions' && (
-          <>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-4">Topic Breakdown</h3>
-                <div className="space-y-3">
-                  {d.topTopics.map((t, i) => {
-                    const pct = Math.round((t.count / totalForPie) * 100);
-                    return (
-                      <div key={i} className="flex items-center gap-3">
-                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full w-24 text-center flex-shrink-0 ${TOPIC_ACCENT[t.topic] || 'bg-gray-100 text-gray-600'}`}>{t.topic}</span>
-                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-gray-900 rounded-full" style={{ width: `${pct}%` }} />
-                        </div>
-                        <span className="text-xs font-bold text-gray-900 w-5 text-right">{t.count}</span>
-                        <span className="text-[10px] text-gray-400 w-8">{pct}%</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-1">Confidence Rate</h3>
-                <p className="text-[11px] text-gray-400 mb-4">How well materials cover student questions</p>
-                <div className="flex items-center justify-center py-3">
-                  <div className="relative w-32 h-32">
-                    <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                      <circle cx="50" cy="50" r="40" fill="none" stroke="#F3F4F6" strokeWidth="10" />
-                      <circle cx="50" cy="50" r="40" fill="none" stroke="#0F0F0F" strokeWidth="10"
-                        strokeDasharray={`${2 * Math.PI * 40 * d.confidenceRate / 100} ${2 * Math.PI * 40}`} strokeLinecap="round" />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-2xl font-bold text-gray-900">{d.confidenceRate}%</span>
-                      <span className="text-[10px] text-gray-400">confident</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-center gap-8 mt-2">
-                  <div className="text-center"><p className="text-xl font-bold text-gray-900">{d.totalQuestions - (d.flagged?.length || 0)}</p><p className="text-[10px] text-gray-400">answered well</p></div>
-                  <div className="w-px h-8 bg-gray-100" />
-                  <div className="text-center"><p className="text-xl font-bold text-amber-500">{d.flagged?.length || 0}</p><p className="text-[10px] text-gray-400">needs review</p></div>
-                </div>
-              </div>
+        {activeTab === 'overview' && (<>
+          <div className="grid grid-cols-3 gap-4">
+            <StatCard dark label="Total Questions" value={d.totalQuestions.toLocaleString()} sub={`${d.weekQuestions} this week`} icon="💬" />
+            <StatCard label="Time Saved" value={timeSaved} sub="professor hours freed up" icon="⏱" />
+            <StatCard label="AI Confidence" value={`${d.confidenceRate}%`} sub="answers grounded in materials" icon="✓" />
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <StatCard label="Students Engaged" value={d.estimatedStudents} sub="unique sessions detected" icon="👥" />
+            <StatCard label="Peak Study Time" value={d.peakHour} sub="most active hour" icon="🌙" />
+            <StatCard label="Top Topic" value={topTopic} sub="most asked this week" icon="📌" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-0.5">Weekly Activity</h3>
+              <p className="text-[11px] text-gray-400 mb-5">Questions asked per day</p>
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={d.dailyActivity} barSize={24}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} width={20} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: '#F9FAFB' }} />
+                  <Bar dataKey="questions" fill="#0F0F0F" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
             <div className="bg-white rounded-2xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-5">
-                <div><h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide">Recent Questions</h3><p className="text-[11px] text-gray-400 mt-0.5">What students asked in real time</p></div>
-                <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><span className="text-[10px] text-gray-400">Live</span></div>
-              </div>
-              <div className="divide-y divide-gray-50">
-                {d.recent.slice(0, 10).map((q, i) => {
-                  const label = getTopicLabel(q.question);
-                  return (
-                    <div key={i} className="flex items-start gap-4 py-3 hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors">
-                      <div className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${q.confident !== false ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-gray-800 leading-snug">{q.question}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${TOPIC_ACCENT[label] || 'bg-gray-100 text-gray-600'}`}>{label}</span>
-                          {q.confident === false && <span className="text-[10px] text-amber-500 font-medium">Needs review</span>}
-                        </div>
-                      </div>
-                      <span className="text-[10px] text-gray-300 flex-shrink-0 mt-1">{formatRelativeDate(q.ts)}</span>
-                    </div>
-                  );
-                })}
+              <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-0.5">Topic Distribution</h3>
+              <p className="text-[11px] text-gray-400 mb-4">What students are asking about</p>
+              <div className="flex items-center gap-4">
+                <ResponsiveContainer width={150} height={150}>
+                  <PieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={42} outerRadius={70} paddingAngle={3} dataKey="value">{pieData.map((_, i) => <Cell key={i} fill={TOPIC_COLORS[i % TOPIC_COLORS.length]} />)}</Pie><Tooltip content={<PieTooltipCustom />} /></PieChart>
+                </ResponsiveContainer>
+                <div className="flex-1 space-y-2">{pieData.map((entry, i) => (<div key={i} className="flex items-center gap-2"><div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: TOPIC_COLORS[i % TOPIC_COLORS.length] }} /><span className="text-xs text-gray-600 flex-1 truncate">{entry.name}</span><span className="text-xs font-semibold text-gray-900">{Math.round(entry.percent * 100)}%</span></div>))}</div>
               </div>
             </div>
-          </>
-        )}
-
-        {activeTab === 'gaps' && (
-          <>
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 text-lg">⚠️</div>
-                <div>
-                  <h3 className="text-sm font-semibold text-amber-900 mb-1">Knowledge Gap Analysis</h3>
-                  <p className="text-xs text-amber-700 leading-relaxed">These questions couldn't be answered confidently from your uploaded materials.</p>
+          </div>
+          <div className="bg-gray-900 rounded-2xl p-6 text-white">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 text-lg">💡</div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">Scholr AI Insight</p>
+                <p className="text-sm leading-relaxed text-white/80">Students asked about <strong className="text-white">{topTopic}</strong> most this week.{d.flagged?.length > 0 && <> {d.flagged.length} question{d.flagged.length > 1 ? 's' : ''} couldn't be answered confidently.</>}{d.weekQuestions > 5 && <> Peak activity was at <strong className="text-white">{d.peakHour}</strong>.</>}</p>
+              </div>
+            </div>
+          </div>
+        </>)}
+        {activeTab === 'questions' && (<>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-4">Topic Breakdown</h3>
+              <div className="space-y-3">{d.topTopics.map((t, i) => { const pct = Math.round((t.count / totalForPie) * 100); return (<div key={i} className="flex items-center gap-3"><span className={`text-[11px] font-medium px-2 py-0.5 rounded-full w-24 text-center flex-shrink-0 ${TOPIC_ACCENT[t.topic] || 'bg-gray-100 text-gray-600'}`}>{t.topic}</span><div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-gray-900 rounded-full" style={{ width: `${pct}%` }} /></div><span className="text-xs font-bold text-gray-900 w-5 text-right">{t.count}</span><span className="text-[10px] text-gray-400 w-8">{pct}%</span></div>); })}</div>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-1">Confidence Rate</h3>
+              <p className="text-[11px] text-gray-400 mb-4">How well materials cover student questions</p>
+              <div className="flex items-center justify-center py-3">
+                <div className="relative w-32 h-32">
+                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="#F3F4F6" strokeWidth="10" />
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="#0F0F0F" strokeWidth="10" strokeDasharray={`${2 * Math.PI * 40 * d.confidenceRate / 100} ${2 * Math.PI * 40}`} strokeLinecap="round" />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-2xl font-bold text-gray-900">{d.confidenceRate}%</span><span className="text-[10px] text-gray-400">confident</span></div>
                 </div>
               </div>
+              <div className="flex items-center justify-center gap-8 mt-2">
+                <div className="text-center"><p className="text-xl font-bold text-gray-900">{d.totalQuestions - (d.flagged?.length || 0)}</p><p className="text-[10px] text-gray-400">answered well</p></div>
+                <div className="w-px h-8 bg-gray-100" />
+                <div className="text-center"><p className="text-xl font-bold text-amber-500">{d.flagged?.length || 0}</p><p className="text-[10px] text-gray-400">needs review</p></div>
+              </div>
             </div>
-            <div className="space-y-3">
-              {d.flagged.map((q, i) => (
-                <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 hover:border-amber-200 hover:shadow-sm transition-all">
-                  <div className="flex items-start gap-4">
-                    <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0">
-                      <span className="text-amber-500 text-xs font-bold">#{i + 1}</span>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-800 font-medium leading-snug">{q.question}</p>
-                      <div className="flex items-center gap-3 mt-2">
-                        <span className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">Low confidence</span>
-                        <span className="text-[10px] text-gray-400">{formatRelativeDate(q.ts)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-5"><div><h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide">Recent Questions</h3><p className="text-[11px] text-gray-400 mt-0.5">What students asked in real time</p></div><div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><span className="text-[10px] text-gray-400">Live</span></div></div>
+            <div className="divide-y divide-gray-50">{d.recent.slice(0, 10).map((q, i) => { const label = getTopicLabel(q.question); return (<div key={i} className="flex items-start gap-4 py-3 hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"><div className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${q.confident !== false ? 'bg-emerald-400' : 'bg-amber-400'}`} /><div className="flex-1 min-w-0"><p className="text-sm text-gray-800 leading-snug">{q.question}</p><div className="flex items-center gap-2 mt-1"><span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${TOPIC_ACCENT[label] || 'bg-gray-100 text-gray-600'}`}>{label}</span>{q.confident === false && <span className="text-[10px] text-amber-500 font-medium">Needs review</span>}</div></div><span className="text-[10px] text-gray-300 flex-shrink-0 mt-1">{formatRelativeDate(q.ts)}</span></div>); })}</div>
+          </div>
+        </>)}
+        {activeTab === 'gaps' && (<>
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6"><div className="flex items-start gap-4"><div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 text-lg">⚠️</div><div><h3 className="text-sm font-semibold text-amber-900 mb-1">Knowledge Gap Analysis</h3><p className="text-xs text-amber-700 leading-relaxed">These questions couldn't be answered confidently from your uploaded materials.</p></div></div></div>
+          <div className="space-y-3">{d.flagged.map((q, i) => (<div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 hover:border-amber-200 hover:shadow-sm transition-all"><div className="flex items-start gap-4"><div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0"><span className="text-amber-500 text-xs font-bold">#{i + 1}</span></div><div className="flex-1"><p className="text-sm text-gray-800 font-medium leading-snug">{q.question}</p><div className="flex items-center gap-3 mt-2"><span className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">Low confidence</span><span className="text-[10px] text-gray-400">{formatRelativeDate(q.ts)}</span></div></div></div></div>))}</div>
+        </>)}
       </div>
     </div>
   );
@@ -1178,41 +960,17 @@ function ClassroomMode({ courseId, onExit }) {
     <div className="fixed inset-0 bg-gray-950 flex flex-col z-50">
       <style>{FONT}</style>
       <div className="flex items-center justify-between px-10 py-5 border-b border-white/10">
-        <div className="flex items-center gap-4">
-          <Logo size={28} /><span className="text-white font-semibold">Scholr</span>
-          <div className="flex items-center gap-2 ml-2 px-3 py-1 rounded-full bg-red-500/15 border border-red-500/25">
-            <div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
-            <span className="text-red-400 text-xs font-medium">LIVE</span>
-          </div>
+        <div className="flex items-center gap-4"><Logo size={28} /><span className="text-white font-semibold">Scholr</span>
+          <div className="flex items-center gap-2 ml-2 px-3 py-1 rounded-full bg-red-500/15 border border-red-500/25"><div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" /><span className="text-red-400 text-xs font-medium">LIVE</span></div>
         </div>
-        <button onClick={onExit} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-gray-300 text-sm transition-colors">
-          <X size={14} />End Session
-        </button>
+        <button onClick={onExit} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-gray-300 text-sm transition-colors"><X size={14} />End Session</button>
       </div>
-      {newCount > 0 && (
-        <button onClick={() => setNewCount(0)} className="mx-8 mt-4 flex items-center justify-between px-5 py-3 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm hover:bg-white/10 transition-colors">
-          <span>{newCount} new question{newCount > 1 ? 's' : ''}</span><span className="text-gray-500 text-xs">Dismiss</span>
-        </button>
-      )}
+      {newCount > 0 && <button onClick={() => setNewCount(0)} className="mx-8 mt-4 flex items-center justify-between px-5 py-3 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm hover:bg-white/10 transition-colors"><span>{newCount} new question{newCount > 1 ? 's' : ''}</span><span className="text-gray-500 text-xs">Dismiss</span></button>}
       <div className="flex-1 overflow-y-auto px-8 py-6">
         {questions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <Radio size={24} className="text-gray-600 mb-4" />
-            <p className="text-gray-400 font-medium mb-1">Waiting for questions</p>
-            <p className="text-gray-600 text-sm">Students are using the portal now</p>
-          </div>
+          <div className="flex flex-col items-center justify-center h-full text-center"><Radio size={24} className="text-gray-600 mb-4" /><p className="text-gray-400 font-medium mb-1">Waiting for questions</p><p className="text-gray-600 text-sm">Students are using the portal now</p></div>
         ) : (
-          <div className="space-y-3 max-w-2xl mx-auto">
-            {questions.map((q, i) => (
-              <div key={i} className="px-5 py-4 rounded-xl bg-white/5 border border-white/10">
-                <p className="text-white text-sm leading-relaxed">{q.question}</p>
-                <div className="flex items-center gap-3 mt-2">
-                  <span className="text-gray-500 text-xs">{formatRelativeDate(q.ts)}</span>
-                  {!q.confident && <span className="text-amber-400 text-xs">Needs review</span>}
-                </div>
-              </div>
-            ))}
-          </div>
+          <div className="space-y-3 max-w-2xl mx-auto">{questions.map((q, i) => (<div key={i} className="px-5 py-4 rounded-xl bg-white/5 border border-white/10"><p className="text-white text-sm leading-relaxed">{q.question}</p><div className="flex items-center gap-3 mt-2"><span className="text-gray-500 text-xs">{formatRelativeDate(q.ts)}</span>{!q.confident && <span className="text-amber-400 text-xs">Needs review</span>}</div></div>))}</div>
         )}
       </div>
       <div className="px-8 py-4 border-t border-white/10 text-center"><p className="text-gray-600 text-xs">Updates every 8 seconds</p></div>
@@ -1236,26 +994,17 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
 
   const DEFAULT_QUESTIONS = ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
   const questions = suggestedQuestions?.length ? suggestedQuestions : DEFAULT_QUESTIONS;
-
   const active = chats.find(c => c.id === chatId) || chats[0];
   const scrollToBottom = () => { setTimeout(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 50); };
   useEffect(() => { scrollToBottom(); }, [active.messages, isTyping]);
 
   const createNewChat = () => { const nc = { id: Date.now(), title: 'New Chat', messages: [] }; setChats(prev => [...prev, nc]); setChatId(nc.id); };
-  const deleteChat = (id) => {
-    const remaining = chats.filter(c => c.id !== id);
-    if (remaining.length === 0) { const nc = { id: Date.now(), title: 'New Chat', messages: [] }; setChats([nc]); setChatId(nc.id); }
-    else { setChats(remaining); if (chatId === id) setChatId(remaining[remaining.length - 1].id); }
-  };
+  const deleteChat = (id) => { const remaining = chats.filter(c => c.id !== id); if (remaining.length === 0) { const nc = { id: Date.now(), title: 'New Chat', messages: [] }; setChats([nc]); setChatId(nc.id); } else { setChats(remaining); if (chatId === id) setChatId(remaining[remaining.length - 1].id); } };
 
   const handlePaperclipFile = (file) => {
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const ext = file.name.toLowerCase().split('.').pop();
-      const mimeMap = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
-      setMyNotes(prev => [{ name: file.name, buffer: e.target.result, mimeType: mimeMap[ext] || 'application/pdf' }, ...prev.filter(d => d.name !== file.name)]);
-    };
+    reader.onload = (e) => { const ext = file.name.toLowerCase().split('.').pop(); const mimeMap = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }; setMyNotes(prev => [{ name: file.name, buffer: e.target.result, mimeType: mimeMap[ext] || 'application/pdf' }, ...prev.filter(d => d.name !== file.name)]); };
     reader.readAsArrayBuffer(file);
   };
 
@@ -1274,10 +1023,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
     const fallback = isFirstMessage ? message.trim().split(/\s+/).slice(0, 5).join(' ') : null;
     const streamingMsgId = Date.now();
 
-    setChats(prev => prev.map(c => c.id === currentChatId ? {
-      ...c, ...(fallback ? { title: fallback } : {}),
-      messages: [...c.messages, { role: 'user', content: message, ts: Date.now() }, { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true }]
-    } : c));
+    setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, ...(fallback ? { title: fallback } : {}), messages: [...c.messages, { role: 'user', content: message, ts: Date.now() }, { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true }] } : c));
     setInput(''); setIsTyping(true);
 
     const controller = new AbortController();
@@ -1286,16 +1032,11 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
     try {
       let response;
       if (myNotes.length > 0) {
-        const fd = new FormData();
-        fd.append('message', message);
-        fd.append('history', JSON.stringify(completedMessages.map(m => ({ role: m.role, content: m.content }))));
+        const fd = new FormData(); fd.append('message', message); fd.append('history', JSON.stringify(completedMessages.map(m => ({ role: m.role, content: m.content }))));
         myNotes.forEach((n, i) => fd.append(`note_${i}`, new Blob([n.buffer], { type: n.mimeType }), n.name));
         response = await fetch(`${API}/course/${course.id}/chat`, { method: 'POST', body: fd, signal: controller.signal });
       } else {
-        response = await fetch(`${API}/course/${course.id}/chat`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-          body: JSON.stringify({ message, history: completedMessages.map(m => ({ role: m.role, content: m.content })) }),
-        });
+        response = await fetch(`${API}/course/${course.id}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal, body: JSON.stringify({ message, history: completedMessages.map(m => ({ role: m.role, content: m.content })) }) });
       }
 
       const reader = response.body.getReader();
@@ -1310,21 +1051,10 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
           if (!line.startsWith('data: ')) continue;
           try {
             const event = JSON.parse(line.slice(6));
-            if (event.type === 'token') {
-              fullText += event.token;
-              setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: m.content + event.token } : m) } : c));
-              scrollToBottom();
-            } else if (event.type === 'sources') {
-              setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, sources: event.sources } : m) } : c));
-            } else if (event.type === 'done') {
-              setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) } : c));
-              if (isFirstMessage) {
-                const smartTitle = fullText.trim().split(/\s+/).slice(0, 6).join(' ').replace(/[.!?]$/, '');
-                setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title: smartTitle || fallback } : c));
-              }
-            } else if (event.type === 'error') {
-              setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'error:' + event.error, streaming: false, isError: true } : m) } : c));
-            }
+            if (event.type === 'token') { fullText += event.token; setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: m.content + event.token } : m) } : c)); scrollToBottom(); }
+            else if (event.type === 'sources') { setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, sources: event.sources } : m) } : c)); }
+            else if (event.type === 'done') { setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) } : c)); if (isFirstMessage) { const smartTitle = fullText.trim().split(/\s+/).slice(0, 6).join(' ').replace(/[.!?]$/, ''); setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title: smartTitle || fallback } : c)); } }
+            else if (event.type === 'error') { setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'error:' + event.error, streaming: false, isError: true } : m) } : c)); }
           } catch {}
         }
       }
@@ -1347,22 +1077,16 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
           </div>
         </div>
         <div className="px-3 pt-3">
-          <button onClick={createNewChat} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-medium hover:bg-gray-50 transition-colors">
-            <Plus size={12} />New chat
-          </button>
+          <button onClick={createNewChat} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-medium hover:bg-gray-50 transition-colors"><Plus size={12} />New chat</button>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           <p className="text-[10px] text-gray-400 font-medium px-2 mb-2 uppercase tracking-widest">Chats</p>
           {chats.map(c => (
             <div key={c.id} className="group relative mb-0.5">
-              <button onClick={() => setChatId(c.id)}
-                className={`flex items-center gap-2 w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors pr-7 ${c.id === chatId ? 'bg-white border border-gray-200 text-gray-900 font-medium shadow-sm' : 'text-gray-500 hover:bg-white hover:text-gray-700'}`}>
+              <button onClick={() => setChatId(c.id)} className={`flex items-center gap-2 w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors pr-7 ${c.id === chatId ? 'bg-white border border-gray-200 text-gray-900 font-medium shadow-sm' : 'text-gray-500 hover:bg-white hover:text-gray-700'}`}>
                 <MessageSquare size={11} className="flex-shrink-0 opacity-40" /><span className="truncate">{c.title}</span>
               </button>
-              <button onClick={e => { e.stopPropagation(); deleteChat(c.id); }}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded text-gray-300 hover:text-red-400 transition-all">
-                <Trash2 size={10} />
-              </button>
+              <button onClick={e => { e.stopPropagation(); deleteChat(c.id); }} className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded text-gray-300 hover:text-red-400 transition-all"><Trash2 size={10} /></button>
             </div>
           ))}
         </nav>
@@ -1371,24 +1095,13 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
             <p className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">My Notes</p>
             <button onClick={() => paperclipRef.current?.click()} className="text-[10px] text-gray-500 hover:text-gray-800 font-medium flex items-center gap-1"><Plus size={10} />Add</button>
           </div>
-          <input ref={paperclipRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp"
-            onChange={e => { handlePaperclipFile(e.target.files[0]); e.target.value = ''; }} />
+          <input ref={paperclipRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e => { handlePaperclipFile(e.target.files[0]); e.target.value = ''; }} />
           {myNotes.length === 0 ? (
-            <button onClick={() => paperclipRef.current?.click()}
-              className="w-full flex flex-col items-center py-3 rounded-lg border border-dashed border-gray-200 hover:border-gray-300 transition-colors cursor-pointer">
-              <UploadCloud size={13} className="text-gray-300 mb-1" />
-              <p className="text-[10px] text-gray-400">Drop notes or photos</p>
+            <button onClick={() => paperclipRef.current?.click()} className="w-full flex flex-col items-center py-3 rounded-lg border border-dashed border-gray-200 hover:border-gray-300 transition-colors cursor-pointer">
+              <UploadCloud size={13} className="text-gray-300 mb-1" /><p className="text-[10px] text-gray-400">Drop notes or photos</p>
             </button>
           ) : (
-            <div className="space-y-1">
-              {myNotes.map((doc, i) => (
-                <div key={i} className="group flex items-center gap-2 px-2.5 py-2 rounded-lg bg-gray-50 border border-gray-100">
-                  <FileText size={10} className="text-gray-400 flex-shrink-0" />
-                  <span className="text-[11px] text-gray-700 flex-1 truncate">{cleanFileName(doc.name)}</span>
-                  <button onClick={() => setMyNotes(prev => prev.filter(d => d.name !== doc.name))} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all"><X size={9} /></button>
-                </div>
-              ))}
-            </div>
+            <div className="space-y-1">{myNotes.map((doc, i) => (<div key={i} className="group flex items-center gap-2 px-2.5 py-2 rounded-lg bg-gray-50 border border-gray-100"><FileText size={10} className="text-gray-400 flex-shrink-0" /><span className="text-[11px] text-gray-700 flex-1 truncate">{cleanFileName(doc.name)}</span><button onClick={() => setMyNotes(prev => prev.filter(d => d.name !== doc.name))} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all"><X size={9} /></button></div>))}</div>
           )}
           {myNotes.length > 0 && <p className="text-[10px] text-gray-400 mt-2">AI reads your notes + course materials</p>}
         </div>
@@ -1396,42 +1109,26 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
           <button onClick={onExit} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs"><LogOut size={11} />Back to courses</button>
         </div>
       </aside>
-
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-12 bg-white border-b border-gray-100 flex items-center justify-between px-8 flex-shrink-0">
           <h2 className="text-gray-900 text-sm font-medium">{active.title}</h2>
-          <div className="flex items-center gap-1.5 text-[11px] text-emerald-600">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />AI Active
-          </div>
+          <div className="flex items-center gap-1.5 text-[11px] text-emerald-600"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />AI Active</div>
         </header>
-
         <div className="flex-1 overflow-y-auto px-8 py-8 flex flex-col gap-5">
           {active.messages.length === 0 && (
             <div className="flex flex-col items-center justify-center flex-1 pb-10 fade-up">
               {documents.length === 0 ? (
-                <div className="text-center max-w-xs">
-                  <Clock size={20} className="text-gray-200 mx-auto mb-4" />
-                  <h3 className="text-gray-700 font-medium text-sm mb-1">Setting up your course</h3>
-                  <p className="text-gray-400 text-xs">Your instructor is uploading materials.</p>
-                </div>
+                <div className="text-center max-w-xs"><Clock size={20} className="text-gray-200 mx-auto mb-4" /><h3 className="text-gray-700 font-medium text-sm mb-1">Setting up your course</h3><p className="text-gray-400 text-xs">Your instructor is uploading materials.</p></div>
               ) : (
                 <div className="text-center max-w-md w-full flex flex-col items-center">
                   <Logo size={36} />
                   <h3 className="text-gray-900 font-semibold text-lg mt-5 mb-1.5">Ask anything about your course</h3>
                   <p className="text-gray-400 text-sm mb-8">Every answer is grounded in your professor's materials — cited and accurate.</p>
-                  <div className="space-y-2 text-left w-full">
-                    {questions.map((q, i) => (
-                      <button key={i} onClick={() => onSend(q)}
-                        className="w-full text-left px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 text-sm hover:bg-gray-100 hover:border-gray-300 transition-all">
-                        <span className="text-gray-300 mr-2 text-xs font-mono">{i + 1}.</span>{q}
-                      </button>
-                    ))}
-                  </div>
+                  <div className="space-y-2 text-left w-full">{questions.map((q, i) => (<button key={i} onClick={() => onSend(q)} className="w-full text-left px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 text-sm hover:bg-gray-100 hover:border-gray-300 transition-all"><span className="text-gray-300 mr-2 text-xs font-mono">{i + 1}.</span>{q}</button>))}</div>
                 </div>
               )}
             </div>
           )}
-
           {active.messages.map((m, i) => {
             const msgId = m.id || i;
             const isError = m.isError || m.content?.startsWith('error:');
@@ -1440,44 +1137,22 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
                 <div className={`flex flex-col ${m.role === 'user' ? 'items-end max-w-xl' : 'items-start max-w-2xl w-full'}`}>
                   <div className={`rounded-2xl text-sm w-full ${m.role === 'user' ? 'bg-gray-900 text-white px-4 py-3 rounded-br-sm' : 'text-gray-800'}`}>
                     {m.role === 'assistant' && m.content === '' && m.streaming ? (
-                      <div className="flex items-center gap-3 py-2">
-                        <div className="flex flex-col justify-center gap-1" style={{ width: '22px' }}>
-                          <div className="eq-bar eq1" /><div className="eq-bar eq2" /><div className="eq-bar eq3" />
-                        </div>
-                        <span className="text-xs text-gray-400">Reading your materials...</span>
-                      </div>
-                    ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user'
-                      ? <p className="leading-relaxed whitespace-pre-wrap text-white">{m.content}</p>
-                      : <MarkdownMessage content={m.content} />}
-                    {m.role === 'assistant' && m.streaming && m.content && (
-                      <span className="inline-block w-0.5 h-4 bg-gray-400 animate-pulse ml-0.5 align-middle" />
-                    )}
+                      <div className="flex items-center gap-3 py-2"><div className="flex flex-col justify-center gap-1" style={{ width: '22px' }}><div className="eq-bar eq1" /><div className="eq-bar eq2" /><div className="eq-bar eq3" /></div><span className="text-xs text-gray-400">Reading your materials...</span></div>
+                    ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user' ? <p className="leading-relaxed whitespace-pre-wrap text-white">{m.content}</p> : <MarkdownMessage content={m.content} />}
+                    {m.role === 'assistant' && m.streaming && m.content && <span className="inline-block w-0.5 h-4 bg-gray-400 animate-pulse ml-0.5 align-middle" />}
                     {m.role === 'assistant' && m.sources?.length > 0 && !m.streaming && !isError && (
                       <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-1.5 items-center">
                         <span className="text-[10px] text-gray-300 uppercase tracking-wide mr-0.5">From</span>
-                        {m.sources.map((source, idx) => (
-                          <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 border border-gray-200 text-gray-600 text-[11px] font-medium">
-                            <FileText size={9} /><span className="max-w-[200px] truncate">{cleanFileName(source)}</span>
-                          </span>
-                        ))}
+                        {m.sources.map((source, idx) => (<span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 border border-gray-200 text-gray-600 text-[11px] font-medium"><FileText size={9} /><span className="max-w-[200px] truncate">{cleanFileName(source)}</span></span>))}
                       </div>
                     )}
                     {m.role === 'user' && <span className="block text-[10px] mt-1.5 opacity-30">{formatTime(m.ts)}</span>}
                   </div>
                   {m.role === 'assistant' && !m.streaming && m.content && !isError && (
                     <div className="flex items-center gap-0.5 mt-1.5">
-                      <button onClick={() => { navigator.clipboard.writeText(m.content.replace(/\nSOURCES:.*$/m, '').trim()); setCopiedId(msgId); setTimeout(() => setCopiedId(null), 2000); }}
-                        className={`p-1.5 rounded-lg transition-colors ${copiedId === msgId ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>
-                        {copiedId === msgId ? <Check size={12} /> : <Copy size={12} />}
-                      </button>
-                      <button onClick={() => setFeedback(prev => ({ ...prev, [msgId]: prev[msgId] === 'up' ? null : 'up' }))}
-                        className={`p-1.5 rounded-lg transition-colors ${feedback[msgId] === 'up' ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>
-                        <ThumbsUp size={12} />
-                      </button>
-                      <button onClick={() => setFeedback(prev => ({ ...prev, [msgId]: prev[msgId] === 'down' ? null : 'down' }))}
-                        className={`p-1.5 rounded-lg transition-colors ${feedback[msgId] === 'down' ? 'text-red-400' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>
-                        <ThumbsDown size={12} />
-                      </button>
+                      <button onClick={() => { navigator.clipboard.writeText(m.content.replace(/\nSOURCES:.*$/m, '').trim()); setCopiedId(msgId); setTimeout(() => setCopiedId(null), 2000); }} className={`p-1.5 rounded-lg transition-colors ${copiedId === msgId ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>{copiedId === msgId ? <Check size={12} /> : <Copy size={12} />}</button>
+                      <button onClick={() => setFeedback(prev => ({ ...prev, [msgId]: prev[msgId] === 'up' ? null : 'up' }))} className={`p-1.5 rounded-lg transition-colors ${feedback[msgId] === 'up' ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}><ThumbsUp size={12} /></button>
+                      <button onClick={() => setFeedback(prev => ({ ...prev, [msgId]: prev[msgId] === 'down' ? null : 'down' }))} className={`p-1.5 rounded-lg transition-colors ${feedback[msgId] === 'down' ? 'text-red-400' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}><ThumbsDown size={12} /></button>
                       <span className="text-[10px] text-gray-200 ml-1.5">{formatTime(m.ts)}</span>
                     </div>
                   )}
@@ -1487,26 +1162,16 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
           })}
           <div ref={bottomRef} />
         </div>
-
         <div className="px-8 py-4 bg-white border-t border-gray-100 flex-shrink-0">
           <div className="max-w-3xl mx-auto">
             <div className="flex items-center bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2 focus-within:border-gray-400 focus-within:bg-white focus-within:shadow-sm transition-all gap-2">
-              <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-                <Paperclip size={15} />
-              </button>
-              <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!isTyping) onSend(); } }}
-                className="flex-1 bg-transparent text-gray-800 text-sm outline-none placeholder-gray-400 py-1.5"
-                placeholder={myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course..."} />
+              <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Paperclip size={15} /></button>
+              <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!isTyping) onSend(); } }}
+                className="flex-1 bg-transparent text-gray-800 text-sm outline-none placeholder-gray-400 py-1.5" placeholder={myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course..."} />
               {isTyping ? (
-                <button onClick={onStop} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0">
-                  <Square size={11} fill="currentColor" />
-                </button>
+                <button onClick={onStop} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0"><Square size={11} fill="currentColor" /></button>
               ) : (
-                <button onClick={() => onSend()} disabled={!input.trim()}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${!input.trim() ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}>
-                  <Send size={12} />
-                </button>
+                <button onClick={() => onSend()} disabled={!input.trim()} className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${!input.trim() ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}><Send size={12} /></button>
               )}
             </div>
           </div>
@@ -1534,15 +1199,13 @@ function LandingPage({ onStudent, onInstructor }) {
             <p className="text-gray-500 text-base max-w-sm mx-auto leading-relaxed">AI tutoring grounded in what your professor uploaded. Cited, accurate, trustworthy.</p>
           </div>
           <div className="grid grid-cols-2 gap-3 max-w-xl mx-auto mb-6">
-            <button onClick={onStudent}
-              className="group text-left p-6 rounded-2xl border border-gray-200 bg-white hover:border-gray-300 hover:shadow-md transition-all">
+            <button onClick={onStudent} className="group text-left p-6 rounded-2xl border border-gray-200 bg-white hover:border-gray-300 hover:shadow-md transition-all">
               <div className="w-9 h-9 rounded-lg bg-gray-900 flex items-center justify-center mb-5"><Users size={16} className="text-white" /></div>
               <h2 className="text-gray-900 font-semibold text-sm mb-1">Student</h2>
               <p className="text-gray-400 text-xs leading-relaxed mb-5">Ask questions, get cited answers from course materials.</p>
               <div className="flex items-center gap-1 text-gray-900 text-xs font-medium">Sign in <ChevronRight size={13} className="group-hover:translate-x-0.5 transition-transform" /></div>
             </button>
-            <button onClick={onInstructor}
-              className="group text-left p-6 rounded-2xl border border-gray-200 bg-white hover:border-gray-300 hover:shadow-md transition-all">
+            <button onClick={onInstructor} className="group text-left p-6 rounded-2xl border border-gray-200 bg-white hover:border-gray-300 hover:shadow-md transition-all">
               <div className="w-9 h-9 rounded-lg bg-gray-900 flex items-center justify-center mb-5"><BookOpen size={16} className="text-white" /></div>
               <h2 className="text-gray-900 font-semibold text-sm mb-1">Instructor</h2>
               <p className="text-gray-400 text-xs leading-relaxed mb-5">Upload materials, deploy an AI tutor for your class.</p>
@@ -1558,8 +1221,95 @@ function LandingPage({ onStudent, onInstructor }) {
   );
 }
 
+// ── Join Course Page ──────────────────────────────────────────────────────────
+function JoinCoursePage({ studentToken, studentUser, onStudentLogin, onEnterCourse }) {
+  const { code } = useParams();
+  const navigate = useNavigate();
+  const [course, setCourse] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [joining, setJoining] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API}/course/join/${code}`)
+      .then(r => r.json())
+      .then(data => { if (data.id) setCourse(data); else setError('Course not found'); })
+      .catch(() => setError('Could not connect to server'))
+      .finally(() => setLoading(false));
+  }, [code]);
+
+  const handleJoinNow = async () => {
+    if (!studentToken) {
+      sessionStorage.setItem('scholr_pending_join', code);
+      navigate('/student/login');
+      return;
+    }
+    setJoining(true);
+    try {
+      await fetch(`${API}/student/enroll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${studentToken}` },
+        body: JSON.stringify({ course_id: course.id }),
+      });
+      navigate('/student');
+    } catch { setError('Could not join course'); }
+    setJoining(false);
+  };
+
+  if (loading) return <LoadingScreen label="Loading your course..." />;
+
+  return (
+    <div className="min-h-screen bg-[#FAFAFA] flex flex-col">
+      <style>{FONT}</style>
+      <nav className="flex items-center justify-between px-8 py-4 border-b border-gray-200 bg-white">
+        <div className="flex items-center gap-3"><Logo size={24} /><span className="text-gray-900 font-semibold">Scholr</span></div>
+        {studentUser && <span className="text-gray-400 text-sm">{studentUser.name || studentUser.email}</span>}
+      </nav>
+      <div className="flex-1 flex items-center justify-center px-4">
+        <div className="w-full max-w-md">
+          {error ? (
+            <div className="text-center">
+              <h1 className="text-gray-900 font-semibold text-lg mb-2">Course not found</h1>
+              <p className="text-gray-400 text-sm mb-6">Check the link with your professor.</p>
+              <button onClick={() => navigate('/')} className="text-gray-500 text-sm hover:text-gray-800 transition-colors">← Back to Scholr</button>
+            </div>
+          ) : (
+            <div className="fade-up">
+              <div className="bg-white rounded-3xl border border-gray-200 p-8 shadow-sm mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-gray-900 flex items-center justify-center mb-6">
+                  <BookOpen size={20} className="text-white" />
+                </div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">You've been invited to join</p>
+                <h1 className="serif text-3xl text-gray-900 mb-1">{course?.name}</h1>
+                <div className="flex items-center gap-2 mb-8 px-3 py-2 bg-gray-50 rounded-xl border border-gray-200 w-fit">
+                  <span className="text-xs font-mono text-gray-500">{code}</span>
+                </div>
+                <button onClick={handleJoinNow} disabled={joining}
+                  className="w-full py-4 rounded-2xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-semibold transition-colors">
+                  {joining ? 'Joining...' : studentToken ? 'Join class now →' : 'Sign up to join class →'}
+                </button>
+                {!studentToken && (
+                  <p className="text-center text-xs text-gray-400 mt-3">
+                    Already have an account?{' '}
+                    <button onClick={() => { sessionStorage.setItem('scholr_pending_join', code); navigate('/student/login'); }}
+                      className="text-gray-700 font-medium hover:underline">Sign in</button>
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center justify-center gap-6 text-xs text-gray-400">
+                <span>🔒 FERPA aligned</span><span className="w-1 h-1 rounded-full bg-gray-300" /><span>Powered by Google Vertex AI</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Root App ──────────────────────────────────────────────────────────────────
 export default function App() {
+  const navigate = useNavigate();
   const [screen, setScreen] = useState('landing');
   const [profToken, setProfToken] = useState(null);
   const [profUser, setProfUser] = useState(null);
@@ -1572,26 +1322,16 @@ export default function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-
-    // ?join=CODE — student invite link
     const joinCode = params.get('join');
     if (joinCode) {
       setPendingJoinCode(joinCode);
       window.history.replaceState({}, '', '/');
-      // Check if already logged in as student
       const token = localStorage.getItem('scholr_student_token');
       const user = localStorage.getItem('scholr_student_user');
-      if (token && user) {
-        setStudentToken(token); setStudentUser(JSON.parse(user));
-        setScreen('student-dashboard');
-        // Dashboard will pick up pendingJoinCode and auto-enroll
-      } else {
-        setScreen('student-login');
-      }
+      if (token && user) { setStudentToken(token); setStudentUser(JSON.parse(user)); setScreen('student-dashboard'); }
+      else { setScreen('student-login'); }
       return;
     }
-
-    // OAuth callback ?student_token=...
     const oauthToken = params.get('student_token');
     const oauthUserRaw = params.get('student_user');
     if (oauthToken && oauthUserRaw) {
@@ -1605,58 +1345,41 @@ export default function App() {
       } catch {}
       return;
     }
-
-    // Restore professor session
-    const profToken = localStorage.getItem('scholr_token');
-    const profUser = localStorage.getItem('scholr_user');
-    if (profToken && profUser) {
-      setProfToken(profToken); setProfUser(JSON.parse(profUser));
-      setScreen('prof-dashboard'); return;
-    }
-
-    // Restore student session
-    const stuToken = localStorage.getItem('scholr_student_token');
-    const stuUser = localStorage.getItem('scholr_student_user');
-    if (stuToken && stuUser) {
-      setStudentToken(stuToken); setStudentUser(JSON.parse(stuUser));
-      setScreen('student-dashboard');
-    }
+    const pToken = localStorage.getItem('scholr_token');
+    const pUser = localStorage.getItem('scholr_user');
+    if (pToken && pUser) { setProfToken(pToken); setProfUser(JSON.parse(pUser)); setScreen('prof-dashboard'); return; }
+    const sToken = localStorage.getItem('scholr_student_token');
+    const sUser = localStorage.getItem('scholr_student_user');
+    if (sToken && sUser) { setStudentToken(sToken); setStudentUser(JSON.parse(sUser)); setScreen('student-dashboard'); }
   }, []);
 
-  const handleProfLogin = (token, user) => {
-    localStorage.setItem('scholr_token', token);
-    localStorage.setItem('scholr_user', JSON.stringify(user));
-    setProfToken(token); setProfUser(user); setScreen('prof-dashboard');
+  const handleProfLogin = (token, user) => { localStorage.setItem('scholr_token', token); localStorage.setItem('scholr_user', JSON.stringify(user)); setProfToken(token); setProfUser(user); setScreen('prof-dashboard'); };
+  const handleProfLogout = () => { localStorage.removeItem('scholr_token'); localStorage.removeItem('scholr_user'); setProfToken(null); setProfUser(null); setScreen('landing'); };
+  const handleStudentLogin = (token, user) => { localStorage.setItem('scholr_student_token', token); localStorage.setItem('scholr_student_user', JSON.stringify(user)); setStudentToken(token); setStudentUser(user); setScreen('student-dashboard'); };
+  const handleStudentLogout = () => { localStorage.removeItem('scholr_student_token'); localStorage.removeItem('scholr_student_user'); setStudentToken(null); setStudentUser(null); setScreen('landing'); };
+  const handleEnterCourse = (course, docs, questions) => { setStudentCourse(course); setStudentDocs(docs); setStudentQuestions(questions); setScreen('student-chat'); };
+
+  const renderScreen = () => {
+    switch (screen) {
+      case 'landing': return <LandingPage onStudent={() => setScreen('student-login')} onInstructor={() => setScreen('prof-login')} />;
+      case 'student-login': return <StudentLogin onLogin={handleStudentLogin} onGoSignup={() => setScreen('student-signup')} onBack={() => setScreen('landing')} pendingJoinCode={pendingJoinCode} />;
+      case 'student-signup': return <StudentSignup onLogin={handleStudentLogin} onGoLogin={() => setScreen('student-login')} onBack={() => setScreen('landing')} pendingJoinCode={pendingJoinCode} />;
+      case 'student-dashboard': return <StudentDashboard token={studentToken} user={studentUser} onEnterCourse={handleEnterCourse} onLogout={handleStudentLogout} />;
+      case 'student-chat': return <StudentView course={studentCourse} documents={studentDocs} suggestedQuestions={studentQuestions} onExit={() => setScreen('student-dashboard')} />;
+      case 'prof-login': return <ProfessorLogin onLogin={handleProfLogin} onGoSignup={() => setScreen('prof-signup')} onBack={() => setScreen('landing')} />;
+      case 'prof-signup': return <ProfessorSignup onLogin={handleProfLogin} onGoLogin={() => setScreen('prof-login')} onBack={() => setScreen('landing')} />;
+      case 'prof-dashboard': return <ProfessorDashboard token={profToken} user={profUser} onLogout={handleProfLogout} />;
+      default: return null;
+    }
   };
 
-  const handleProfLogout = () => {
-    localStorage.removeItem('scholr_token'); localStorage.removeItem('scholr_user');
-    setProfToken(null); setProfUser(null); setScreen('landing');
-  };
-
-  const handleStudentLogin = (token, user) => {
-    localStorage.setItem('scholr_student_token', token);
-    localStorage.setItem('scholr_student_user', JSON.stringify(user));
-    setStudentToken(token); setStudentUser(user); setScreen('student-dashboard');
-  };
-
-  const handleStudentLogout = () => {
-    localStorage.removeItem('scholr_student_token'); localStorage.removeItem('scholr_student_user');
-    setStudentToken(null); setStudentUser(null); setScreen('landing');
-  };
-
-  const handleEnterCourse = (course, docs, questions) => {
-    setStudentCourse(course); setStudentDocs(docs); setStudentQuestions(questions);
-    setScreen('student-chat');
-  };
-
-  if (screen === 'landing') return <LandingPage onStudent={() => setScreen('student-login')} onInstructor={() => setScreen('prof-login')} />;
-  if (screen === 'student-login') return <StudentLogin onLogin={handleStudentLogin} onGoSignup={() => setScreen('student-signup')} onBack={() => setScreen('landing')} pendingJoinCode={pendingJoinCode} />;
-  if (screen === 'student-signup') return <StudentSignup onLogin={handleStudentLogin} onGoLogin={() => setScreen('student-login')} onBack={() => setScreen('landing')} pendingJoinCode={pendingJoinCode} />;
-  if (screen === 'student-dashboard') return <StudentDashboard token={studentToken} user={studentUser} onEnterCourse={handleEnterCourse} onLogout={handleStudentLogout} />;
-  if (screen === 'student-chat') return <StudentView course={studentCourse} documents={studentDocs} suggestedQuestions={studentQuestions} onExit={() => setScreen('student-dashboard')} />;
-  if (screen === 'prof-login') return <ProfessorLogin onLogin={handleProfLogin} onGoSignup={() => setScreen('prof-signup')} onBack={() => setScreen('landing')} />;
-  if (screen === 'prof-signup') return <ProfessorSignup onLogin={handleProfLogin} onGoLogin={() => setScreen('prof-login')} onBack={() => setScreen('landing')} />;
-  if (screen === 'prof-dashboard') return <ProfessorDashboard token={profToken} user={profUser} onLogout={handleProfLogout} />;
-  return null;
+  return (
+    <Routes>
+      <Route path="/join/:code" element={<JoinCoursePage studentToken={studentToken} studentUser={studentUser} onStudentLogin={handleStudentLogin} onEnterCourse={handleEnterCourse} />} />
+      <Route path="/student/login" element={<StudentLogin onLogin={handleStudentLogin} onGoSignup={() => navigate('/student/signup')} onBack={() => navigate('/')} pendingJoinCode={pendingJoinCode} />} />
+      <Route path="/student/signup" element={<StudentSignup onLogin={handleStudentLogin} onGoLogin={() => navigate('/student/login')} onBack={() => navigate('/')} pendingJoinCode={pendingJoinCode} />} />
+      <Route path="/student" element={studentToken ? <StudentDashboard token={studentToken} user={studentUser} onEnterCourse={handleEnterCourse} onLogout={handleStudentLogout} /> : <LandingPage onStudent={() => navigate('/student/login')} onInstructor={() => setScreen('prof-login')} />} />
+      <Route path="/*" element={renderScreen()} />
+    </Routes>
+  );
 }
