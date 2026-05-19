@@ -145,6 +145,31 @@ async function getCourseInsights(courseId) {
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(fileUpload({ limits: { fileSize: 50 * 1024 * 1024 } }));
+app.get('/join/:code', async (req, res) => {
+  const { code } = req.params;
+  let courseName = 'a class';
+  try {
+    let { data: course } = await supabase.from('courses').select('name').eq('join_code', code).single();
+    if (!course) {
+      const { data: byCode } = await supabase.from('courses').select('name').eq('code', code).single();
+      course = byCode;
+    }
+    if (course) courseName = course.name;
+  } catch {}
+  res.send(`<!doctype html><html lang="en"><head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Join ${courseName} on Scholr</title>
+  <meta property="og:title" content="Join ${courseName} on Scholr" />
+  <meta property="og:description" content="Your professor invited you. Click to join your AI-powered course." />
+  <meta property="og:image" content="https://scholr.study/preview.png" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://scholr.study/preview.png" />
+  <script>window.location.href = "https://scholr.study/join/${code}"</script>
+  </head><body>Redirecting...</body></html>`);
+});
+
 
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
