@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
+import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import os from 'os';
 
@@ -29,14 +30,12 @@ const MODEL = 'gemini-2.5-flash';
 const ai = new GoogleGenAI({ vertexai: true, project: PROJECT, location: LOCATION });
 console.log(`✅ Vertex AI ready — project: ${PROJECT}, model: ${MODEL}`);
 
-const SUPPORTED_TYPES = {
-  'application/pdf': 'application/pdf',
-  'image/jpeg': 'image/jpeg',
-  'image/jpg': 'image/jpeg',
-  'image/png': 'image/png',
-  'image/webp': 'image/webp',
-  'image/gif': 'image/gif',
-};
+// ── Supabase ──────────────────────────────────────────────────────────────────
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SECRET_KEY
+);
+console.log('✅ Supabase connected');
 
 function getMimeType(filename) {
   const ext = filename.toLowerCase().split('.').pop();
@@ -107,13 +106,38 @@ SOURCES: DocumentName1.pdf, DocumentName2.jpg
 
 Only list documents/images you actually used. This line is parsed separately — do not include it in the answer body.`;
 
+// ── In-memory document cache ──────────────────────────────────────────────────
 let documents = {};
 let questionsCache = null;
-let questionLog = [];
 
-function logQuestion(question, confident = true) {
-  questionLog.push({ id: Date.now(), question, ts: new Date().toISOString(), confident });
-  if (questionLog.length > 1000) questionLog = questionLog.slice(-1000);
+// ── Load documents from Supabase Storage on startup ──────────────────────────
+async function loadDocumentsFromStorage() {
+  try {
+    const { data, error } = await supabase.storage.from('documents').list('', { limit: 100 });
+    if (error || !data) return;
+    for (const file of data) {
+      const { data: fileData, error: dlError } = await supabase.storage.from('documents').download(file.name);
+      if (dlError || !fileData) continue;
+      const arrayBuffer = await fileData.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const mimeType = getMimeType(file.name) || 'application/pdf';
+      const sizeKb = Math.round(buffer.length / 1024);
+      documents[file.name] = { buffer, sizeKb, mimeType, uploadedAt: file.created_at };
+      console.log(`✅ Loaded from storage: ${file.name}`);
+    }
+    console.log(`✅ Loaded ${Object.keys(documents).length} documents from Supabase Storage`);
+  } catch (err) {
+    console.error('Failed to load documents from storage:', err.message);
+  }
+}
+
+// ── Log question to Supabase ──────────────────────────────────────────────────
+async function logQuestion(question, confident = true) {
+  try {
+    await supabase.from('questions').insert({ question, confident });
+  } catch (err) {
+    console.error('Failed to log question:', err.message);
+  }
 }
 
 function getTopicTag(question) {
@@ -126,36 +150,66 @@ function getTopicTag(question) {
   return 'General';
 }
 
-function getInsights() {
-  const now = Date.now();
-  const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
-  const weekQuestions = questionLog.filter(q => new Date(q.ts).getTime() > weekAgo);
-  const timeSavedMins = weekQuestions.length * 3;
-  const timeSavedHours = Math.floor(timeSavedMins / 60);
-  const timeSavedMinutes = timeSavedMins % 60;
-  const topicCounts = {};
-  weekQuestions.forEach(q => {
-    const tag = getTopicTag(q.question);
-    topicCounts[tag] = (topicCounts[tag] || 0) + 1;
-  });
-  const topTopics = Object.entries(topicCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([topic, count]) => ({ topic, count }));
-  const hourCounts = {};
-  weekQuestions.forEach(q => {
-    const hour = new Date(q.ts).getHours();
-    hourCounts[hour] = (hourCounts[hour] || 0) + 1;
-  });
-  const peakHour = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0];
-  const peakHourLabel = peakHour ? `${peakHour[0] % 12 || 12}${parseInt(peakHour[0]) < 12 ? 'am' : 'pm'}` : null;
-  const flagged = questionLog.filter(q => !q.confident).slice(-10).reverse();
-  const recent = [...questionLog].reverse().slice(0, 50);
-  const lastQuestion = questionLog[questionLog.length - 1] || null;
-  return { totalQuestions: questionLog.length, weekQuestions: weekQuestions.length, timeSavedHours, timeSavedMinutes, timeSavedMins, topTopics, peakHourLabel, flagged, recent, lastQuestion };
+// ── Get insights from Supabase ────────────────────────────────────────────────
+async function getInsights() {
+  try {
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: allQuestions } = await supabase
+      .from('questions').select('*').order('ts', { ascending: false }).limit(1000);
+
+    const { data: weekQuestions } = await supabase
+      .from('questions').select('*').gte('ts', weekAgo);
+
+    const { data: flagged } = await supabase
+      .from('questions').select('*').eq('confident', false)
+      .order('ts', { ascending: false }).limit(10);
+
+    const total = allQuestions?.length || 0;
+    const weekCount = weekQuestions?.length || 0;
+    const timeSavedMins = weekCount * 3;
+    const timeSavedHours = Math.floor(timeSavedMins / 60);
+    const timeSavedMinutes = timeSavedMins % 60;
+
+    const topicCounts = {};
+    (weekQuestions || []).forEach(q => {
+      const tag = getTopicTag(q.question);
+      topicCounts[tag] = (topicCounts[tag] || 0) + 1;
+    });
+    const topTopics = Object.entries(topicCounts)
+      .sort((a, b) => b[1] - a[1]).slice(0, 4)
+      .map(([topic, count]) => ({ topic, count }));
+
+    const hourCounts = {};
+    (weekQuestions || []).forEach(q => {
+      const hour = new Date(q.ts).getHours();
+      hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+    });
+    const peakHour = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0];
+    const peakHourLabel = peakHour
+      ? `${peakHour[0] % 12 || 12}${parseInt(peakHour[0]) < 12 ? 'am' : 'pm'}`
+      : null;
+
+    const recent = (allQuestions || []).slice(0, 50);
+    const lastQuestion = recent[0] || null;
+
+    return {
+      totalQuestions: total, weekQuestions: weekCount,
+      timeSavedHours, timeSavedMinutes, timeSavedMins,
+      topTopics, peakHourLabel,
+      flagged: flagged || [], recent, lastQuestion,
+    };
+  } catch (err) {
+    console.error('Insights error:', err.message);
+    return {
+      totalQuestions: 0, weekQuestions: 0, timeSavedHours: 0,
+      timeSavedMinutes: 0, timeSavedMins: 0, topTopics: [],
+      peakHourLabel: null, flagged: [], recent: [], lastQuestion: null,
+    };
+  }
 }
 
-function invalidateQuestionsCache() {
-  questionsCache = null;
-  console.log('🔄 Suggested questions cache cleared');
-}
+function invalidateQuestionsCache() { questionsCache = null; }
 
 async function generateSuggestedQuestions() {
   if (Object.keys(documents).length === 0) return [];
@@ -177,7 +231,9 @@ async function generateSuggestedQuestions() {
       const matches = raw.match(/"([^"]{5,60})"/g);
       if (matches) questions = matches.map(m => m.replace(/"/g, '')).slice(0, 3);
     }
-    return Array.isArray(questions) && questions.length > 0 ? questions.slice(0, 3) : ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
+    return Array.isArray(questions) && questions.length > 0
+      ? questions.slice(0, 3)
+      : ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
   } catch (err) {
     console.error('Suggested questions error:', err.message);
     return ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
@@ -188,18 +244,34 @@ app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(fileUpload({ limits: { fileSize: 50 * 1024 * 1024 } }));
 
-// ── Health check — keeps Render alive via UptimeRobot ────────────────────────
+// ── Health ────────────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
 
-// ── Upload ───────────────────────────────────────────────────────────────────
+// ── Upload — saves to Supabase Storage ───────────────────────────────────────
 app.post('/upload', async (req, res) => {
   try {
     const file = req.files?.file || req.files?.pdf;
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
     const mimeType = getMimeType(file.name);
-    if (!mimeType) return res.status(400).json({ error: 'Unsupported file type. Use PDF, JPG, PNG, or WebP.' });
+    if (!mimeType) return res.status(400).json({ error: 'Unsupported file type.' });
+
     const buffer = Buffer.from(file.data);
     const sizeKb = Math.round(buffer.length / 1024);
+
+    const { error: uploadError } = await supabase.storage
+      .from('documents')
+      .upload(file.name, buffer, { contentType: mimeType, upsert: true });
+
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError.message);
+      return res.status(500).json({ error: 'Failed to upload to storage: ' + uploadError.message });
+    }
+
+    await supabase.from('documents').upsert({
+      name: file.name, size_kb: sizeKb, mime_type: mimeType,
+      storage_path: file.name, uploaded_at: new Date().toISOString()
+    }, { onConflict: 'name' });
+
     documents[file.name] = { buffer, sizeKb, mimeType, uploadedAt: new Date().toISOString() };
     console.log(`✅ Uploaded: ${file.name} (${mimeType}) — ${sizeKb}kb`);
     invalidateQuestionsCache();
@@ -210,28 +282,40 @@ app.post('/upload', async (req, res) => {
   }
 });
 
-app.get('/documents', (req, res) => {
-  res.json(Object.entries(documents).map(([name, doc]) => ({
-    name, sizeKb: doc.sizeKb, mimeType: doc.mimeType, uploadedAt: doc.uploadedAt
-  })));
+app.get('/documents', async (req, res) => {
+  try {
+    const { data } = await supabase.from('documents').select('*').order('uploaded_at', { ascending: false });
+    res.json((data || []).map(d => ({
+      name: d.name, sizeKb: d.size_kb, mimeType: d.mime_type, uploadedAt: d.uploaded_at
+    })));
+  } catch {
+    res.json(Object.entries(documents).map(([name, doc]) => ({
+      name, sizeKb: doc.sizeKb, mimeType: doc.mimeType, uploadedAt: doc.uploadedAt
+    })));
+  }
 });
 
-app.delete('/document/:name', (req, res) => {
+app.delete('/document/:name', async (req, res) => {
   const name = decodeURIComponent(req.params.name);
-  if (!documents[name]) return res.status(404).json({ error: 'Not found' });
-  delete documents[name];
-  invalidateQuestionsCache();
-  res.json({ success: true });
+  try {
+    await supabase.storage.from('documents').remove([name]);
+    await supabase.from('documents').delete().eq('name', name);
+    delete documents[name];
+    invalidateQuestionsCache();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/log-question', (req, res) => {
+app.post('/log-question', async (req, res) => {
   const { question, confident } = req.body;
   if (!question) return res.status(400).json({ error: 'No question provided' });
-  logQuestion(question, confident !== false);
+  await logQuestion(question, confident !== false);
   res.json({ success: true });
 });
 
-app.get('/insights', (req, res) => { res.json(getInsights()); });
+app.get('/insights', async (req, res) => { res.json(await getInsights()); });
 
 app.post('/auth', (req, res) => {
   const { password } = req.body;
@@ -240,7 +324,7 @@ app.post('/auth', (req, res) => {
   res.status(401).json({ error: 'Invalid password' });
 });
 
-// ── Chat — main endpoint ─────────────────────────────────────────────────────
+// ── Chat ──────────────────────────────────────────────────────────────────────
 app.post('/chat', async (req, res) => {
   try {
     const message = req.body?.message;
@@ -313,7 +397,7 @@ app.post('/chat', async (req, res) => {
       : docNames;
 
     const confident = !fullText.toLowerCase().includes("doesn't appear to be in any of your uploaded");
-    logQuestion(message, confident);
+    await logQuestion(message, confident);
 
     res.write(`data: ${JSON.stringify({ type: 'sources', sources })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
@@ -332,12 +416,11 @@ app.get('/suggested-questions', async (req, res) => {
     const questions = await generateSuggestedQuestions();
     questionsCache = questions;
     res.json({ questions });
-  } catch (err) {
+  } catch {
     res.json({ questions: ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"] });
   }
 });
 
-// ── Generate title — fast, no AI call needed ─────────────────────────────────
 app.post('/generate-title', (req, res) => {
   const { question } = req.body;
   if (!question) return res.json({ title: 'New Chat' });
@@ -345,4 +428,8 @@ app.post('/generate-title', (req, res) => {
   res.json({ title });
 });
 
-app.listen(PORT, () => console.log(`✅ ScholrAI running on port ${PORT}`));
+// ── Start server ──────────────────────────────────────────────────────────────
+app.listen(PORT, async () => {
+  console.log(`✅ ScholrAI running on port ${PORT}`);
+  await loadDocumentsFromStorage();
+});
