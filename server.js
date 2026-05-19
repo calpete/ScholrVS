@@ -200,6 +200,27 @@ app.post('/professor/login', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// ── Smart Login (detects professor vs student) ────────────────────────────────
+app.post('/smart-login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return res.status(401).json({ error: error.message });
+
+    // Check professors table first
+    const { data: prof } = await supabase.from('professors').select('*').eq('id', data.user.id).single();
+    if (prof) {
+      return res.json({ success: true, role: 'professor', token: data.session.access_token, user: { id: data.user.id, email: data.user.email, name: prof.name || email.split('@')[0] } });
+    }
+
+    // Fall back to student
+    const { data: student } = await supabase.from('students').select('*').eq('id', data.user.id).single();
+    return res.json({ success: true, role: 'student', token: data.session.access_token, user: { id: data.user.id, email: data.user.email, name: student?.name || email.split('@')[0] } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ── Student Auth ──────────────────────────────────────────────────────────────
 app.post('/student/signup', async (req, res) => {

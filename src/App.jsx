@@ -1209,44 +1209,167 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
   return (
     <div className="min-h-screen bg-[#FAFAFA] flex flex-col">
       <style>{FONT}</style>
-      <nav className="flex items-center justify-between px-10 py-4 border-b border-gray-200 bg-white">
-        <div className="flex items-center gap-3"><Logo size={26} /><span className="text-gray-900 font-semibold tracking-tight">Scholr</span></div>
+
+      <nav className="flex items-center justify-between px-10 py-4 border-b border-gray-200 bg-white sticky top-0 z-10">
+        <div className="flex items-center gap-3">
+          <Logo size={28} />
+          <span className="text-gray-900 font-semibold text-base tracking-tight">Scholr</span>
+        </div>
         <div className="flex items-center gap-3">
           <button onClick={onSignIn} className="px-4 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium transition-colors">Sign in</button>
           <button onClick={onInstructor} className="px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">Get started →</button>
         </div>
       </nav>
-      <div className="flex-1 flex items-center justify-center px-4 py-16">
-        <div className="w-full max-w-2xl">
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-gray-200 text-gray-500 text-xs font-medium mb-8">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Course-grounded AI tutoring
+
+      <div className="max-w-3xl mx-auto px-6 pt-20 pb-16 text-center">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-gray-200 text-gray-500 text-xs font-medium mb-8">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Course-grounded AI tutoring
+        </div>
+        <h1 className="serif text-[62px] leading-[1.08] text-gray-900 mb-6">Every answer from<br /><span className="italic">your course materials.</span></h1>
+        <p className="text-gray-500 text-lg max-w-md mx-auto leading-relaxed mb-10">AI tutoring grounded in what your professor uploaded. Cited, accurate, and trustworthy.</p>
+        <div className="flex items-center justify-center gap-3 flex-wrap">
+          <button onClick={onInstructor} className="px-7 py-3.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">Get started free →</button>
+          <button onClick={onStudent} className="px-7 py-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium transition-colors">Join a course</button>
+        </div>
+      </div>
+
+      {/* Product Mockup */}
+      <div className="bg-gray-100 border-y border-gray-200 px-6 py-12">
+        <div className="max-w-3xl mx-auto">
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden" style={{boxShadow:'0 4px 24px rgba(0,0,0,0.06)'}}>
+            <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center gap-3">
+              <div className="flex gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-red-400" />
+                <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                <div className="w-3 h-3 rounded-full bg-green-400" />
+              </div>
+              <div className="flex-1 bg-white border border-gray-200 rounded-md px-3 py-1 text-xs text-gray-400 font-mono">scholr.study</div>
             </div>
-            <h1 className="serif text-[58px] leading-[1.1] text-gray-900 mb-5">Every answer from<br /><span className="italic">your course materials.</span></h1>
-            <p className="text-gray-500 text-base max-w-sm mx-auto leading-relaxed mb-10">AI tutoring grounded in what your professor uploaded. Cited, accurate, and trustworthy.</p>
-            <div className="flex items-center justify-center gap-3 flex-wrap">
-              <button onClick={onInstructor} className="px-6 py-3 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">Get started free →</button>
-              <button onClick={onStudent} className="px-6 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium transition-colors">Join a course</button>
+            <div className="flex" style={{height:'340px'}}>
+              <div className="w-44 bg-gray-50 border-r border-gray-200 flex flex-col flex-shrink-0 p-3">
+                <div className="flex items-center gap-2 mb-3"><Logo size={18} /><span className="text-gray-900 text-xs font-semibold">Scholr</span></div>
+                <div className="bg-gray-900 rounded-lg px-2.5 py-2 mb-3">
+                  <p className="text-white text-[10px] font-medium">BUS-A 306</p>
+                  <p className="text-gray-500 text-[9px]">Management Acct.</p>
+                </div>
+                <p className="text-[9px] text-gray-400 uppercase tracking-widest font-semibold mb-1.5 px-1">Chats</p>
+                <div className="bg-gray-900 rounded-lg px-2.5 py-1.5 mb-1"><p className="text-white text-[10px]">Midterm topics</p></div>
+                <div className="bg-white border border-gray-100 rounded-lg px-2.5 py-1.5 mb-1"><p className="text-gray-500 text-[10px]">Grading breakdown</p></div>
+                <div className="bg-white border border-gray-100 rounded-lg px-2.5 py-1.5"><p className="text-gray-500 text-[10px]">Late policy</p></div>
+              </div>
+              <div className="flex-1 flex flex-col">
+                <div className="border-b border-gray-100 px-5 py-2.5 flex items-center justify-between">
+                  <span className="text-gray-900 text-xs font-medium">Midterm topics</span>
+                  <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-[10px] text-emerald-600">AI Active</span></div>
+                </div>
+                <div className="flex-1 overflow-hidden px-5 py-4 flex flex-col gap-3">
+                  <div className="flex justify-end">
+                    <div className="bg-gray-900 text-white rounded-xl rounded-br-sm px-3 py-2 text-[11px] max-w-[70%]">What topics will be on the midterm?</div>
+                  </div>
+                  <div className="flex flex-col gap-1.5 max-w-[88%]">
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl rounded-bl-sm px-3 py-2.5 text-[11px] text-gray-700 leading-relaxed">The midterm covers chapters 1–4, with emphasis on cost-volume-profit analysis and contribution margin. You'll also need to know job-order costing and overhead allocation from week 3. (p. 12, 34)</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-gray-400">From</span>
+                      <div className="flex items-center gap-1 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5"><FileText size={8} className="text-gray-500" /><span className="text-[9px] text-gray-600">Syllabus.pdf</span></div>
+                      <div className="flex items-center gap-1 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5"><FileText size={8} className="text-gray-500" /><span className="text-[9px] text-gray-600">Week3_Notes.pdf</span></div>
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <div className="bg-gray-900 text-white rounded-xl rounded-br-sm px-3 py-2 text-[11px] max-w-[70%]">How much is it worth?</div>
+                  </div>
+                  <div className="flex flex-col gap-1.5 max-w-[88%]">
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl rounded-bl-sm px-3 py-2.5 text-[11px] text-gray-700 leading-relaxed">The midterm is worth 25% of your final grade. (p. 2)</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-gray-400">From</span>
+                      <div className="flex items-center gap-1 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5"><FileText size={8} className="text-gray-500" /><span className="text-[9px] text-gray-600">Syllabus.pdf</span></div>
+                    </div>
+                  </div>
+                </div>
+                <div className="border-t border-gray-100 px-4 py-2.5 flex items-center gap-2">
+                  <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-[10px] text-gray-400">Ask about your course...</div>
+                  <div className="w-6 h-6 bg-gray-900 rounded-lg flex items-center justify-center flex-shrink-0"><Send size={9} className="text-white" /></div>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-3 mb-10">
+        </div>
+      </div>
+
+      {/* How it works */}
+      <div className="max-w-3xl mx-auto px-6 py-20">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest text-center mb-3">How it works</p>
+        <h2 className="serif text-4xl text-gray-900 text-center mb-14 font-normal">Up and running in minutes</h2>
+        <div className="grid grid-cols-3 gap-8">
+          {[
+            { n: '1', title: 'Create a course', desc: 'Sign up as an instructor, create a course, and get an instant invite link to share with students.' },
+            { n: '2', title: 'Upload materials', desc: 'Drop in your syllabus, lecture notes, and readings. The AI indexes everything instantly.' },
+            { n: '3', title: 'Students get answers', desc: 'Students ask questions 24/7 and get cited answers grounded only in your materials.' },
+          ].map((s, i) => (
+            <div key={i} className="text-center">
+              <div className="w-9 h-9 rounded-full bg-gray-900 text-white text-sm font-semibold flex items-center justify-center mx-auto mb-4">{s.n}</div>
+              <p className="text-gray-900 text-sm font-medium mb-2">{s.title}</p>
+              <p className="text-gray-400 text-xs leading-relaxed">{s.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Features */}
+      <div className="bg-white border-t border-gray-200 py-20">
+        <div className="max-w-3xl mx-auto px-6">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest text-center mb-3">Why Scholr</p>
+          <h2 className="serif text-4xl text-gray-900 text-center mb-14 font-normal">Built for academic integrity</h2>
+          <div className="grid grid-cols-3 gap-4">
             {[
-              { icon: <CheckCircle2 size={15} className="text-white" />, title: 'Cited answers', desc: "Every answer traced back to your professor's materials" },
-              { icon: <Clock size={15} className="text-white" />, title: 'Always available', desc: 'Study at 2am, get instant answers from your materials' },
-              { icon: <Users size={15} className="text-white" />, title: 'Per course AI', desc: 'Each class gets its own tutor trained on its materials' },
+              { icon: <CheckCircle2 size={14} className="text-white" />, title: 'Cited answers', desc: 'Every response traces back to the exact document and page it came from.' },
+              { icon: <Clock size={14} className="text-white" />, title: 'Always available', desc: 'Students get answers at 2am before exams — no waiting for office hours.' },
+              { icon: <Users size={14} className="text-white" />, title: 'Per course AI', desc: 'Each course gets its own tutor. Students only see answers from their class.' },
+              { icon: <BarChart2 size={14} className="text-white" />, title: 'Student insights', desc: 'See what students are confused about before the next class session.' },
+              { icon: <FileText size={14} className="text-white" />, title: 'Materials only', desc: 'The AI never answers from outside your course. No hallucinations.' },
+              { icon: <Lock size={14} className="text-white" />, title: 'FERPA aligned', desc: 'Student data stays private. Built with educational privacy standards in mind.' },
             ].map((f, i) => (
-              <div key={i} className="bg-white border border-gray-200 rounded-2xl p-5">
+              <div key={i} className="bg-[#FAFAFA] border border-gray-200 rounded-2xl p-5">
                 <div className="w-8 h-8 rounded-lg bg-gray-900 flex items-center justify-center mb-4">{f.icon}</div>
-                <p className="text-gray-900 text-sm font-medium mb-1">{f.title}</p>
+                <p className="text-gray-900 text-sm font-medium mb-1.5">{f.title}</p>
                 <p className="text-gray-400 text-xs leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
-          <div className="flex items-center justify-center gap-6 text-xs text-gray-400">
-            <span>🔒 FERPA aligned</span><span className="w-1 h-1 rounded-full bg-gray-300" /><span>Answers from your materials only</span><span className="w-1 h-1 rounded-full bg-gray-300" /><span>Powered by Google Vertex AI</span>
+        </div>
+      </div>
+
+      {/* CTA Banner */}
+      <div className="bg-gray-900 py-16">
+        <div className="max-w-xl mx-auto px-6 text-center">
+          <h2 className="serif text-4xl text-white mb-4 font-normal">Ready to get started?</h2>
+          <p className="text-gray-400 text-sm mb-8 leading-relaxed">Set up your first course in minutes. Free to start.</p>
+          <div className="flex items-center justify-center gap-3">
+            <button onClick={onInstructor} className="px-7 py-3.5 rounded-xl bg-white hover:bg-gray-100 text-gray-900 text-sm font-medium transition-colors">Get started free →</button>
+            <button onClick={onStudent} className="px-7 py-3.5 rounded-xl border border-white/20 hover:border-white/40 text-white text-sm font-medium transition-colors">Join a course</button>
           </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 border-t border-white/10 py-8">
+        <div className="max-w-3xl mx-auto px-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 bg-white rounded-md flex items-center justify-center">
+              <svg width="12" height="12" viewBox="0 0 28 28" fill="none"><path d="M8 10h8M8 14h12M8 18h6" stroke="#0F0F0F" strokeWidth="2" strokeLinecap="round"/></svg>
+            </div>
+            <span className="text-white text-sm font-semibold">Scholr</span>
+            <span className="text-gray-600 text-xs">© 2025</span>
+          </div>
+          <div className="flex items-center gap-6 text-xs text-gray-500">
+            <span>FERPA aligned</span>
+            <span>·</span>
+            <span>Powered by Google Vertex AI</span>
+            <span>·</span>
+            <span>Answers from your materials only</span>
+          </div>
+        </div>
+      </footer>
+
     </div>
   );
 }
