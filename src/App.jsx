@@ -640,7 +640,7 @@ function ProfessorDashboard({ token, user, onLogout }) {
 
   const copyLink = (course) => {
     // Use join_code in the link so students go through auth
-    const link = `${window.location.origin}?join=${course.join_code || course.code}`;
+    const link = `https://scholrvs.onrender.com/join/${course.join_code || course.code}`;
     navigator.clipboard.writeText(link);
     setCopied(course.id); setTimeout(() => setCopied(null), 2000);
     showToast('Link copied!');
@@ -800,7 +800,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   };
 
   const copyLink = () => {
-    navigator.clipboard.writeText(`${window.location.origin}?join=${course.join_code || course.code}`);
+    navigator.clipboard.writeText(`https://scholrvs.onrender.com/join/${course.join_code || course.code}`);
     setCopied(true); setTimeout(() => setCopied(false), 2000);
     showToast('Student link copied!');
   };
