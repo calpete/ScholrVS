@@ -34,7 +34,6 @@ const FONT = `
   .eq3 { animation: eq3 0.75s ease-in-out infinite 0.08s; }
 `;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function formatTime(date) { return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
 function formatRelativeDate(date) {
   const diffMs = Date.now() - new Date(date), diffMins = Math.floor(diffMs / 60000), diffHours = Math.floor(diffMs / 3600000), diffDays = Math.floor(diffMs / 86400000);
@@ -63,7 +62,6 @@ function Logo({ size = 28 }) {
   );
 }
 
-// ── Analytics data ────────────────────────────────────────────────────────────
 const DEMO_DATA = {
   totalQuestions: 127, weekQuestions: 43, timeSavedHours: 3, timeSavedMinutes: 12,
   confidenceRate: 91, estimatedStudents: 28, peakHour: '11 PM',
@@ -105,7 +103,6 @@ const PieTooltipCustom = ({ active, payload }) => !active || !payload?.length ? 
   <div className="bg-gray-900 text-white px-3 py-2 rounded-lg text-xs shadow-xl"><p className="font-medium">{payload[0].name}</p><p className="text-gray-300">{payload[0].value} ({Math.round(payload[0].payload.percent * 100)}%)</p></div>
 );
 
-// ── Loading Screen ────────────────────────────────────────────────────────────
 function LoadingScreen({ label }) {
   return (
     <div className="fixed inset-0 bg-[#FAFAFA] flex flex-col items-center justify-center z-50">
@@ -119,7 +116,6 @@ function LoadingScreen({ label }) {
   );
 }
 
-// ── Markdown ──────────────────────────────────────────────────────────────────
 function MarkdownMessage({ content }) {
   const clean = content.replace(/\nSOURCES:.*$/m, '').trim();
   return (
@@ -153,6 +149,81 @@ function ErrorMessage({ content }) {
       <div>
         <p className="text-sm text-red-700 font-medium">{isNetwork ? 'Connection issue' : 'Something went wrong'}</p>
         <p className="text-xs text-red-400 mt-0.5">{isNetwork ? 'The server may be starting up. Try again.' : 'Please try your question again.'}</p>
+      </div>
+    </div>
+  );
+}
+
+// ── Google SVG ────────────────────────────────────────────────────────────────
+const GoogleIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16">
+    <path d="M15.68 8.18c0-.57-.05-1.11-.14-1.64H8v3.1h4.3a3.67 3.67 0 01-1.59 2.41v2h2.57c1.5-1.38 2.4-3.42 2.4-5.87z" fill="#4285F4"/>
+    <path d="M8 16c2.16 0 3.97-.72 5.29-1.94l-2.57-2a4.8 4.8 0 01-7.15-2.52H.96v2.07A8 8 0 008 16z" fill="#34A853"/>
+    <path d="M3.57 9.54A4.8 4.8 0 013.32 8c0-.54.09-1.06.25-1.54V4.39H.96A8 8 0 000 8c0 1.29.31 2.51.96 3.61l2.61-2.07z" fill="#FBBC05"/>
+    <path d="M8 3.18c1.22 0 2.31.42 3.17 1.24l2.37-2.37A8 8 0 00.96 4.39L3.57 6.46A4.8 4.8 0 018 3.18z" fill="#EA4335"/>
+  </svg>
+);
+
+// ── Smart Sign In (detects professor vs student) ───────────────────────────────
+function SmartSignIn({ onProfLogin, onStudentLogin, onBack }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [shaking, setShaking] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true); setError('');
+    try {
+      const res = await fetch(`${API}/smart-login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.role === 'professor') onProfLogin(data.token, data.user);
+        else onStudentLogin(data.token, data.user);
+        return;
+      }
+      setError(data.error || 'Login failed');
+      setShaking(true); setTimeout(() => setShaking(false), 400);
+    } catch { setError('Server unreachable'); }
+    setLoading(false);
+  };
+
+  const handleGoogle = () => { window.location.href = `${API}/student/auth/google`; };
+
+  return (
+    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center">
+      <style>{FONT}</style>
+      <div className="mb-8 flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold">Scholr</span></div>
+      <div className={`w-full max-w-sm px-6 ${shaking ? 'shake' : ''}`}>
+        <div className="text-center mb-8">
+          <h1 className="serif text-3xl text-gray-900 mb-1.5">Sign in</h1>
+          <p className="text-gray-400 text-sm">We'll take you to the right place</p>
+        </div>
+        <button onClick={handleGoogle}
+          className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm text-gray-700 text-sm font-medium transition-all mb-4">
+          <GoogleIcon />Continue with Google
+        </button>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-1 h-px bg-gray-200" /><span className="text-xs text-gray-400">or</span><div className="flex-1 h-px bg-gray-200" />
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
+            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password"
+            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
+          {error && <p className="text-red-500 text-xs text-center">{error}</p>}
+          <button type="submit" disabled={!email || !password || loading}
+            className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">
+            {loading ? 'Signing in...' : 'Sign in'}
+          </button>
+        </form>
+        <div className="mt-5 text-center">
+          <button onClick={onBack} className="text-xs text-gray-400 hover:text-gray-700 transition-colors flex items-center gap-1 mx-auto"><ArrowLeft size={12} />Back</button>
+        </div>
       </div>
     </div>
   );
@@ -275,10 +346,7 @@ function StudentLogin({ onLogin, onGoSignup, onBack, pendingJoinCode }) {
     e.preventDefault();
     setLoading(true); setError('');
     try {
-      const res = await fetch(`${API}/student/login`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+      const res = await fetch(`${API}/student/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
       const data = await res.json();
       if (res.ok) { onLogin(data.token, data.user); return; }
       setError(data.error || 'Login failed');
@@ -303,8 +371,7 @@ function StudentLogin({ onLogin, onGoSignup, onBack, pendingJoinCode }) {
         </div>
         <button onClick={handleGoogle}
           className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm text-gray-700 text-sm font-medium transition-all mb-4">
-          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M15.68 8.18c0-.57-.05-1.11-.14-1.64H8v3.1h4.3a3.67 3.67 0 01-1.59 2.41v2h2.57c1.5-1.38 2.4-3.42 2.4-5.87z" fill="#4285F4"/><path d="M8 16c2.16 0 3.97-.72 5.29-1.94l-2.57-2a4.8 4.8 0 01-7.15-2.52H.96v2.07A8 8 0 008 16z" fill="#34A853"/><path d="M3.57 9.54A4.8 4.8 0 013.32 8c0-.54.09-1.06.25-1.54V4.39H.96A8 8 0 000 8c0 1.29.31 2.51.96 3.61l2.61-2.07z" fill="#FBBC05"/><path d="M8 3.18c1.22 0 2.31.42 3.17 1.24l2.37-2.37A8 8 0 00.96 4.39L3.57 6.46A4.8 4.8 0 018 3.18z" fill="#EA4335"/></svg>
-          Continue with Google
+          <GoogleIcon />Continue with Google
         </button>
         <div className="flex items-center gap-3 mb-4">
           <div className="flex-1 h-px bg-gray-200" /><span className="text-xs text-gray-400">or</span><div className="flex-1 h-px bg-gray-200" />
@@ -341,16 +408,10 @@ function StudentSignup({ onLogin, onGoLogin, onBack, pendingJoinCode }) {
     if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
     setLoading(true); setError('');
     try {
-      const res = await fetch(`${API}/student/signup`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name }),
-      });
+      const res = await fetch(`${API}/student/signup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, name }) });
       const data = await res.json();
       if (res.ok) {
-        const loginRes = await fetch(`${API}/student/login`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-        });
+        const loginRes = await fetch(`${API}/student/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
         const loginData = await loginRes.json();
         if (loginRes.ok) { onLogin(loginData.token, loginData.user); return; }
       }
@@ -371,12 +432,11 @@ function StudentSignup({ onLogin, onGoLogin, onBack, pendingJoinCode }) {
       <div className="w-full max-w-sm px-6">
         <div className="text-center mb-8">
           <h1 className="serif text-3xl text-gray-900 mb-1.5">Create account</h1>
-          <p className="text-gray-400 text-sm">{pendingJoinCode ? "Sign up to join your course" : "Join Scholr as a student"}</p>
+          <p className="text-gray-400 text-sm">{pendingJoinCode ? 'Sign up to join your course' : 'Join Scholr as a student'}</p>
         </div>
         <button onClick={handleGoogle}
           className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm text-gray-700 text-sm font-medium transition-all mb-4">
-          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M15.68 8.18c0-.57-.05-1.11-.14-1.64H8v3.1h4.3a3.67 3.67 0 01-1.59 2.41v2h2.57c1.5-1.38 2.4-3.42 2.4-5.87z" fill="#4285F4"/><path d="M8 16c2.16 0 3.97-.72 5.29-1.94l-2.57-2a4.8 4.8 0 01-7.15-2.52H.96v2.07A8 8 0 008 16z" fill="#34A853"/><path d="M3.57 9.54A4.8 4.8 0 013.32 8c0-.54.09-1.06.25-1.54V4.39H.96A8 8 0 000 8c0 1.29.31 2.51.96 3.61l2.61-2.07z" fill="#FBBC05"/><path d="M8 3.18c1.22 0 2.31.42 3.17 1.24l2.37-2.37A8 8 0 00.96 4.39L3.57 6.46A4.8 4.8 0 018 3.18z" fill="#EA4335"/></svg>
-          Continue with Google
+          <GoogleIcon />Continue with Google
         </button>
         <div className="flex items-center gap-3 mb-4">
           <div className="flex-1 h-px bg-gray-200" /><span className="text-xs text-gray-400">or</span><div className="flex-1 h-px bg-gray-200" />
@@ -817,18 +877,7 @@ function CourseInsights({ courseId, onStartClassMode }) {
   if (loading) return <div className="flex-1 flex items-center justify-center"><div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" /></div>;
 
   const isEmpty = !insights || insights.totalQuestions === 0;
-  const d = isEmpty ? DEMO_DATA : {
-    ...DEMO_DATA,
-    totalQuestions: insights.totalQuestions, weekQuestions: insights.weekQuestions,
-    timeSavedHours: insights.timeSavedHours, timeSavedMinutes: insights.timeSavedMinutes,
-    confidenceRate: insights.flagged?.length > 0 ? Math.round(((insights.totalQuestions - insights.flagged.length) / insights.totalQuestions) * 100) : 94,
-    estimatedStudents: Math.max(1, Math.round(insights.totalQuestions / 4.5)),
-    peakHour: insights.peakHourLabel || '10 PM',
-    topTopics: insights.topTopics?.length ? insights.topTopics : DEMO_DATA.topTopics,
-    recent: insights.recent?.length ? insights.recent : DEMO_DATA.recent,
-    flagged: insights.flagged?.length ? insights.flagged : DEMO_DATA.flagged,
-  };
-
+  const d = isEmpty ? DEMO_DATA : { ...DEMO_DATA, totalQuestions: insights.totalQuestions, weekQuestions: insights.weekQuestions, timeSavedHours: insights.timeSavedHours, timeSavedMinutes: insights.timeSavedMinutes, confidenceRate: insights.flagged?.length > 0 ? Math.round(((insights.totalQuestions - insights.flagged.length) / insights.totalQuestions) * 100) : 94, estimatedStudents: Math.max(1, Math.round(insights.totalQuestions / 4.5)), peakHour: insights.peakHourLabel || '10 PM', topTopics: insights.topTopics?.length ? insights.topTopics : DEMO_DATA.topTopics, recent: insights.recent?.length ? insights.recent : DEMO_DATA.recent, flagged: insights.flagged?.length ? insights.flagged : DEMO_DATA.flagged };
   const totalForPie = d.topTopics.reduce((s, t) => s + t.count, 0) || 1;
   const pieData = d.topTopics.map(t => ({ name: t.topic, value: t.count, percent: t.count / totalForPie }));
   const timeSaved = d.timeSavedHours > 0 ? `${d.timeSavedHours}h ${d.timeSavedMinutes}m` : `${d.timeSavedMinutes}m`;
@@ -838,9 +887,7 @@ function CourseInsights({ courseId, onStartClassMode }) {
     <div className="flex-1 flex flex-col overflow-hidden bg-[#F7F7F7]">
       <div className="bg-white border-b border-gray-200 px-8 py-5 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <div><h2 className="text-gray-900 font-semibold text-sm">Student Insights</h2>
-            <div className="flex items-center gap-2 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><p className="text-gray-400 text-xs">Live · updates every 10s{isEmpty ? ' · showing sample data' : ''}</p></div>
-          </div>
+          <div><h2 className="text-gray-900 font-semibold text-sm">Student Insights</h2><div className="flex items-center gap-2 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><p className="text-gray-400 text-xs">Live · updates every 10s{isEmpty ? ' · showing sample data' : ''}</p></div></div>
           <div className="flex items-center gap-3">
             {newCount > 0 && <button onClick={() => { setNewCount(0); fetchInsights(); }} className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">↑ {newCount} new</button>}
             <button onClick={onStartClassMode} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors"><span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />Live Mode</button>
@@ -900,38 +947,14 @@ function CourseInsights({ courseId, onStartClassMode }) {
           </div>
         </>)}
         {activeTab === 'questions' && (<>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl border border-gray-200 p-6">
-              <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-4">Topic Breakdown</h3>
-              <div className="space-y-3">{d.topTopics.map((t, i) => { const pct = Math.round((t.count / totalForPie) * 100); return (<div key={i} className="flex items-center gap-3"><span className={`text-[11px] font-medium px-2 py-0.5 rounded-full w-24 text-center flex-shrink-0 ${TOPIC_ACCENT[t.topic] || 'bg-gray-100 text-gray-600'}`}>{t.topic}</span><div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-gray-900 rounded-full" style={{ width: `${pct}%` }} /></div><span className="text-xs font-bold text-gray-900 w-5 text-right">{t.count}</span><span className="text-[10px] text-gray-400 w-8">{pct}%</span></div>); })}</div>
-            </div>
-            <div className="bg-white rounded-2xl border border-gray-200 p-6">
-              <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-1">Confidence Rate</h3>
-              <p className="text-[11px] text-gray-400 mb-4">How well materials cover student questions</p>
-              <div className="flex items-center justify-center py-3">
-                <div className="relative w-32 h-32">
-                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                    <circle cx="50" cy="50" r="40" fill="none" stroke="#F3F4F6" strokeWidth="10" />
-                    <circle cx="50" cy="50" r="40" fill="none" stroke="#0F0F0F" strokeWidth="10" strokeDasharray={`${2 * Math.PI * 40 * d.confidenceRate / 100} ${2 * Math.PI * 40}`} strokeLinecap="round" />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-2xl font-bold text-gray-900">{d.confidenceRate}%</span><span className="text-[10px] text-gray-400">confident</span></div>
-                </div>
-              </div>
-              <div className="flex items-center justify-center gap-8 mt-2">
-                <div className="text-center"><p className="text-xl font-bold text-gray-900">{d.totalQuestions - (d.flagged?.length || 0)}</p><p className="text-[10px] text-gray-400">answered well</p></div>
-                <div className="w-px h-8 bg-gray-100" />
-                <div className="text-center"><p className="text-xl font-bold text-amber-500">{d.flagged?.length || 0}</p><p className="text-[10px] text-gray-400">needs review</p></div>
-              </div>
-            </div>
-          </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-5"><div><h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide">Recent Questions</h3><p className="text-[11px] text-gray-400 mt-0.5">What students asked in real time</p></div><div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><span className="text-[10px] text-gray-400">Live</span></div></div>
-            <div className="divide-y divide-gray-50">{d.recent.slice(0, 10).map((q, i) => { const label = getTopicLabel(q.question); return (<div key={i} className="flex items-start gap-4 py-3 hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"><div className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${q.confident !== false ? 'bg-emerald-400' : 'bg-amber-400'}`} /><div className="flex-1 min-w-0"><p className="text-sm text-gray-800 leading-snug">{q.question}</p><div className="flex items-center gap-2 mt-1"><span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${TOPIC_ACCENT[label] || 'bg-gray-100 text-gray-600'}`}>{label}</span>{q.confident === false && <span className="text-[10px] text-amber-500 font-medium">Needs review</span>}</div></div><span className="text-[10px] text-gray-300 flex-shrink-0 mt-1">{formatRelativeDate(q.ts)}</span></div>); })}</div>
+            <div className="divide-y divide-gray-50">{d.recent.slice(0, 10).map((q, i) => { const label = getTopicLabel(q.question); return (<div key={i} className="flex items-start gap-4 py-3"><div className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${q.confident !== false ? 'bg-emerald-400' : 'bg-amber-400'}`} /><div className="flex-1 min-w-0"><p className="text-sm text-gray-800 leading-snug">{q.question}</p><span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-1 inline-block ${TOPIC_ACCENT[label] || 'bg-gray-100 text-gray-600'}`}>{label}</span></div><span className="text-[10px] text-gray-300 flex-shrink-0 mt-1">{formatRelativeDate(q.ts)}</span></div>); })}</div>
           </div>
         </>)}
         {activeTab === 'gaps' && (<>
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6"><div className="flex items-start gap-4"><div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 text-lg">⚠️</div><div><h3 className="text-sm font-semibold text-amber-900 mb-1">Knowledge Gap Analysis</h3><p className="text-xs text-amber-700 leading-relaxed">These questions couldn't be answered confidently from your uploaded materials.</p></div></div></div>
-          <div className="space-y-3">{d.flagged.map((q, i) => (<div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 hover:border-amber-200 hover:shadow-sm transition-all"><div className="flex items-start gap-4"><div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0"><span className="text-amber-500 text-xs font-bold">#{i + 1}</span></div><div className="flex-1"><p className="text-sm text-gray-800 font-medium leading-snug">{q.question}</p><div className="flex items-center gap-3 mt-2"><span className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">Low confidence</span><span className="text-[10px] text-gray-400">{formatRelativeDate(q.ts)}</span></div></div></div></div>))}</div>
+          <div className="space-y-3">{d.flagged.map((q, i) => (<div key={i} className="bg-white rounded-2xl border border-gray-200 p-5"><div className="flex items-start gap-4"><div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0"><span className="text-amber-500 text-xs font-bold">#{i + 1}</span></div><div className="flex-1"><p className="text-sm text-gray-800 font-medium">{q.question}</p><div className="flex items-center gap-3 mt-2"><span className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">Low confidence</span><span className="text-[10px] text-gray-400">{formatRelativeDate(q.ts)}</span></div></div></div></div>))}</div>
         </>)}
       </div>
     </div>
@@ -968,12 +991,11 @@ function ClassroomMode({ courseId, onExit }) {
       {newCount > 0 && <button onClick={() => setNewCount(0)} className="mx-8 mt-4 flex items-center justify-between px-5 py-3 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm hover:bg-white/10 transition-colors"><span>{newCount} new question{newCount > 1 ? 's' : ''}</span><span className="text-gray-500 text-xs">Dismiss</span></button>}
       <div className="flex-1 overflow-y-auto px-8 py-6">
         {questions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center"><Radio size={24} className="text-gray-600 mb-4" /><p className="text-gray-400 font-medium mb-1">Waiting for questions</p><p className="text-gray-600 text-sm">Students are using the portal now</p></div>
+          <div className="flex flex-col items-center justify-center h-full text-center"><Radio size={24} className="text-gray-600 mb-4" /><p className="text-gray-400 font-medium mb-1">Waiting for questions</p></div>
         ) : (
           <div className="space-y-3 max-w-2xl mx-auto">{questions.map((q, i) => (<div key={i} className="px-5 py-4 rounded-xl bg-white/5 border border-white/10"><p className="text-white text-sm leading-relaxed">{q.question}</p><div className="flex items-center gap-3 mt-2"><span className="text-gray-500 text-xs">{formatRelativeDate(q.ts)}</span>{!q.confident && <span className="text-amber-400 text-xs">Needs review</span>}</div></div>))}</div>
         )}
       </div>
-      <div className="px-8 py-4 border-t border-white/10 text-center"><p className="text-gray-600 text-xs">Updates every 8 seconds</p></div>
     </div>
   );
 }
@@ -1123,7 +1145,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
                 <div className="text-center max-w-md w-full flex flex-col items-center">
                   <Logo size={36} />
                   <h3 className="text-gray-900 font-semibold text-lg mt-5 mb-1.5">Ask anything about your course</h3>
-                  <p className="text-gray-400 text-sm mb-8">Every answer is grounded in your professor's materials — cited and accurate.</p>
+                  <p className="text-gray-400 text-sm mb-8">Every answer is grounded in your professor's materials.</p>
                   <div className="space-y-2 text-left w-full">{questions.map((q, i) => (<button key={i} onClick={() => onSend(q)} className="w-full text-left px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 text-sm hover:bg-gray-100 hover:border-gray-300 transition-all"><span className="text-gray-300 mr-2 text-xs font-mono">{i + 1}.</span>{q}</button>))}</div>
                 </div>
               )}
@@ -1183,34 +1205,42 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
 }
 
 // ── Landing Page ──────────────────────────────────────────────────────────────
-function LandingPage({ onStudent, onInstructor }) {
+function LandingPage({ onStudent, onInstructor, onSignIn }) {
   return (
     <div className="min-h-screen bg-[#FAFAFA] flex flex-col">
       <style>{FONT}</style>
-      <nav className="flex items-center justify-between px-10 py-5 border-b border-gray-200 bg-white">
-        <div className="flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold tracking-tight">Scholr</span></div>
-        <div className="flex items-center gap-2 text-xs text-gray-400"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Google Vertex AI</div>
+      <nav className="flex items-center justify-between px-10 py-4 border-b border-gray-200 bg-white">
+        <div className="flex items-center gap-3"><Logo size={26} /><span className="text-gray-900 font-semibold tracking-tight">Scholr</span></div>
+        <div className="flex items-center gap-3">
+          <button onClick={onSignIn} className="px-4 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium transition-colors">Sign in</button>
+          <button onClick={onInstructor} className="px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">Get started →</button>
+        </div>
       </nav>
       <div className="flex-1 flex items-center justify-center px-4 py-16">
         <div className="w-full max-w-2xl">
-          <div className="text-center mb-14">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 border border-gray-200 text-gray-600 text-xs font-medium mb-8">Course-grounded AI tutoring</div>
-            <h1 className="serif text-[64px] leading-[1.1] text-gray-900 mb-5">Every answer from<br /><span className="italic">your course materials</span></h1>
-            <p className="text-gray-500 text-base max-w-sm mx-auto leading-relaxed">AI tutoring grounded in what your professor uploaded. Cited, accurate, trustworthy.</p>
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-gray-200 text-gray-500 text-xs font-medium mb-8">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Course-grounded AI tutoring
+            </div>
+            <h1 className="serif text-[58px] leading-[1.1] text-gray-900 mb-5">Every answer from<br /><span className="italic">your course materials.</span></h1>
+            <p className="text-gray-500 text-base max-w-sm mx-auto leading-relaxed mb-10">AI tutoring grounded in what your professor uploaded. Cited, accurate, and trustworthy.</p>
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              <button onClick={onInstructor} className="px-6 py-3 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">Get started free →</button>
+              <button onClick={onStudent} className="px-6 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium transition-colors">Join a course</button>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 max-w-xl mx-auto mb-6">
-            <button onClick={onStudent} className="group text-left p-6 rounded-2xl border border-gray-200 bg-white hover:border-gray-300 hover:shadow-md transition-all">
-              <div className="w-9 h-9 rounded-lg bg-gray-900 flex items-center justify-center mb-5"><Users size={16} className="text-white" /></div>
-              <h2 className="text-gray-900 font-semibold text-sm mb-1">Student</h2>
-              <p className="text-gray-400 text-xs leading-relaxed mb-5">Ask questions, get cited answers from course materials.</p>
-              <div className="flex items-center gap-1 text-gray-900 text-xs font-medium">Sign in <ChevronRight size={13} className="group-hover:translate-x-0.5 transition-transform" /></div>
-            </button>
-            <button onClick={onInstructor} className="group text-left p-6 rounded-2xl border border-gray-200 bg-white hover:border-gray-300 hover:shadow-md transition-all">
-              <div className="w-9 h-9 rounded-lg bg-gray-900 flex items-center justify-center mb-5"><BookOpen size={16} className="text-white" /></div>
-              <h2 className="text-gray-900 font-semibold text-sm mb-1">Instructor</h2>
-              <p className="text-gray-400 text-xs leading-relaxed mb-5">Upload materials, deploy an AI tutor for your class.</p>
-              <div className="flex items-center gap-1 text-gray-900 text-xs font-medium">Sign in <ChevronRight size={13} className="group-hover:translate-x-0.5 transition-transform" /></div>
-            </button>
+          <div className="grid grid-cols-3 gap-3 mb-10">
+            {[
+              { icon: <CheckCircle2 size={15} className="text-white" />, title: 'Cited answers', desc: "Every answer traced back to your professor's materials" },
+              { icon: <Clock size={15} className="text-white" />, title: 'Always available', desc: 'Study at 2am, get instant answers from your materials' },
+              { icon: <Users size={15} className="text-white" />, title: 'Per course AI', desc: 'Each class gets its own tutor trained on its materials' },
+            ].map((f, i) => (
+              <div key={i} className="bg-white border border-gray-200 rounded-2xl p-5">
+                <div className="w-8 h-8 rounded-lg bg-gray-900 flex items-center justify-center mb-4">{f.icon}</div>
+                <p className="text-gray-900 text-sm font-medium mb-1">{f.title}</p>
+                <p className="text-gray-400 text-xs leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
           </div>
           <div className="flex items-center justify-center gap-6 text-xs text-gray-400">
             <span>🔒 FERPA aligned</span><span className="w-1 h-1 rounded-full bg-gray-300" /><span>Answers from your materials only</span><span className="w-1 h-1 rounded-full bg-gray-300" /><span>Powered by Google Vertex AI</span>
@@ -1270,15 +1300,13 @@ function JoinCoursePage({ studentToken, studentUser, onStudentLogin, onEnterCour
           {error ? (
             <div className="text-center">
               <h1 className="text-gray-900 font-semibold text-lg mb-2">Course not found</h1>
-              <p className="text-gray-400 text-sm mb-6">Check the link with your professor.</p>
+              <p className="text-gray-400 text-sm mb-6">This course may no longer be available. Contact your professor for a new link.</p>
               <button onClick={() => navigate('/')} className="text-gray-500 text-sm hover:text-gray-800 transition-colors">← Back to Scholr</button>
             </div>
           ) : (
             <div className="fade-up">
               <div className="bg-white rounded-3xl border border-gray-200 p-8 shadow-sm mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-gray-900 flex items-center justify-center mb-6">
-                  <BookOpen size={20} className="text-white" />
-                </div>
+                <div className="w-12 h-12 rounded-2xl bg-gray-900 flex items-center justify-center mb-6"><BookOpen size={20} className="text-white" /></div>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">You've been invited to join</p>
                 <h1 className="serif text-3xl text-gray-900 mb-1">{course?.name}</h1>
                 <div className="flex items-center gap-2 mb-8 px-3 py-2 bg-gray-50 rounded-xl border border-gray-200 w-fit">
@@ -1321,39 +1349,33 @@ export default function App() {
   const [pendingJoinCode, setPendingJoinCode] = useState(null);
 
   useEffect(() => {
-    // Handle Google OAuth callback
-const hash = window.location.hash;
-if (hash && hash.includes('access_token')) {
-  const hashParams = new URLSearchParams(hash.replace('#', '?'));
-  const accessToken = hashParams.get('access_token');
-  if (accessToken) {
-    import('@supabase/supabase-js').then(({ createClient }) => {
-      const supabase = createClient(
-        'https://dtgukefqobgnreejlxyb.supabase.co',
-        'sb_publishable_bmvI67pGsWD52YYoIF3oDw_88izApLs'
-      );
-      supabase.auth.getUser(accessToken).then(({ data: { user } }) => {
-        if (user) {
-          supabase.from('students').upsert(
-            { id: user.id, email: user.email, name: user.user_metadata?.full_name || user.email.split('@')[0] },
-            { onConflict: 'id' }
-          ).then(() => {
-            const studentUser = { id: user.id, email: user.email, name: user.user_metadata?.full_name || user.email.split('@')[0] };
-            localStorage.setItem('scholr_student_token', accessToken);
-            localStorage.setItem('scholr_student_user', JSON.stringify(studentUser));
-            setStudentToken(accessToken);
-            setStudentUser(studentUser);
-            window.history.replaceState({}, '', '/');
-            const pending = sessionStorage.getItem('scholr_pending_join');
-            if (pending) { setScreen('student-dashboard'); }
-            else { setScreen('student-dashboard'); }
+    const hash = window.location.hash;
+    if (hash && hash.includes('access_token')) {
+      const hashParams = new URLSearchParams(hash.replace('#', '?'));
+      const accessToken = hashParams.get('access_token');
+      if (accessToken) {
+        import('@supabase/supabase-js').then(({ createClient }) => {
+          const supabase = createClient('https://dtgukefqobgnreejlxyb.supabase.co', 'sb_publishable_bmvI67pGsWD52YYoIF3oDw_88izApLs');
+          supabase.auth.getUser(accessToken).then(({ data: { user } }) => {
+            if (user) {
+              supabase.from('students').upsert(
+                { id: user.id, email: user.email, name: user.user_metadata?.full_name || user.email.split('@')[0] },
+                { onConflict: 'id' }
+              ).then(() => {
+                const sUser = { id: user.id, email: user.email, name: user.user_metadata?.full_name || user.email.split('@')[0] };
+                localStorage.setItem('scholr_student_token', accessToken);
+                localStorage.setItem('scholr_student_user', JSON.stringify(sUser));
+                setStudentToken(accessToken); setStudentUser(sUser);
+                window.history.replaceState({}, '', '/');
+                setScreen('student-dashboard');
+              });
+            }
           });
-        }
-      });
-    });
-    return;
-  }
-}
+        });
+        return;
+      }
+    }
+
     const params = new URLSearchParams(window.location.search);
     const joinCode = params.get('join');
     if (joinCode) {
@@ -1365,19 +1387,7 @@ if (hash && hash.includes('access_token')) {
       else { setScreen('student-login'); }
       return;
     }
-    const oauthToken = params.get('student_token');
-    const oauthUserRaw = params.get('student_user');
-    if (oauthToken && oauthUserRaw) {
-      try {
-        const oauthUser = JSON.parse(decodeURIComponent(oauthUserRaw));
-        localStorage.setItem('scholr_student_token', oauthToken);
-        localStorage.setItem('scholr_student_user', JSON.stringify(oauthUser));
-        setStudentToken(oauthToken); setStudentUser(oauthUser);
-        window.history.replaceState({}, '', '/');
-        setScreen('student-dashboard');
-      } catch {}
-      return;
-    }
+
     const pToken = localStorage.getItem('scholr_token');
     const pUser = localStorage.getItem('scholr_user');
     if (pToken && pUser) { setProfToken(pToken); setProfUser(JSON.parse(pUser)); setScreen('prof-dashboard'); return; }
@@ -1394,7 +1404,8 @@ if (hash && hash.includes('access_token')) {
 
   const renderScreen = () => {
     switch (screen) {
-      case 'landing': return <LandingPage onStudent={() => setScreen('student-login')} onInstructor={() => setScreen('prof-login')} />;
+      case 'landing': return <LandingPage onStudent={() => setScreen('student-login')} onInstructor={() => setScreen('prof-signup')} onSignIn={() => setScreen('smart-signin')} />;
+      case 'smart-signin': return <SmartSignIn onProfLogin={handleProfLogin} onStudentLogin={handleStudentLogin} onBack={() => setScreen('landing')} />;
       case 'student-login': return <StudentLogin onLogin={handleStudentLogin} onGoSignup={() => setScreen('student-signup')} onBack={() => setScreen('landing')} pendingJoinCode={pendingJoinCode} />;
       case 'student-signup': return <StudentSignup onLogin={handleStudentLogin} onGoLogin={() => setScreen('student-login')} onBack={() => setScreen('landing')} pendingJoinCode={pendingJoinCode} />;
       case 'student-dashboard': return <StudentDashboard token={studentToken} user={studentUser} onEnterCourse={handleEnterCourse} onLogout={handleStudentLogout} />;
@@ -1411,7 +1422,7 @@ if (hash && hash.includes('access_token')) {
       <Route path="/join/:code" element={<JoinCoursePage studentToken={studentToken} studentUser={studentUser} onStudentLogin={handleStudentLogin} onEnterCourse={handleEnterCourse} />} />
       <Route path="/student/login" element={<StudentLogin onLogin={handleStudentLogin} onGoSignup={() => navigate('/student/signup')} onBack={() => navigate('/')} pendingJoinCode={pendingJoinCode} />} />
       <Route path="/student/signup" element={<StudentSignup onLogin={handleStudentLogin} onGoLogin={() => navigate('/student/login')} onBack={() => navigate('/')} pendingJoinCode={pendingJoinCode} />} />
-      <Route path="/student" element={studentToken ? <StudentDashboard token={studentToken} user={studentUser} onEnterCourse={handleEnterCourse} onLogout={handleStudentLogout} /> : <LandingPage onStudent={() => navigate('/student/login')} onInstructor={() => setScreen('prof-login')} />} />
+      <Route path="/student" element={studentToken ? <StudentDashboard token={studentToken} user={studentUser} onEnterCourse={handleEnterCourse} onLogout={handleStudentLogout} /> : <LandingPage onStudent={() => navigate('/student/login')} onInstructor={() => setScreen('prof-signup')} onSignIn={() => setScreen('smart-signin')} />} />
       <Route path="/*" element={renderScreen()} />
     </Routes>
   );
