@@ -270,10 +270,13 @@ app.post('/upload', async (req, res) => {
       return res.status(500).json({ error: 'Failed to upload to storage: ' + uploadError.message });
     }
 
-    await supabase.from('documents').upsert({
-      name: file.name, size_kb: sizeKb, mime_type: mimeType,
-      storage_path: file.name, uploaded_at: new Date().toISOString()
-    }, { onConflict: 'name' });
+    const { error: dbError } = await supabase.from('documents').upsert({
+  name: file.name, size_kb: sizeKb, mime_type: mimeType,
+  storage_path: file.name, uploaded_at: new Date().toISOString()
+}, { onConflict: 'name' });
+
+if (dbError) console.error('DB insert error:', dbError.message);
+else console.log('✅ Saved to database:', file.name);
 
     documents[file.name] = { buffer, sizeKb, mimeType, uploadedAt: new Date().toISOString() };
     console.log(`✅ Uploaded: ${file.name} (${mimeType}) — ${sizeKb}kb`);
