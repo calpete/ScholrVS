@@ -222,7 +222,6 @@ function ProfessorSignup({ onLogin, onGoLogin, onBack }) {
       const res = await fetch(`${API}/professor/signup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, name }) });
       const data = await res.json();
       if (res.ok) {
-        // Auto login after signup
         const loginRes = await fetch(`${API}/professor/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
         const loginData = await loginRes.json();
         if (loginRes.ok) { onLogin(loginData.token, loginData.user); return; }
@@ -263,6 +262,344 @@ function ProfessorSignup({ onLogin, onGoLogin, onBack }) {
   );
 }
 
+// ── Student Auth Pages ────────────────────────────────────────────────────────
+function StudentLogin({ onLogin, onGoSignup, onBack, pendingJoinCode }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [shaking, setShaking] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true); setError('');
+    try {
+      const res = await fetch(`${API}/student/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (res.ok) { onLogin(data.token, data.user); return; }
+      setError(data.error || 'Login failed');
+      setShaking(true); setTimeout(() => setShaking(false), 400);
+    } catch { setError('Server unreachable'); }
+    setLoading(false);
+  };
+
+  const handleGoogle = () => {
+    // Store pending join code so we can enroll after OAuth redirect
+    if (pendingJoinCode) sessionStorage.setItem('scholr_pending_join', pendingJoinCode);
+    window.location.href = `${API}/student/auth/google`;
+  };
+
+  return (
+    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center">
+      <style>{FONT}</style>
+      <div className="mb-8 flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold">Scholr</span></div>
+      <div className={`w-full max-w-sm px-6 ${shaking ? 'shake' : ''}`}>
+        <div className="text-center mb-8">
+          <h1 className="serif text-3xl text-gray-900 mb-1.5">Student login</h1>
+          <p className="text-gray-400 text-sm">
+            {pendingJoinCode ? 'Sign in to join your course' : 'Sign in to your courses'}
+          </p>
+        </div>
+
+        {/* Google OAuth */}
+        <button onClick={handleGoogle}
+          className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm text-gray-700 text-sm font-medium transition-all mb-4">
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M15.68 8.18c0-.57-.05-1.11-.14-1.64H8v3.1h4.3a3.67 3.67 0 01-1.59 2.41v2h2.57c1.5-1.38 2.4-3.42 2.4-5.87z" fill="#4285F4"/><path d="M8 16c2.16 0 3.97-.72 5.29-1.94l-2.57-2a4.8 4.8 0 01-7.15-2.52H.96v2.07A8 8 0 008 16z" fill="#34A853"/><path d="M3.57 9.54A4.8 4.8 0 013.32 8c0-.54.09-1.06.25-1.54V4.39H.96A8 8 0 000 8c0 1.29.31 2.51.96 3.61l2.61-2.07z" fill="#FBBC05"/><path d="M8 3.18c1.22 0 2.31.42 3.17 1.24l2.37-2.37A8 8 0 00.96 4.39L3.57 6.46A4.8 4.8 0 018 3.18z" fill="#EA4335"/></svg>
+          Continue with Google
+        </button>
+
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-1 h-px bg-gray-200" />
+          <span className="text-xs text-gray-400">or</span>
+          <div className="flex-1 h-px bg-gray-200" />
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
+            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password"
+            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
+          {error && <p className="text-red-500 text-xs text-center">{error}</p>}
+          <button type="submit" disabled={!email || !password || loading}
+            className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">
+            {loading ? 'Signing in...' : 'Sign in'}
+          </button>
+        </form>
+        <div className="flex items-center justify-between mt-5 text-xs text-gray-400">
+          <button onClick={onBack} className="hover:text-gray-700 transition-colors flex items-center gap-1"><ArrowLeft size={12} />Back</button>
+          <button onClick={onGoSignup} className="hover:text-gray-700 transition-colors">No account? Sign up →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StudentSignup({ onLogin, onGoLogin, onBack, pendingJoinCode }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
+    setLoading(true); setError('');
+    try {
+      const res = await fetch(`${API}/student/signup`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const loginRes = await fetch(`${API}/student/login`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const loginData = await loginRes.json();
+        if (loginRes.ok) { onLogin(loginData.token, loginData.user); return; }
+      }
+      setError(data.error || 'Signup failed');
+    } catch { setError('Server unreachable'); }
+    setLoading(false);
+  };
+
+  const handleGoogle = () => {
+    if (pendingJoinCode) sessionStorage.setItem('scholr_pending_join', pendingJoinCode);
+    window.location.href = `${API}/student/auth/google`;
+  };
+
+  return (
+    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center">
+      <style>{FONT}</style>
+      <div className="mb-8 flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold">Scholr</span></div>
+      <div className="w-full max-w-sm px-6">
+        <div className="text-center mb-8">
+          <h1 className="serif text-3xl text-gray-900 mb-1.5">Create account</h1>
+          <p className="text-gray-400 text-sm">
+            {pendingJoinCode ? "Sign up to join your course" : "Join Scholr as a student"}
+          </p>
+        </div>
+
+        <button onClick={handleGoogle}
+          className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm text-gray-700 text-sm font-medium transition-all mb-4">
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M15.68 8.18c0-.57-.05-1.11-.14-1.64H8v3.1h4.3a3.67 3.67 0 01-1.59 2.41v2h2.57c1.5-1.38 2.4-3.42 2.4-5.87z" fill="#4285F4"/><path d="M8 16c2.16 0 3.97-.72 5.29-1.94l-2.57-2a4.8 4.8 0 01-7.15-2.52H.96v2.07A8 8 0 008 16z" fill="#34A853"/><path d="M3.57 9.54A4.8 4.8 0 013.32 8c0-.54.09-1.06.25-1.54V4.39H.96A8 8 0 000 8c0 1.29.31 2.51.96 3.61l2.61-2.07z" fill="#FBBC05"/><path d="M8 3.18c1.22 0 2.31.42 3.17 1.24l2.37-2.37A8 8 0 00.96 4.39L3.57 6.46A4.8 4.8 0 018 3.18z" fill="#EA4335"/></svg>
+          Continue with Google
+        </button>
+
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-1 h-px bg-gray-200" />
+          <span className="text-xs text-gray-400">or</span>
+          <div className="flex-1 h-px bg-gray-200" />
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
+            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
+            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password (min 6 chars)"
+            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
+          {error && <p className="text-red-500 text-xs text-center">{error}</p>}
+          <button type="submit" disabled={!name || !email || !password || loading}
+            className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">
+            {loading ? 'Creating account...' : 'Create account'}
+          </button>
+        </form>
+        <div className="flex items-center justify-between mt-5 text-xs text-gray-400">
+          <button onClick={onBack} className="hover:text-gray-700 transition-colors flex items-center gap-1"><ArrowLeft size={12} />Back</button>
+          <button onClick={onGoLogin} className="hover:text-gray-700 transition-colors">Have an account? Sign in →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Student Dashboard ─────────────────────────────────────────────────────────
+function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
+  const [enrolledCourses, setEnrolledCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [joiningCode, setJoiningCode] = useState('');
+  const [joinError, setJoinError] = useState('');
+  const [joining, setJoining] = useState(false);
+  const [showJoinInput, setShowJoinInput] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+  const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+
+  const fetchCourses = async () => {
+    try {
+      const res = await fetch(`${API}/student/courses`, { headers: authHeaders });
+      const data = await res.json();
+      setEnrolledCourses(Array.isArray(data) ? data : []);
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchCourses();
+    // Handle pending join from OAuth redirect
+    const pendingCode = sessionStorage.getItem('scholr_pending_join');
+    if (pendingCode) {
+      sessionStorage.removeItem('scholr_pending_join');
+      handleJoin(pendingCode);
+    }
+  }, []);
+
+  const handleJoin = async (codeOverride) => {
+    const code = (codeOverride || joiningCode).trim().toUpperCase();
+    if (!code) return;
+    setJoining(true); setJoinError('');
+    try {
+      // Look up course by join code
+      const courseRes = await fetch(`${API}/course/join/${code}`);
+      if (!courseRes.ok) { setJoinError('Course not found — check your code'); setJoining(false); return; }
+      const course = await courseRes.json();
+
+      // Enroll student
+      const enrollRes = await fetch(`${API}/student/enroll`, {
+        method: 'POST', headers: authHeaders,
+        body: JSON.stringify({ course_id: course.id }),
+      });
+      const enrollData = await enrollRes.json();
+      if (!enrollRes.ok && !enrollData.already_enrolled) {
+        setJoinError(enrollData.error || 'Could not enroll'); setJoining(false); return;
+      }
+
+      setJoiningCode(''); setShowJoinInput(false);
+      showToast(`Joined ${course.name}!`);
+      fetchCourses();
+    } catch { setJoinError('Server unreachable'); }
+    setJoining(false);
+  };
+
+  const handleEnterCourse = async (course) => {
+    try {
+      const [docsRes, qRes] = await Promise.all([
+        fetch(`${API}/course/${course.id}/documents`),
+        fetch(`${API}/course/${course.id}/suggested-questions`),
+      ]);
+      const docs = await docsRes.json();
+      const qData = await qRes.json();
+      onEnterCourse(course, Array.isArray(docs) ? docs : [], qData.questions || []);
+    } catch { onEnterCourse(course, [], []); }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F7F7F7]">
+      <style>{FONT}</style>
+
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Logo size={24} />
+          <span className="text-gray-900 font-semibold text-sm">Scholr</span>
+          <span className="text-gray-300">·</span>
+          <span className="text-gray-500 text-sm">{user.name || user.email}</span>
+        </div>
+        <button onClick={onLogout} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs">
+          <LogOut size={12} />Sign out
+        </button>
+      </div>
+
+      <div className="max-w-4xl mx-auto px-8 py-10">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">My Courses</h1>
+            <p className="text-gray-400 text-sm mt-1">
+              {enrolledCourses.length} course{enrolledCourses.length !== 1 ? 's' : ''} · Each has its own AI tutor
+            </p>
+          </div>
+          <button onClick={() => setShowJoinInput(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">
+            <Plus size={14} />Join a course
+          </button>
+        </div>
+
+        {/* Join course input */}
+        {showJoinInput && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-5">
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">Join a course</h3>
+            <p className="text-xs text-gray-400 mb-4">Enter the join code your professor shared with you</p>
+            <div className="flex gap-3">
+              <input
+                autoFocus
+                type="text"
+                value={joiningCode}
+                onChange={e => { setJoiningCode(e.target.value.toUpperCase()); setJoinError(''); }}
+                onKeyDown={e => e.key === 'Enter' && handleJoin()}
+                placeholder="e.g. BUSA-ABC1"
+                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300 font-mono uppercase tracking-wider"
+              />
+              <button onClick={() => handleJoin()} disabled={!joiningCode.trim() || joining}
+                className="px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">
+                {joining ? 'Joining...' : 'Join'}
+              </button>
+              <button onClick={() => { setShowJoinInput(false); setJoiningCode(''); setJoinError(''); }}
+                className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm transition-colors">
+                Cancel
+              </button>
+            </div>
+            {joinError && <p className="text-red-500 text-xs mt-2">{joinError}</p>}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : enrolledCourses.length === 0 ? (
+          <div className="text-center py-20">
+            <BookOpen size={32} className="text-gray-200 mx-auto mb-4" />
+            <p className="text-gray-500 font-medium mb-1">No courses yet</p>
+            <p className="text-gray-400 text-sm mb-6">Ask your professor for a join code to get started</p>
+            <button onClick={() => setShowJoinInput(true)}
+              className="px-5 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">
+              Join a course
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {enrolledCourses.map(course => (
+              <button key={course.id} onClick={() => handleEnterCourse(course)}
+                className="group text-left bg-white rounded-2xl border border-gray-200 p-6 hover:border-gray-300 hover:shadow-md transition-all">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center">
+                    <BookOpen size={16} className="text-white" />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span className="text-[10px] text-gray-400">AI Active</span>
+                  </div>
+                </div>
+                <h3 className="text-gray-900 font-semibold text-base mb-1 leading-snug">{course.name}</h3>
+                <p className="text-gray-400 text-xs mb-4">{course.professor_name || 'Instructor'}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-mono text-gray-300">{course.code}</span>
+                  <div className="flex items-center gap-1 text-gray-900 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                    Open <ChevronRight size={12} />
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {toast && (
+        <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-xl text-white text-xs font-medium shadow-xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
+          {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle2 size={13} />}
+          {toast.msg}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Professor Dashboard ───────────────────────────────────────────────────────
 function ProfessorDashboard({ token, user, onLogout }) {
   const [courses, setCourses] = useState([]);
@@ -274,7 +611,6 @@ function ProfessorDashboard({ token, user, onLogout }) {
   const [copied, setCopied] = useState(null);
 
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
-
   const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 
   useEffect(() => {
@@ -303,14 +639,15 @@ function ProfessorDashboard({ token, user, onLogout }) {
   };
 
   const copyLink = (course) => {
-    const link = `${window.location.origin}?course=${course.id}`;
+    // Use join_code in the link so students go through auth
+    const link = `${window.location.origin}?join=${course.join_code || course.code}`;
     navigator.clipboard.writeText(link);
     setCopied(course.id); setTimeout(() => setCopied(null), 2000);
     showToast('Link copied!');
   };
 
   const copyCode = (course) => {
-    navigator.clipboard.writeText(course.code);
+    navigator.clipboard.writeText(course.join_code || course.code);
     setCopied(course.code); setTimeout(() => setCopied(null), 2000);
     showToast('Join code copied!');
   };
@@ -320,7 +657,6 @@ function ProfessorDashboard({ token, user, onLogout }) {
   return (
     <div className="min-h-screen bg-[#F7F7F7]">
       <style>{FONT}</style>
-      {/* Header */}
       <div className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Logo size={24} />
@@ -345,7 +681,6 @@ function ProfessorDashboard({ token, user, onLogout }) {
           </button>
         </div>
 
-        {/* Create course form */}
         {creating && (
           <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-5">
             <h3 className="text-sm font-semibold text-gray-900 mb-4">New course</h3>
@@ -381,14 +716,14 @@ function ProfessorDashboard({ token, user, onLogout }) {
                     <div className="flex items-center gap-4 mt-2">
                       <div className="flex items-center gap-1.5">
                         <Hash size={11} className="text-gray-400" />
-                        <span className="text-xs font-mono text-gray-500">{course.code}</span>
+                        <span className="text-xs font-mono text-gray-500">{course.join_code || course.code}</span>
                         <button onClick={() => copyCode(course)} className="text-gray-300 hover:text-gray-600 transition-colors ml-1">
                           {copied === course.code ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
                         </button>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <ExternalLink size={11} className="text-gray-400" />
-                        <span className="text-xs text-gray-400">{window.location.origin}?course={course.id.slice(0, 8)}...</span>
+                        <span className="text-xs text-gray-400">Invite link</span>
                         <button onClick={() => copyLink(course)} className="text-gray-300 hover:text-gray-600 transition-colors ml-1">
                           {copied === course.id ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
                         </button>
@@ -422,7 +757,7 @@ function ProfessorDashboard({ token, user, onLogout }) {
   );
 }
 
-// ── Course Manager (materials + insights) ─────────────────────────────────────
+// ── Course Manager ────────────────────────────────────────────────────────────
 function CourseManager({ token, course, onBack, authHeaders }) {
   const [mods, setMods] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -465,7 +800,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   };
 
   const copyLink = () => {
-    navigator.clipboard.writeText(`${window.location.origin}?course=${course.id}`);
+    navigator.clipboard.writeText(`${window.location.origin}?join=${course.join_code || course.code}`);
     setCopied(true); setTimeout(() => setCopied(false), 2000);
     showToast('Student link copied!');
   };
@@ -480,13 +815,10 @@ function CourseManager({ token, course, onBack, authHeaders }) {
           <button onClick={onBack} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 text-xs mb-4 transition-colors">
             <ArrowLeft size={12} />All courses
           </button>
-          <div className="flex items-center gap-2.5 mb-3">
-            <Logo size={22} />
-            <span className="text-gray-900 font-semibold text-sm">Scholr</span>
-          </div>
+          <div className="flex items-center gap-2.5 mb-3"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></div>
           <div className="bg-gray-900 rounded-lg px-3 py-2.5">
             <p className="text-white text-xs font-medium truncate">{course.name}</p>
-            <p className="text-gray-500 text-[10px] mt-0.5 font-mono">{course.code}</p>
+            <p className="text-gray-500 text-[10px] mt-0.5 font-mono">{course.join_code || course.code}</p>
           </div>
         </div>
         <nav className="p-3 flex-1">
@@ -708,8 +1040,8 @@ function CourseInsights({ courseId, onStartClassMode }) {
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">Scholr AI Insight</p>
                   <p className="text-sm leading-relaxed text-white/80">
                     Students asked about <strong className="text-white">{topTopic}</strong> most this week.
-                    {d.flagged?.length > 0 && <> {d.flagged.length} question{d.flagged.length > 1 ? 's' : ''} couldn't be answered confidently — consider uploading more material on <strong className="text-white">exam policies</strong> and <strong className="text-white">grading criteria</strong>.</>}
-                    {d.weekQuestions > 5 && <> Peak activity was at <strong className="text-white">{d.peakHour}</strong> — students are studying late.</>}
+                    {d.flagged?.length > 0 && <> {d.flagged.length} question{d.flagged.length > 1 ? 's' : ''} couldn't be answered confidently.</>}
+                    {d.weekQuestions > 5 && <> Peak activity was at <strong className="text-white">{d.peakHour}</strong>.</>}
                   </p>
                 </div>
               </div>
@@ -795,7 +1127,7 @@ function CourseInsights({ courseId, onStartClassMode }) {
                 <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 text-lg">⚠️</div>
                 <div>
                   <h3 className="text-sm font-semibold text-amber-900 mb-1">Knowledge Gap Analysis</h3>
-                  <p className="text-xs text-amber-700 leading-relaxed">These questions couldn't be answered confidently from your uploaded materials. Upload more detailed notes on these topics to improve accuracy.</p>
+                  <p className="text-xs text-amber-700 leading-relaxed">These questions couldn't be answered confidently from your uploaded materials.</p>
                 </div>
               </div>
             </div>
@@ -816,16 +1148,6 @@ function CourseInsights({ courseId, onStartClassMode }) {
                   </div>
                 </div>
               ))}
-            </div>
-            <div className="bg-gray-900 rounded-2xl p-6 text-white">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-2">Recommendation</p>
-              <p className="text-sm leading-relaxed text-white/80">Upload more detailed material covering <strong className="text-white">exam policies</strong> and <strong className="text-white">grading criteria</strong> to reduce the knowledge gap rate by an estimated 40%.</p>
-              <div className="mt-4 flex items-center gap-3">
-                <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full bg-white rounded-full" style={{ width: `${d.confidenceRate}%` }} />
-                </div>
-                <span className="text-xs text-white/50">{d.confidenceRate}% covered</span>
-              </div>
             </div>
           </>
         )}
@@ -894,63 +1216,6 @@ function ClassroomMode({ courseId, onExit }) {
         )}
       </div>
       <div className="px-8 py-4 border-t border-white/10 text-center"><p className="text-gray-600 text-xs">Updates every 8 seconds</p></div>
-    </div>
-  );
-}
-
-// ── Student Join Page ─────────────────────────────────────────────────────────
-function StudentJoin({ onJoin, defaultCourseId }) {
-  const [code, setCode] = useState(defaultCourseId || '');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (defaultCourseId) handleJoin(defaultCourseId);
-  }, []);
-
-  const handleJoin = async (idOrCode) => {
-    const val = (idOrCode || code).trim();
-    if (!val) return;
-    setLoading(true); setError('');
-    try {
-      const res = await fetch(`${API}/course/${val}`);
-      if (!res.ok) { setError('Course not found — check your code or link'); setLoading(false); return; }
-      const course = await res.json();
-      // Load documents and suggested questions
-      const [docsRes, qRes] = await Promise.all([
-        fetch(`${API}/course/${course.id}/documents`),
-        fetch(`${API}/course/${course.id}/suggested-questions`),
-      ]);
-      const docs = await docsRes.json();
-      const qData = await qRes.json();
-      onJoin(course, Array.isArray(docs) ? docs : [], qData.questions || []);
-    } catch { setError('Server unreachable'); }
-    setLoading(false);
-  };
-
-  if (loading) return <LoadingScreen label="Loading your course..." />;
-
-  return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center">
-      <style>{FONT}</style>
-      <div className="mb-8 flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold">Scholr</span></div>
-      <div className="w-full max-w-sm px-6">
-        <div className="text-center mb-8">
-          <h1 className="serif text-3xl text-gray-900 mb-1.5">Join a course</h1>
-          <p className="text-gray-400 text-sm">Enter the join code your professor shared</p>
-        </div>
-        <div className="space-y-3">
-          <input type="text" value={code} onChange={e => setCode(e.target.value.toUpperCase())}
-            onKeyDown={e => e.key === 'Enter' && handleJoin()}
-            placeholder="e.g. BUSA-ABC1"
-            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300 font-mono uppercase tracking-wider text-center" />
-          {error && <p className="text-red-500 text-xs text-center">{error}</p>}
-          <button onClick={() => handleJoin()} disabled={!code.trim()}
-            className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">
-            Join course
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
@@ -1075,9 +1340,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
       <style>{FONT}</style>
       <aside className="w-56 bg-[#F7F7F7] border-r border-gray-200 flex flex-col flex-shrink-0">
         <div className="px-4 py-4 border-b border-gray-200">
-          <div className="flex items-center gap-2.5 mb-3">
-            <Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span>
-          </div>
+          <div className="flex items-center gap-2.5 mb-3"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></div>
           <div className="bg-white rounded-lg border border-gray-200 px-3 py-2.5">
             <p className="text-gray-900 text-xs font-medium truncate">{course.name}</p>
             <p className="text-gray-400 text-[10px] mt-0.5">{documents.length} doc{documents.length !== 1 ? 's' : ''} · {myNotes.length} note{myNotes.length !== 1 ? 's' : ''}</p>
@@ -1103,7 +1366,6 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
             </div>
           ))}
         </nav>
-        {/* My Notes section */}
         <div className="px-3 py-3 border-t border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">My Notes</p>
@@ -1131,7 +1393,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
           {myNotes.length > 0 && <p className="text-[10px] text-gray-400 mt-2">AI reads your notes + course materials</p>}
         </div>
         <div className="p-4 border-t border-gray-200">
-          <button onClick={onExit} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs"><LogOut size={11} />Exit</button>
+          <button onClick={onExit} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs"><LogOut size={11} />Back to courses</button>
         </div>
       </aside>
 
@@ -1277,7 +1539,7 @@ function LandingPage({ onStudent, onInstructor }) {
               <div className="w-9 h-9 rounded-lg bg-gray-900 flex items-center justify-center mb-5"><Users size={16} className="text-white" /></div>
               <h2 className="text-gray-900 font-semibold text-sm mb-1">Student</h2>
               <p className="text-gray-400 text-xs leading-relaxed mb-5">Ask questions, get cited answers from course materials.</p>
-              <div className="flex items-center gap-1 text-gray-900 text-xs font-medium">Join a course <ChevronRight size={13} className="group-hover:translate-x-0.5 transition-transform" /></div>
+              <div className="flex items-center gap-1 text-gray-900 text-xs font-medium">Sign in <ChevronRight size={13} className="group-hover:translate-x-0.5 transition-transform" /></div>
             </button>
             <button onClick={onInstructor}
               className="group text-left p-6 rounded-2xl border border-gray-200 bg-white hover:border-gray-300 hover:shadow-md transition-all">
@@ -1301,22 +1563,64 @@ export default function App() {
   const [screen, setScreen] = useState('landing');
   const [profToken, setProfToken] = useState(null);
   const [profUser, setProfUser] = useState(null);
+  const [studentToken, setStudentToken] = useState(null);
+  const [studentUser, setStudentUser] = useState(null);
   const [studentCourse, setStudentCourse] = useState(null);
   const [studentDocs, setStudentDocs] = useState([]);
   const [studentQuestions, setStudentQuestions] = useState([]);
+  const [pendingJoinCode, setPendingJoinCode] = useState(null);
 
-  // Check URL for course ID (direct link)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const courseId = params.get('course');
-    if (courseId) { setScreen('student-join'); }
-  }, []);
 
-  // Check for saved professor session
-  useEffect(() => {
-    const token = localStorage.getItem('scholr_token');
-    const user = localStorage.getItem('scholr_user');
-    if (token && user) { setProfToken(token); setProfUser(JSON.parse(user)); setScreen('prof-dashboard'); }
+    // ?join=CODE — student invite link
+    const joinCode = params.get('join');
+    if (joinCode) {
+      setPendingJoinCode(joinCode);
+      window.history.replaceState({}, '', '/');
+      // Check if already logged in as student
+      const token = localStorage.getItem('scholr_student_token');
+      const user = localStorage.getItem('scholr_student_user');
+      if (token && user) {
+        setStudentToken(token); setStudentUser(JSON.parse(user));
+        setScreen('student-dashboard');
+        // Dashboard will pick up pendingJoinCode and auto-enroll
+      } else {
+        setScreen('student-login');
+      }
+      return;
+    }
+
+    // OAuth callback ?student_token=...
+    const oauthToken = params.get('student_token');
+    const oauthUserRaw = params.get('student_user');
+    if (oauthToken && oauthUserRaw) {
+      try {
+        const oauthUser = JSON.parse(decodeURIComponent(oauthUserRaw));
+        localStorage.setItem('scholr_student_token', oauthToken);
+        localStorage.setItem('scholr_student_user', JSON.stringify(oauthUser));
+        setStudentToken(oauthToken); setStudentUser(oauthUser);
+        window.history.replaceState({}, '', '/');
+        setScreen('student-dashboard');
+      } catch {}
+      return;
+    }
+
+    // Restore professor session
+    const profToken = localStorage.getItem('scholr_token');
+    const profUser = localStorage.getItem('scholr_user');
+    if (profToken && profUser) {
+      setProfToken(profToken); setProfUser(JSON.parse(profUser));
+      setScreen('prof-dashboard'); return;
+    }
+
+    // Restore student session
+    const stuToken = localStorage.getItem('scholr_student_token');
+    const stuUser = localStorage.getItem('scholr_student_user');
+    if (stuToken && stuUser) {
+      setStudentToken(stuToken); setStudentUser(JSON.parse(stuUser));
+      setScreen('student-dashboard');
+    }
   }, []);
 
   const handleProfLogin = (token, user) => {
@@ -1330,17 +1634,27 @@ export default function App() {
     setProfToken(null); setProfUser(null); setScreen('landing');
   };
 
-  const handleStudentJoin = (course, docs, questions) => {
+  const handleStudentLogin = (token, user) => {
+    localStorage.setItem('scholr_student_token', token);
+    localStorage.setItem('scholr_student_user', JSON.stringify(user));
+    setStudentToken(token); setStudentUser(user); setScreen('student-dashboard');
+  };
+
+  const handleStudentLogout = () => {
+    localStorage.removeItem('scholr_student_token'); localStorage.removeItem('scholr_student_user');
+    setStudentToken(null); setStudentUser(null); setScreen('landing');
+  };
+
+  const handleEnterCourse = (course, docs, questions) => {
     setStudentCourse(course); setStudentDocs(docs); setStudentQuestions(questions);
     setScreen('student-chat');
   };
 
-  const params = new URLSearchParams(window.location.search);
-  const urlCourseId = params.get('course');
-
-  if (screen === 'landing') return <LandingPage onStudent={() => setScreen('student-join')} onInstructor={() => setScreen('prof-login')} />;
-  if (screen === 'student-join') return <StudentJoin onJoin={handleStudentJoin} defaultCourseId={urlCourseId} />;
-  if (screen === 'student-chat') return <StudentView course={studentCourse} documents={studentDocs} suggestedQuestions={studentQuestions} onExit={() => { window.history.replaceState({}, '', '/'); setScreen('landing'); }} />;
+  if (screen === 'landing') return <LandingPage onStudent={() => setScreen('student-login')} onInstructor={() => setScreen('prof-login')} />;
+  if (screen === 'student-login') return <StudentLogin onLogin={handleStudentLogin} onGoSignup={() => setScreen('student-signup')} onBack={() => setScreen('landing')} pendingJoinCode={pendingJoinCode} />;
+  if (screen === 'student-signup') return <StudentSignup onLogin={handleStudentLogin} onGoLogin={() => setScreen('student-login')} onBack={() => setScreen('landing')} pendingJoinCode={pendingJoinCode} />;
+  if (screen === 'student-dashboard') return <StudentDashboard token={studentToken} user={studentUser} onEnterCourse={handleEnterCourse} onLogout={handleStudentLogout} />;
+  if (screen === 'student-chat') return <StudentView course={studentCourse} documents={studentDocs} suggestedQuestions={studentQuestions} onExit={() => setScreen('student-dashboard')} />;
   if (screen === 'prof-login') return <ProfessorLogin onLogin={handleProfLogin} onGoSignup={() => setScreen('prof-signup')} onBack={() => setScreen('landing')} />;
   if (screen === 'prof-signup') return <ProfessorSignup onLogin={handleProfLogin} onGoLogin={() => setScreen('prof-login')} onBack={() => setScreen('landing')} />;
   if (screen === 'prof-dashboard') return <ProfessorDashboard token={profToken} user={profUser} onLogout={handleProfLogout} />;

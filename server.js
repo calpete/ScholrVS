@@ -79,8 +79,8 @@ SOURCES: DocumentName1.pdf, DocumentName2.jpg
 Only list documents you actually used. This line is parsed separately.`;
 
 // ── In-memory document cache per course ──────────────────────────────────────
-const courseDocuments = {}; // { courseId: { filename: { buffer, sizeKb, mimeType } } }
-const questionsCaches = {}; // { courseId: questions[] }
+const courseDocuments = {};
+const questionsCaches = {};
 
 function getCourseDocuments(courseId) {
   if (!courseDocuments[courseId]) courseDocuments[courseId] = {};
@@ -93,7 +93,6 @@ async function loadAllDocumentsFromStorage() {
     const { data: courses } = await supabase.from('courses').select('id');
     if (!courses) return;
     for (const course of courses) {
-      const prefix = `${course.id}/`;
       const { data: files } = await supabase.storage.from('documents').list(course.id, { limit: 100 });
       if (!files) continue;
       for (const file of files) {
@@ -157,7 +156,6 @@ app.post('/professor/signup', async (req, res) => {
   try {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return res.status(400).json({ error: error.message });
-    // Save professor profile
     await supabase.from('professors').upsert({ id: data.user.id, email, name: name || email.split('@')[0] }, { onConflict: 'id' });
     res.json({ success: true, user: { id: data.user.id, email, name } });
   } catch (err) {
@@ -178,6 +176,58 @@ app.post('/professor/login', async (req, res) => {
   }
 });
 
+// ── Student Auth ──────────────────────────────────────────────────────────────
+app.post('/student/signup', async (req, res) => {
+  const { email, password, name } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  try {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) return res.status(400).json({ error: error.message });
+    await supabase.from('students').upsert(
+      { id: data.user.id, email, name: name || email.split('@')[0] },
+      { onConflict: 'id' }
+    );
+    res.json({ success: true, user: { id: data.user.id, email, name } });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/student/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return res.status(401).json({ error: error.message });
+    // Make sure they have a students row (in case they signed up as prof first)
+    const { data: student } = await supabase.from('students').select('*').eq('id', data.user.id).single();
+    if (!student) {
+      await supabase.from('students').upsert(
+        { id: data.user.id, email: data.user.email, name: data.user.email.split('@')[0] },
+        { onConflict: 'id' }
+      );
+    }
+    res.json({
+      success: true,
+      token: data.session.access_token,
+      user: { id: data.user.id, email: data.user.email, name: student?.name || data.user.email.split('@')[0] }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Google OAuth for students ─────────────────────────────────────────────────
+// This redirects to Supabase's Google OAuth, then Supabase redirects back to
+// your FRONTEND_URL with the session. The frontend reads it from the URL.
+// In Supabase dashboard → Auth → URL Configuration, set your site URL and
+// add your frontend URL to redirect allow-list.
+app.get('/student/auth/google', (req, res) => {
+  const redirectTo = encodeURIComponent(`${process.env.FRONTEND_URL || 'https://scholr.study'}/auth/callback`);
+  const supabaseUrl = process.env.SUPABASE_URL;
+  res.redirect(`${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`);
+});
+
 // ── Auth middleware ───────────────────────────────────────────────────────────
 async function requireAuth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
@@ -192,7 +242,101 @@ async function requireAuth(req, res, next) {
   }
 }
 
-// ── Courses ───────────────────────────────────────────────────────────────────
+// ── Student routes ────────────────────────────────────────────────────────────
+
+// Get all courses a student is enrolled in
+app.get('/student/courses', requireAuth, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('enrollments')
+      .select(`
+        course_id,
+        joined_at,
+        courses (
+          id,
+          name,
+          code,
+          join_code,
+          professor_id,
+          professors ( name )
+        )
+      `)
+      .eq('student_id', req.user.id)
+      .order('joined_at', { ascending: false });
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    const courses = (data || []).map(e => ({
+      id: e.courses.id,
+      name: e.courses.name,
+      code: e.courses.code,
+      join_code: e.courses.join_code,
+      professor_name: e.courses.professors?.name || 'Instructor',
+      joined_at: e.joined_at,
+    }));
+
+    res.json(courses);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Enroll a student in a course
+app.post('/student/enroll', requireAuth, async (req, res) => {
+  const { course_id } = req.body;
+  if (!course_id) return res.status(400).json({ error: 'course_id required' });
+  try {
+    // Make sure student row exists
+    await supabase.from('students').upsert(
+      { id: req.user.id, email: req.user.email, name: req.user.email.split('@')[0] },
+      { onConflict: 'id' }
+    );
+
+    const { error } = await supabase.from('enrollments').insert({
+      student_id: req.user.id,
+      course_id,
+    });
+
+    if (error) {
+      // Unique constraint violation = already enrolled, that's fine
+      if (error.code === '23505') return res.json({ success: true, already_enrolled: true });
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Look up a course by its join_code (used when student clicks invite link)
+app.get('/course/join/:code', async (req, res) => {
+  const { code } = req.params;
+  try {
+    // Try join_code first, fall back to legacy code column
+    let { data: course } = await supabase
+      .from('courses')
+      .select('id, name, code, join_code')
+      .eq('join_code', code.toUpperCase())
+      .single();
+
+    if (!course) {
+      const { data: byCode } = await supabase
+        .from('courses')
+        .select('id, name, code, join_code')
+        .eq('code', code.toUpperCase())
+        .single();
+      course = byCode;
+    }
+
+    if (!course) return res.status(404).json({ error: 'Course not found' });
+    res.json(course);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Professor Courses ─────────────────────────────────────────────────────────
 app.get('/professor/courses', requireAuth, async (req, res) => {
   const { data } = await supabase.from('courses').select('*').eq('professor_id', req.user.id).order('created_at', { ascending: false });
   res.json(data || []);
@@ -202,14 +346,16 @@ app.post('/professor/courses', requireAuth, async (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Course name required' });
   const code = generateJoinCode(name);
-  const { data, error } = await supabase.from('courses').insert({ professor_id: req.user.id, name, code }).select().single();
+  const { data, error } = await supabase
+    .from('courses')
+    .insert({ professor_id: req.user.id, name, code, join_code: code })
+    .select().single();
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
 
 app.delete('/professor/courses/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
-  // Verify ownership
   const { data: course } = await supabase.from('courses').select('*').eq('id', id).eq('professor_id', req.user.id).single();
   if (!course) return res.status(404).json({ error: 'Course not found' });
   await supabase.from('courses').delete().eq('id', id);
@@ -217,13 +363,13 @@ app.delete('/professor/courses/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ── Course lookup by code or id (public) ─────────────────────────────────────
+// ── Course lookup by id (public) ──────────────────────────────────────────────
+// NOTE: keep this AFTER /course/join/:code so Express matches join first
 app.get('/course/:idOrCode', async (req, res) => {
   const { idOrCode } = req.params;
-  // Try by ID first, then by code
-  let { data: course } = await supabase.from('courses').select('id, name, code').eq('id', idOrCode).single();
+  let { data: course } = await supabase.from('courses').select('id, name, code, join_code').eq('id', idOrCode).single();
   if (!course) {
-    const { data: byCode } = await supabase.from('courses').select('id, name, code').eq('code', idOrCode.toUpperCase()).single();
+    const { data: byCode } = await supabase.from('courses').select('id, name, code, join_code').eq('code', idOrCode.toUpperCase()).single();
     course = byCode;
   }
   if (!course) return res.status(404).json({ error: 'Course not found' });
@@ -233,7 +379,6 @@ app.get('/course/:idOrCode', async (req, res) => {
 // ── Upload per course ─────────────────────────────────────────────────────────
 app.post('/course/:courseId/upload', requireAuth, async (req, res) => {
   const { courseId } = req.params;
-  // Verify ownership
   const { data: course } = await supabase.from('courses').select('*').eq('id', courseId).eq('professor_id', req.user.id).single();
   if (!course) return res.status(403).json({ error: 'Not your course' });
 
@@ -249,7 +394,10 @@ app.post('/course/:courseId/upload', requireAuth, async (req, res) => {
   const { error: uploadError } = await supabase.storage.from('documents').upload(storagePath, buffer, { contentType: mimeType, upsert: true });
   if (uploadError) return res.status(500).json({ error: 'Storage upload failed: ' + uploadError.message });
 
-  const { error: dbError } = await supabase.from('documents').upsert({ name: file.name, course_id: courseId, size_kb: sizeKb, mime_type: mimeType, storage_path: storagePath, uploaded_at: new Date().toISOString() }, { onConflict: 'name,course_id' });
+  const { error: dbError } = await supabase.from('documents').upsert(
+    { name: file.name, course_id: courseId, size_kb: sizeKb, mime_type: mimeType, storage_path: storagePath, uploaded_at: new Date().toISOString() },
+    { onConflict: 'name,course_id' }
+  );
   if (dbError) console.error('DB insert error:', dbError.message);
 
   getCourseDocuments(courseId)[file.name] = { buffer, sizeKb, mimeType, uploadedAt: new Date().toISOString() };
@@ -383,7 +531,7 @@ app.post('/course/:courseId/chat', async (req, res) => {
   }
 });
 
-// ── Legacy single-course routes (backward compat) ─────────────────────────────
+// ── Legacy routes ─────────────────────────────────────────────────────────────
 app.post('/auth', (req, res) => {
   const { password } = req.body;
   const correct = process.env.ACCESS_PASSWORD || 'scholr2026';
