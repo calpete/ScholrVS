@@ -1024,33 +1024,26 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
 
   const authHeaders = { Authorization: `Bearer ${studentToken}` };
 
-  // Load persisted notes on mount
-  useEffect(() => {
-    const fetchNotes = async () => {
-      try {
-        const res = await fetch(`${API}/student/notes/${course.id}`, { headers: authHeaders });
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          const notes = await Promise.all(data.map(async (n) => {
-            try {
-              const { data: fileData } = await import('@supabase/supabase-js').then(({ createClient }) =>
-                createClient('https://dtgukefqobgnreejlxyb.supabase.co', 'sb_publishable_bmvI67pGsWD52YYoIF3oDw_88izApLs')
-                  .storage.from('documents').download(n.storage_path)
-              );
-              if (fileData) {
-                const buffer = await fileData.arrayBuffer();
-                return { name: n.name, buffer, mimeType: n.mime_type };
-              }
-            } catch {}
-            return null;
-          }));
-          setMyNotes(notes.filter(Boolean));
-        }
-      } catch {}
-      setNotesLoading(false);
-    };
-    fetchNotes();
-  }, [course.id]);
+useEffect(() => {
+  const fetchNotes = async () => {
+    try {
+      const res = await fetch(`${API}/student/notes/${course.id}`, { headers: authHeaders });
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const notes = await Promise.all(data.map(async (n) => {
+          try {
+            const fileRes = await fetch(`${API}/student/notes/${course.id}/file/${encodeURIComponent(n.name)}`, { headers: authHeaders });
+            if (fileRes.ok) { const buffer = await fileRes.arrayBuffer(); return { name: n.name, buffer, mimeType: n.mime_type }; }
+          } catch {}
+          return null;
+        }));
+        setMyNotes(notes.filter(Boolean));
+      }
+    } catch {}
+    setNotesLoading(false);
+  };
+  fetchNotes();
+}, [course.id]);
 
   const DEFAULT_QUESTIONS = ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
   const questions = suggestedQuestions?.length ? suggestedQuestions : DEFAULT_QUESTIONS;

@@ -620,6 +620,15 @@ app.delete('/student/notes/:courseId/:name', requireAuth, async (req, res) => {
   await supabase.from('student_notes').delete().eq('student_id', req.user.id).eq('course_id', courseId).eq('name', filename);
   res.json({ success: true });
 });
+app.get('/student/notes/:courseId/file/:name', requireAuth, async (req, res) => {
+  const { courseId, name } = req.params;
+  const storagePath = `student_notes/${req.user.id}/${courseId}/${decodeURIComponent(name)}`;
+  const { data, error } = await supabase.storage.from('documents').download(storagePath);
+  if (error) return res.status(404).json({ error: 'File not found' });
+  const buffer = Buffer.from(await data.arrayBuffer());
+  res.set('Content-Type', req.query.mimeType || 'application/octet-stream');
+  res.send(buffer);
+});
 // ── Legacy routes ─────────────────────────────────────────────────────────────
 app.post('/auth', (req, res) => {
   const { password } = req.body;
