@@ -791,6 +791,144 @@ function ProfessorDashboard({ token, user, onLogout }) {
     </div>
   );
 }
+// ── Course Manager ────────────────────────────────────────────────────────────
+function CourseManager({ token, course, onBack, authHeaders }) {
+  const [mods, setMods] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [activeTab, setActiveTab] = useState('materials');
+  const [classroomMode, setClassroomMode] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const fileRef = useRef(null);
+
+  const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
+
+  useEffect(() => {
+    fetch(`${API}/course/${course.id}/documents`)
+      .then(r => r.json()).then(data => {
+        setMods((Array.isArray(data) ? data : []).map(d => ({ id: d.name, name: d.name, sizeKb: d.sizeKb, uploaded: new Date(d.uploadedAt) })));
+      }).catch(() => showToast('Could not load documents', 'error'));
+  }, [course.id]);
+
+  const handleFile = async (file) => {
+    const supported = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
+    if (!file || !supported.some(ext => file.name.toLowerCase().endsWith(ext))) return;
+    setUploading(true);
+    const fd = new FormData(); fd.append('file', file);
+    try {
+      const res = await fetch(`${API}/course/${course.id}/upload`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setMods(prev => [{ id: data.fileName, name: data.fileName, sizeKb: data.sizeKb, uploaded: new Date() }, ...prev]);
+        showToast(`${file.name} uploaded`);
+      } else showToast(data.error || 'Upload failed', 'error');
+    } catch { showToast('Server unreachable', 'error'); }
+    setUploading(false);
+  };
+
+  const onDelete = async (mod) => {
+    setMods(prev => prev.filter(m => m.id !== mod.id));
+    await fetch(`${API}/course/${course.id}/document/${encodeURIComponent(mod.name)}`, { method: 'DELETE', headers: authHeaders });
+    showToast(`${cleanFileName(mod.name)} removed`);
+  };
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(`https://scholrvs.onrender.com/join/${course.join_code || course.code}`);
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
+    showToast('Student link copied!');
+  };
+
+  if (classroomMode) return <ClassroomMode courseId={course.id} onExit={() => setClassroomMode(false)} />;
+
+  return (
+    <div className="flex h-screen w-screen overflow-hidden bg-[#F7F7F7] fixed inset-0">
+      <style>{FONT}</style>
+      <aside className="w-56 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+        <div className="px-5 py-5 border-b border-gray-100">
+          <button onClick={onBack} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 text-xs mb-4 transition-colors"><ArrowLeft size={12} />All courses</button>
+          <div className="flex items-center gap-2.5 mb-3"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></div>
+          <div className="bg-gray-900 rounded-lg px-3 py-2.5">
+            <p className="text-white text-xs font-medium truncate">{course.name}</p>
+            <p className="text-gray-500 text-[10px] mt-0.5 font-mono">{course.join_code || course.code}</p>
+          </div>
+        </div>
+        <nav className="p-3 flex-1">
+          {[{ id: 'materials', label: 'Materials', icon: FileText }, { id: 'insights', label: 'Insights', icon: BarChart2 }].map(({ id, label, icon: Icon }) => (
+            <button key={id} onClick={() => setActiveTab(id)}
+              className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors mb-0.5 ${activeTab === id ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}>
+              <Icon size={13} />{label}
+            </button>
+          ))}
+        </nav>
+        <div className="p-4 border-t border-gray-100 space-y-2">
+          <button onClick={copyLink} className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs font-medium transition-colors">
+            {copied ? <Check size={11} className="text-emerald-500" /> : <ExternalLink size={11} />}{copied ? 'Copied!' : 'Copy student link'}
+          </button>
+          <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div><span className="text-[10px] text-gray-400">Vertex AI connected</span></div>
+        </div>
+      </aside>
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {activeTab === 'materials' ? (
+          <>
+            <header className="bg-white border-b border-gray-200 px-8 py-4 flex-shrink-0 flex items-center justify-between">
+              <div><h2 className="text-gray-900 text-sm font-semibold">Course Materials</h2><p className="text-gray-400 text-xs mt-0.5">{mods.length} file{mods.length !== 1 ? 's' : ''} indexed · live for all students</p></div>
+              <div className="flex items-center gap-3">
+                <input type="file" ref={fileRef} onChange={e => { handleFile(e.target.files[0]); e.target.value = ''; }} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+                <button onClick={() => fileRef.current.click()} disabled={uploading}
+                  className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-xs font-medium px-4 py-2 rounded-lg transition-colors">
+                  <UploadCloud size={13} />{uploading ? 'Uploading...' : 'Upload'}
+                </button>
+              </div>
+            </header>
+            <div className="flex-1 overflow-y-auto p-8">
+              {mods.length === 0 ? (
+                <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
+                  onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }} onClick={() => fileRef.current.click()}
+                  className={`flex flex-col items-center justify-center h-56 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${dragOver ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <UploadCloud size={24} className="text-gray-300 mb-3" />
+                  <p className="text-gray-500 text-sm font-medium mb-1">{dragOver ? 'Drop to upload' : 'Upload course materials'}</p>
+                  <p className="text-gray-400 text-xs">PDF, JPG, PNG — drag and drop or click</p>
+                </div>
+              ) : (
+                <div>
+                  <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
+                    onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }} onClick={() => fileRef.current.click()}
+                    className={`mb-6 flex items-center gap-3 px-5 py-3 rounded-xl border border-dashed cursor-pointer transition-all ${dragOver ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <UploadCloud size={14} className="text-gray-300" /><span className="text-gray-400 text-xs">Drop another file — PDF or image</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {mods.map(m => (
+                      <div key={m.id} className="group bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-300 hover:shadow-sm transition-all">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="w-9 h-9 rounded-lg bg-gray-900 flex items-center justify-center">
+                            {/\.(jpg|jpeg|png|webp)$/i.test(m.name) ? <span className="text-white text-[10px] font-bold">IMG</span> : <FileText size={14} className="text-white" />}
+                          </div>
+                          <button onClick={() => onDelete(m)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400 transition-all"><Trash2 size={12} /></button>
+                        </div>
+                        <p className="text-gray-900 text-sm font-medium line-clamp-2">{cleanFileName(m.name)}</p>
+                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                          <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-[11px] text-gray-400">Live</span></div>
+                          <span className="text-[11px] text-gray-300">{m.sizeKb || 0}kb · {formatRelativeDate(m.uploaded)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        ) : <CourseInsights courseId={course.id} onStartClassMode={() => setClassroomMode(true)} />}
+      </main>
+      {toast && (
+        <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-xl text-white text-xs font-medium shadow-xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
+          {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle2 size={13} />}{toast.msg}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Course Insights ───────────────────────────────────────────────────────────
 function CourseInsights({ courseId, onStartClassMode }) {
   const [insights, setInsights] = useState(null);
@@ -966,7 +1104,10 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
           const notes = await Promise.all(data.map(async (n) => {
             try {
               const fileRes = await fetch(`${API}/student/notes/${course.id}/file/${encodeURIComponent(n.name)}`, { headers: authHeaders });
-              if (fileRes.ok) { const buffer = await fileRes.arrayBuffer(); return { name: n.name, buffer, mimeType: n.mime_type }; }
+              if (fileRes.ok) {
+                const buffer = await fileRes.arrayBuffer();
+                return { name: n.name, buffer, mimeType: n.mime_type };
+              }
             } catch {}
             return null;
           }));
@@ -989,19 +1130,40 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
             id: c.id,
             dbId: c.id,
             title: c.title,
-            messages: (c.messages || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map(m => ({
-              id: m.id, role: m.role, content: m.content, sources: m.sources || [], ts: new Date(m.created_at).getTime()
-            }))
+            messages: (c.messages || [])
+              .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+              .map(m => ({
+                id: m.id,
+                role: m.role,
+                content: m.content,
+                sources: m.sources || [],
+                ts: new Date(m.created_at).getTime()
+              }))
           }));
           setChats(loaded);
           setChatId(loaded[0].id);
+          setChatsLoading(false);
         } else {
-          await createNewChat();
+          // No chats yet — create one
+          try {
+            const res2 = await fetch(`${API}/student/chats/${course.id}`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ title: 'New Chat' }) });
+            const newChat = await res2.json();
+            const nc = { id: newChat.id, dbId: newChat.id, title: 'New Chat', messages: [] };
+            setChats([nc]);
+            setChatId(nc.id);
+          } catch {
+            const nc = { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
+            setChats([nc]);
+            setChatId(nc.id);
+          }
+          setChatsLoading(false);
         }
       } catch {
-        await createNewChat();
+        const nc = { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
+        setChats([nc]);
+        setChatId(nc.id);
+        setChatsLoading(false);
       }
-      setChatsLoading(false);
     };
     fetchChats();
   }, [course.id]);
@@ -1016,35 +1178,53 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
     try {
       const res = await fetch(`${API}/student/chats/${course.id}`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ title: 'New Chat' }) });
       const data = await res.json();
-      const nc = { id: data.id, dbId: data.id, title: 'New Chat', messages: [] };
-      setChats(prev => [nc, ...prev]);
-      setChatId(nc.id);
-      return nc;
-    } catch {
-      const nc = { id: Date.now(), title: 'New Chat', messages: [] };
-      setChats(prev => [nc, ...prev]);
-      setChatId(nc.id);
-      return nc;
-    }
+      if (data.id) {
+        const nc = { id: data.id, dbId: data.id, title: 'New Chat', messages: [] };
+        setChats(prev => [nc, ...prev]);
+        setChatId(nc.id);
+        return nc;
+      }
+    } catch {}
+    const nc = { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
+    setChats(prev => [nc, ...prev]);
+    setChatId(nc.id);
+    return nc;
   };
 
-const deleteChat = async (id) => {
-  const chat = chats.find(c => c.id === id);
-  if (chat?.dbId) {
-    try { await fetch(`${API}/student/chats/${chat.dbId}`, { method: 'DELETE', headers: authHeaders }); } catch {}
-  }
-  const remaining = chats.filter(c => c.id !== id);
-  if (remaining.length === 0) {
-    const res = await fetch(`${API}/student/chats/${course.id}`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ title: 'New Chat' }) });
-    const data = await res.json();
-    const nc = { id: data.id, dbId: data.id, title: 'New Chat', messages: [] };
-    setChats([nc]);
-    setChatId(nc.id);
-  } else {
-    setChats(remaining);
-    if (chatId === id) setChatId(remaining[0].id);
-  }
-};
+  const deleteChat = async (id) => {
+    // Find the chat to delete
+    const chat = chats.find(c => c.id === id);
+    
+    // Delete from DB if it has a real DB id
+    if (chat?.dbId && !String(chat.dbId).startsWith('local-')) {
+      try {
+        await fetch(`${API}/student/chats/${chat.dbId}`, { method: 'DELETE', headers: authHeaders });
+      } catch {}
+    }
+
+    // Remove from local state
+    const remaining = chats.filter(c => c.id !== id);
+    
+    if (remaining.length === 0) {
+      // Create a fresh chat
+      try {
+        const res = await fetch(`${API}/student/chats/${course.id}`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ title: 'New Chat' }) });
+        const data = await res.json();
+        if (data.id) {
+          const nc = { id: data.id, dbId: data.id, title: 'New Chat', messages: [] };
+          setChats([nc]);
+          setChatId(nc.id);
+          return;
+        }
+      } catch {}
+      const nc = { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
+      setChats([nc]);
+      setChatId(nc.id);
+    } else {
+      setChats(remaining);
+      if (chatId === id) setChatId(remaining[0].id);
+    }
+  };
 
   const handlePaperclipFile = async (file) => {
     if (!file) return;
@@ -1086,16 +1266,13 @@ const deleteChat = async (id) => {
     const fallback = isFirstMessage ? message.trim().split(/\s+/).slice(0, 5).join(' ') : null;
     const streamingMsgId = Date.now();
 
-    // Save user message to DB
-    const saveUserMsg = async (dbChatId) => {
-      if (!dbChatId) return;
-      try { await fetch(`${API}/student/chats/${dbChatId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'user', content: message }) }); } catch {}
-    };
-
     setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, ...(fallback ? { title: fallback } : {}), messages: [...c.messages, { role: 'user', content: message, ts: Date.now() }, { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true }] } : c));
     setInput(''); setIsTyping(true);
 
-    if (currentChat?.dbId) saveUserMsg(currentChat.dbId);
+    // Save user message to DB
+    if (currentChat?.dbId && !String(currentChat.dbId).startsWith('local-')) {
+      try { await fetch(`${API}/student/chats/${currentChat.dbId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'user', content: message }) }); } catch {}
+    }
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -1103,7 +1280,9 @@ const deleteChat = async (id) => {
     try {
       let response;
       if (myNotes.length > 0) {
-        const fd = new FormData(); fd.append('message', message); fd.append('history', JSON.stringify(completedMessages.map(m => ({ role: m.role, content: m.content }))));
+        const fd = new FormData();
+        fd.append('message', message);
+        fd.append('history', JSON.stringify(completedMessages.map(m => ({ role: m.role, content: m.content }))));
         myNotes.forEach((n, i) => fd.append(`note_${i}`, new Blob([n.buffer], { type: n.mimeType }), n.name));
         response = await fetch(`${API}/course/${course.id}/chat`, { method: 'POST', body: fd, signal: controller.signal });
       } else {
@@ -1122,24 +1301,30 @@ const deleteChat = async (id) => {
           if (!line.startsWith('data: ')) continue;
           try {
             const event = JSON.parse(line.slice(6));
-            if (event.type === 'token') { fullText += event.token; setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: m.content + event.token } : m) } : c)); scrollToBottom(); }
-            else if (event.type === 'sources') { finalSources = event.sources; setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, sources: event.sources } : m) } : c)); }
-            else if (event.type === 'done') {
+            if (event.type === 'token') {
+              fullText += event.token;
+              setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: m.content + event.token } : m) } : c));
+              scrollToBottom();
+            } else if (event.type === 'sources') {
+              finalSources = event.sources;
+              setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, sources: event.sources } : m) } : c));
+            } else if (event.type === 'done') {
               setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) } : c));
               if (isFirstMessage) {
                 const smartTitle = fullText.trim().split(/\s+/).slice(0, 6).join(' ').replace(/[.!?]$/, '');
                 const finalTitle = smartTitle || fallback;
                 setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title: finalTitle } : c));
-                if (currentChat?.dbId) {
+                if (currentChat?.dbId && !String(currentChat.dbId).startsWith('local-')) {
                   try { await fetch(`${API}/student/chats/${currentChat.dbId}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ title: finalTitle }) }); } catch {}
                 }
               }
               // Save assistant message to DB
-              if (currentChat?.dbId) {
+              if (currentChat?.dbId && !String(currentChat.dbId).startsWith('local-')) {
                 try { await fetch(`${API}/student/chats/${currentChat.dbId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'assistant', content: fullText, sources: finalSources }) }); } catch {}
               }
+            } else if (event.type === 'error') {
+              setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'error:' + event.error, streaming: false, isError: true } : m) } : c));
             }
-            else if (event.type === 'error') { setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'error:' + event.error, streaming: false, isError: true } : m) } : c)); }
           } catch {}
         }
       }
@@ -1275,6 +1460,7 @@ const deleteChat = async (id) => {
     </div>
   );
 }
+
 
 
 
