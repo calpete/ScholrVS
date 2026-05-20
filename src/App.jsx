@@ -1067,6 +1067,9 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
     fd.append('file', file);
     try {
       await fetch(`${API}/student/notes/${course.id}/upload`, { method: 'POST', headers: authHeaders, body: fd });
+      const data = await res.json();
+console.log('Note upload response:', data);
+    
       const reader = new FileReader();
       reader.onload = (e) => {
         const ext = file.name.toLowerCase().split('.').pop();
