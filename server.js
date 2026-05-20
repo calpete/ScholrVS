@@ -629,6 +629,42 @@ app.get('/student/notes/:courseId/file/:name', requireAuth, async (req, res) => 
   res.set('Content-Type', req.query.mimeType || 'application/octet-stream');
   res.send(buffer);
 });
+// ── Chat History ──────────────────────────────────────────────────────────────
+app.get('/student/chats/:courseId', requireAuth, async (req, res) => {
+  const { courseId } = req.params;
+  const { data } = await supabase.from('chats').select('*, messages(*)').eq('student_id', req.user.id).eq('course_id', courseId).order('updated_at', { ascending: false });
+  res.json(data || []);
+});
+
+app.post('/student/chats/:courseId', requireAuth, async (req, res) => {
+  const { courseId } = req.params;
+  const { title } = req.body;
+  const { data, error } = await supabase.from('chats').insert({ student_id: req.user.id, course_id: courseId, title: title || 'New Chat' }).select().single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+app.patch('/student/chats/:chatId', requireAuth, async (req, res) => {
+  const { chatId } = req.params;
+  const { title } = req.body;
+  await supabase.from('chats').update({ title, updated_at: new Date().toISOString() }).eq('id', chatId).eq('student_id', req.user.id);
+  res.json({ success: true });
+});
+
+app.delete('/student/chats/:chatId', requireAuth, async (req, res) => {
+  const { chatId } = req.params;
+  await supabase.from('chats').delete().eq('id', chatId).eq('student_id', req.user.id);
+  res.json({ success: true });
+});
+
+app.post('/student/chats/:chatId/messages', requireAuth, async (req, res) => {
+  const { chatId } = req.params;
+  const { role, content, sources } = req.body;
+  const { data, error } = await supabase.from('messages').insert({ chat_id: chatId, role, content, sources: sources || [] }).select().single();
+  if (error) return res.status(500).json({ error: error.message });
+  await supabase.from('chats').update({ updated_at: new Date().toISOString() }).eq('id', chatId);
+  res.json(data);
+});
 // ── Legacy routes ─────────────────────────────────────────────────────────────
 app.post('/auth', (req, res) => {
   const { password } = req.body;

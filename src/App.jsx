@@ -1009,50 +1009,104 @@ function ClassroomMode({ courseId, onExit }) {
 
 // ── Student Chat View ─────────────────────────────────────────────────────────
 function StudentView({ course, documents, suggestedQuestions, onExit, studentToken }) {
-  const [chats, setChats] = useState([{ id: 1, title: 'New Chat', messages: [] }]);
-  const [chatId, setChatId] = useState(1);
+  const [chats, setChats] = useState([]);
+  const [chatId, setChatId] = useState(null);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
   const [feedback, setFeedback] = useState({});
   const [myNotes, setMyNotes] = useState([]);
   const [notesLoading, setNotesLoading] = useState(true);
+  const [chatsLoading, setChatsLoading] = useState(true);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
   const paperclipRef = useRef(null);
   const abortRef = useRef(null);
 
   const authHeaders = { Authorization: `Bearer ${studentToken}` };
+  const jsonHeaders = { Authorization: `Bearer ${studentToken}`, 'Content-Type': 'application/json' };
 
-useEffect(() => {
-  const fetchNotes = async () => {
-    try {
-      const res = await fetch(`${API}/student/notes/${course.id}`, { headers: authHeaders });
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        const notes = await Promise.all(data.map(async (n) => {
-          try {
-            const fileRes = await fetch(`${API}/student/notes/${course.id}/file/${encodeURIComponent(n.name)}`, { headers: authHeaders });
-            if (fileRes.ok) { const buffer = await fileRes.arrayBuffer(); return { name: n.name, buffer, mimeType: n.mime_type }; }
-          } catch {}
-          return null;
-        }));
-        setMyNotes(notes.filter(Boolean));
+  // Load persisted notes via server
+  useEffect(() => {
+    const fetchNotes = async () => {
+      try {
+        const res = await fetch(`${API}/student/notes/${course.id}`, { headers: authHeaders });
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const notes = await Promise.all(data.map(async (n) => {
+            try {
+              const fileRes = await fetch(`${API}/student/notes/${course.id}/file/${encodeURIComponent(n.name)}`, { headers: authHeaders });
+              if (fileRes.ok) { const buffer = await fileRes.arrayBuffer(); return { name: n.name, buffer, mimeType: n.mime_type }; }
+            } catch {}
+            return null;
+          }));
+          setMyNotes(notes.filter(Boolean));
+        }
+      } catch {}
+      setNotesLoading(false);
+    };
+    fetchNotes();
+  }, [course.id]);
+
+  // Load persisted chats from server
+  useEffect(() => {
+    const fetchChats = async () => {
+      try {
+        const res = await fetch(`${API}/student/chats/${course.id}`, { headers: authHeaders });
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const loaded = data.map(c => ({
+            id: c.id,
+            dbId: c.id,
+            title: c.title,
+            messages: (c.messages || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map(m => ({
+              id: m.id, role: m.role, content: m.content, sources: m.sources || [], ts: new Date(m.created_at).getTime()
+            }))
+          }));
+          setChats(loaded);
+          setChatId(loaded[0].id);
+        } else {
+          await createNewChat();
+        }
+      } catch {
+        await createNewChat();
       }
-    } catch {}
-    setNotesLoading(false);
-  };
-  fetchNotes();
-}, [course.id]);
+      setChatsLoading(false);
+    };
+    fetchChats();
+  }, [course.id]);
 
   const DEFAULT_QUESTIONS = ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
   const questions = suggestedQuestions?.length ? suggestedQuestions : DEFAULT_QUESTIONS;
   const active = chats.find(c => c.id === chatId) || chats[0];
   const scrollToBottom = () => { setTimeout(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 50); };
-  useEffect(() => { scrollToBottom(); }, [active.messages, isTyping]);
+  useEffect(() => { if (active) scrollToBottom(); }, [active?.messages, isTyping]);
 
-  const createNewChat = () => { const nc = { id: Date.now(), title: 'New Chat', messages: [] }; setChats(prev => [...prev, nc]); setChatId(nc.id); };
-  const deleteChat = (id) => { const remaining = chats.filter(c => c.id !== id); if (remaining.length === 0) { const nc = { id: Date.now(), title: 'New Chat', messages: [] }; setChats([nc]); setChatId(nc.id); } else { setChats(remaining); if (chatId === id) setChatId(remaining[remaining.length - 1].id); } };
+  const createNewChat = async () => {
+    try {
+      const res = await fetch(`${API}/student/chats/${course.id}`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ title: 'New Chat' }) });
+      const data = await res.json();
+      const nc = { id: data.id, dbId: data.id, title: 'New Chat', messages: [] };
+      setChats(prev => [nc, ...prev]);
+      setChatId(nc.id);
+      return nc;
+    } catch {
+      const nc = { id: Date.now(), title: 'New Chat', messages: [] };
+      setChats(prev => [nc, ...prev]);
+      setChatId(nc.id);
+      return nc;
+    }
+  };
+
+  const deleteChat = async (id) => {
+    const chat = chats.find(c => c.id === id);
+    if (chat?.dbId) {
+      try { await fetch(`${API}/student/chats/${chat.dbId}`, { method: 'DELETE', headers: authHeaders }); } catch {}
+    }
+    const remaining = chats.filter(c => c.id !== id);
+    if (remaining.length === 0) { await createNewChat(); }
+    else { setChats(remaining); if (chatId === id) setChatId(remaining[0].id); }
+  };
 
   const handlePaperclipFile = async (file) => {
     if (!file) return;
@@ -1061,25 +1115,21 @@ useEffect(() => {
     try {
       const res = await fetch(`${API}/student/notes/${course.id}/upload`, { method: 'POST', headers: authHeaders, body: fd });
       const data = await res.json();
-console.log('Note upload response:', data);
-    
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const ext = file.name.toLowerCase().split('.').pop();
-        const mimeMap = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
-        setMyNotes(prev => [{ name: file.name, buffer: e.target.result, mimeType: mimeMap[ext] || 'application/pdf' }, ...prev.filter(d => d.name !== file.name)]);
-      };
-      reader.readAsArrayBuffer(file);
+      if (data.success) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const ext = file.name.toLowerCase().split('.').pop();
+          const mimeMap = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+          setMyNotes(prev => [{ name: file.name, buffer: e.target.result, mimeType: mimeMap[ext] || 'application/pdf' }, ...prev.filter(d => d.name !== file.name)]);
+        };
+        reader.readAsArrayBuffer(file);
+      }
     } catch {}
   };
 
   const deleteNote = async (name) => {
-    try {
-      await fetch(`${API}/student/notes/${course.id}/${encodeURIComponent(name)}`, { method: 'DELETE', headers: authHeaders });
-      setMyNotes(prev => prev.filter(d => d.name !== name));
-    } catch {
-      setMyNotes(prev => prev.filter(d => d.name !== name));
-    }
+    try { await fetch(`${API}/student/notes/${course.id}/${encodeURIComponent(name)}`, { method: 'DELETE', headers: authHeaders }); } catch {}
+    setMyNotes(prev => prev.filter(d => d.name !== name));
   };
 
   const onStop = () => {
@@ -1093,12 +1143,21 @@ console.log('Note upload response:', data);
     if (!message.trim() || isTyping) return;
     const isFirstMessage = active.messages.length === 0;
     const currentChatId = chatId;
+    const currentChat = chats.find(c => c.id === currentChatId);
     const completedMessages = active.messages.filter(m => !m.streaming);
     const fallback = isFirstMessage ? message.trim().split(/\s+/).slice(0, 5).join(' ') : null;
     const streamingMsgId = Date.now();
 
+    // Save user message to DB
+    const saveUserMsg = async (dbChatId) => {
+      if (!dbChatId) return;
+      try { await fetch(`${API}/student/chats/${dbChatId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'user', content: message }) }); } catch {}
+    };
+
     setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, ...(fallback ? { title: fallback } : {}), messages: [...c.messages, { role: 'user', content: message, ts: Date.now() }, { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true }] } : c));
     setInput(''); setIsTyping(true);
+
+    if (currentChat?.dbId) saveUserMsg(currentChat.dbId);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -1115,7 +1174,7 @@ console.log('Note upload response:', data);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let buf = '', fullText = '';
+      let buf = '', fullText = '', finalSources = [];
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -1126,8 +1185,22 @@ console.log('Note upload response:', data);
           try {
             const event = JSON.parse(line.slice(6));
             if (event.type === 'token') { fullText += event.token; setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: m.content + event.token } : m) } : c)); scrollToBottom(); }
-            else if (event.type === 'sources') { setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, sources: event.sources } : m) } : c)); }
-            else if (event.type === 'done') { setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) } : c)); if (isFirstMessage) { const smartTitle = fullText.trim().split(/\s+/).slice(0, 6).join(' ').replace(/[.!?]$/, ''); setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title: smartTitle || fallback } : c)); } }
+            else if (event.type === 'sources') { finalSources = event.sources; setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, sources: event.sources } : m) } : c)); }
+            else if (event.type === 'done') {
+              setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) } : c));
+              if (isFirstMessage) {
+                const smartTitle = fullText.trim().split(/\s+/).slice(0, 6).join(' ').replace(/[.!?]$/, '');
+                const finalTitle = smartTitle || fallback;
+                setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title: finalTitle } : c));
+                if (currentChat?.dbId) {
+                  try { await fetch(`${API}/student/chats/${currentChat.dbId}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ title: finalTitle }) }); } catch {}
+                }
+              }
+              // Save assistant message to DB
+              if (currentChat?.dbId) {
+                try { await fetch(`${API}/student/chats/${currentChat.dbId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'assistant', content: fullText, sources: finalSources }) }); } catch {}
+              }
+            }
             else if (event.type === 'error') { setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'error:' + event.error, streaming: false, isError: true } : m) } : c)); }
           } catch {}
         }
@@ -1138,6 +1211,13 @@ console.log('Note upload response:', data);
     }
     abortRef.current = null; setIsTyping(false); inputRef.current?.focus();
   };
+
+  if (chatsLoading) return (
+    <div className="flex h-screen w-screen items-center justify-center bg-white fixed inset-0">
+      <style>{FONT}</style>
+      <div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 
   return (
     <div className="flex h-screen w-screen overflow-hidden fixed inset-0 bg-white">
@@ -1187,11 +1267,11 @@ console.log('Note upload response:', data);
       </aside>
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-12 bg-white border-b border-gray-100 flex items-center justify-between px-8 flex-shrink-0">
-          <h2 className="text-gray-900 text-sm font-medium">{active.title}</h2>
+          <h2 className="text-gray-900 text-sm font-medium">{active?.title || 'New Chat'}</h2>
           <div className="flex items-center gap-1.5 text-[11px] text-emerald-600"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />AI Active</div>
         </header>
         <div className="flex-1 overflow-y-auto px-8 py-8 flex flex-col gap-5">
-          {active.messages.length === 0 && (
+          {(!active || active.messages.length === 0) && (
             <div className="flex flex-col items-center justify-center flex-1 pb-10 fade-up">
               {documents.length === 0 ? (
                 <div className="text-center max-w-xs"><Clock size={20} className="text-gray-200 mx-auto mb-4" /><h3 className="text-gray-700 font-medium text-sm mb-1">Setting up your course</h3><p className="text-gray-400 text-xs">Your instructor is uploading materials.</p></div>
@@ -1205,7 +1285,7 @@ console.log('Note upload response:', data);
               )}
             </div>
           )}
-          {active.messages.map((m, i) => {
+          {active?.messages.map((m, i) => {
             const msgId = m.id || i;
             const isError = m.isError || m.content?.startsWith('error:');
             return (
@@ -1257,6 +1337,7 @@ console.log('Note upload response:', data);
     </div>
   );
 }
+
 
 
 // ── Landing Page ──────────────────────────────────────────────────────────────
