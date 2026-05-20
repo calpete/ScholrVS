@@ -304,6 +304,7 @@ app.get('/student/courses', requireAuth, async (req, res) => {
           code,
           join_code,
           professor_id,
+          cover_image,
           professors ( name )
         )
       `)
@@ -316,6 +317,7 @@ app.get('/student/courses', requireAuth, async (req, res) => {
       id: e.courses.id,
       name: e.courses.name,
       code: e.courses.code,
+      cover_image: e.courses.cover_image || null,
       join_code: e.courses.join_code,
       professor_name: e.courses.professors?.name || 'Instructor',
       joined_at: e.joined_at,
@@ -664,6 +666,28 @@ app.post('/student/chats/:chatId/messages', requireAuth, async (req, res) => {
   if (error) return res.status(500).json({ error: error.message });
   await supabase.from('chats').update({ updated_at: new Date().toISOString() }).eq('id', chatId);
   res.json(data);
+});
+app.post('/professor/courses/:courseId/cover', requireAuth, async (req, res) => {
+  const { courseId } = req.params;
+  const { data: course } = await supabase.from('courses').select('*').eq('id', courseId).eq('professor_id', req.user.id).single();
+  if (!course) return res.status(403).json({ error: 'Not your course' });
+
+  const file = req.files?.file;
+  if (!file) return res.status(400).json({ error: 'No file uploaded' });
+  const mimeType = getMimeType(file.name);
+  if (!mimeType) return res.status(400).json({ error: 'Unsupported file type' });
+
+  const buffer = Buffer.from(file.data);
+  const storagePath = `covers/${courseId}/${file.name}`;
+
+  const { error: uploadError } = await supabase.storage.from('documents').upload(storagePath, buffer, { contentType: mimeType, upsert: true });
+  if (uploadError) return res.status(500).json({ error: 'Upload failed: ' + uploadError.message });
+
+  const { data: { publicUrl } } = supabase.storage.from('documents').getPublicUrl(storagePath);
+
+  await supabase.from('courses').update({ cover_image: publicUrl }).eq('id', courseId);
+
+  res.json({ success: true, coverImage: publicUrl });
 });
 // ── Legacy routes ─────────────────────────────────────────────────────────────
 app.post('/auth', (req, res) => {

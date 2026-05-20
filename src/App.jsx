@@ -528,6 +528,11 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
     } catch { onEnterCourse(course, [], []); }
   };
 
+  // Get hour for greeting
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const firstName = (user.name || user.email).split(' ')[0];
+
   return (
     <div className="min-h-screen bg-[#F7F7F7]">
       <style>{FONT}</style>
@@ -538,8 +543,8 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
       <div className="max-w-4xl mx-auto px-8 py-10">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">My Courses</h1>
-            <p className="text-gray-400 text-sm mt-1">{enrolledCourses.length} course{enrolledCourses.length !== 1 ? 's' : ''} · Each has its own AI tutor</p>
+            <h1 className="text-2xl font-semibold text-gray-900">{greeting}, {firstName}</h1>
+            <p className="text-gray-400 text-sm mt-1">{enrolledCourses.length} course{enrolledCourses.length !== 1 ? 's' : ''} · your AI tutor is ready</p>
           </div>
           <button onClick={() => setShowJoinInput(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors"><Plus size={14} />Join a course</button>
         </div>
@@ -572,16 +577,22 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {enrolledCourses.map(course => (
               <button key={course.id} onClick={() => handleEnterCourse(course)}
-                className="group text-left bg-white rounded-2xl border border-gray-200 p-6 hover:border-gray-300 hover:shadow-md transition-all">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center"><BookOpen size={16} className="text-white" /></div>
-                  <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-[10px] text-gray-400">AI Active</span></div>
+                className="group text-left bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-gray-300 hover:shadow-md transition-all">
+                <div className="w-full">
+                  {course.cover_image
+                    ? <img src={course.cover_image} alt="" className="w-full object-cover" style={{height:80}} />
+                    : <CoursePattern courseId={course.id} height={80} />}
                 </div>
-                <h3 className="text-gray-900 font-semibold text-base mb-1 leading-snug">{course.name}</h3>
-                <p className="text-gray-400 text-xs mb-4">{course.professor_name || 'Instructor'}</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-mono text-gray-300">{course.join_code || course.code}</span>
-                  <div className="flex items-center gap-1 text-gray-900 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">Open <ChevronRight size={12} /></div>
+                <div className="p-5">
+                  <div className="flex items-start justify-between mb-1">
+                    <h3 className="text-gray-900 font-semibold text-base leading-snug">{course.name}</h3>
+                    <div className="flex items-center gap-1.5 flex-shrink-0 ml-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-[10px] text-gray-400">AI Active</span></div>
+                  </div>
+                  <p className="text-gray-400 text-xs mb-3">{course.professor_name || 'Instructor'}</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-mono text-gray-300">{course.join_code || course.code}</span>
+                    <div className="flex items-center gap-1 text-gray-900 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">Open <ChevronRight size={12} /></div>
+                  </div>
                 </div>
               </button>
             ))}
@@ -596,7 +607,39 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
     </div>
   );
 }
-
+// ── Pattern generator for courses without a cover image ──────────────────────
+function CoursePattern({ courseId, height = 80 }) {
+  const hash = courseId.split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
+  const bg = ['#0F0F0F', '#1a1a2e', '#0d1b2a', '#1a0a2e', '#0a1a1a'][ Math.abs(hash) % 5];
+  const type = Math.abs(hash >> 3) % 3;
+  if (type === 0) return (
+    <svg viewBox={`0 0 400 ${height}`} style={{width:'100%',height,display:'block'}} preserveAspectRatio="xMidYMid slice">
+      <rect width="400" height={height} fill={bg}/>
+      <circle cx="60" cy="10" r="80" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.12"/>
+      <circle cx="60" cy="10" r="50" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.1"/>
+      <circle cx="60" cy="10" r="25" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.15"/>
+      <line x1="0" y1={height} x2="400" y2="0" stroke="#fff" strokeWidth="0.5" opacity="0.08"/>
+      <line x1="0" y1={height*0.7} x2="400" y2={height*-0.3} stroke="#fff" strokeWidth="0.5" opacity="0.06"/>
+      <rect x="280" y="-10" width="80" height="80" rx="6" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.1" transform="rotate(20 320 30)"/>
+    </svg>
+  );
+  if (type === 1) return (
+    <svg viewBox={`0 0 400 ${height}`} style={{width:'100%',height,display:'block'}} preserveAspectRatio="xMidYMid slice">
+      <rect width="400" height={height} fill={bg}/>
+      {[0,1,2,3,4,5,6,7].map(i => (<rect key={i} x={i*55-10} y="-10" width="45" height="45" rx="4" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.12" transform={`rotate(15 ${i*55+12} 12)`}/>))}
+      {[0,1,2,3,4,5,6,7].map(i => (<rect key={i+8} x={i*55+15} y="25" width="35" height="35" rx="4" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.08" transform={`rotate(15 ${i*55+32} 42)`}/>))}
+    </svg>
+  );
+  return (
+    <svg viewBox={`0 0 400 ${height}`} style={{width:'100%',height,display:'block'}} preserveAspectRatio="xMidYMid slice">
+      <rect width="400" height={height} fill={bg}/>
+      {[0,1,2,3,4,5,6,7,8,9].map(i => (<line key={i} x1={i*45} y1="0" x2={i*45+20} y2={height} stroke="#fff" strokeWidth="0.5" opacity="0.1"/>))}
+      {[0,1,2,3].map(i => (<line key={i+10} x1="0" y1={i*28} x2="400" y2={i*28} stroke="#fff" strokeWidth="0.5" opacity="0.07"/>))}
+      <circle cx="320" cy={height/2} r="35" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.12"/>
+      <circle cx="320" cy={height/2} r="20" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.1"/>
+    </svg>
+  );
+}
 // ── Professor Dashboard ───────────────────────────────────────────────────────
 function ProfessorDashboard({ token, user, onLogout }) {
   const [courses, setCourses] = useState([]);
@@ -606,6 +649,8 @@ function ProfessorDashboard({ token, user, onLogout }) {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [toast, setToast] = useState(null);
   const [copied, setCopied] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const coverRefs = useRef({});
 
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
   const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
@@ -628,16 +673,15 @@ function ProfessorDashboard({ token, user, onLogout }) {
   };
 
   const deleteCourse = async (id) => {
-    if (!confirm('Delete this course? All documents and data will be lost.')) return;
     await fetch(`${API}/professor/courses/${id}`, { method: 'DELETE', headers: authHeaders });
     setCourses(prev => prev.filter(c => c.id !== id));
     if (selectedCourse?.id === id) setSelectedCourse(null);
+    setConfirmDelete(null);
     showToast('Course deleted');
   };
 
   const copyLink = (course) => {
-    const link = `https://scholrvs.onrender.com/join/${course.join_code || course.code}`;
-    navigator.clipboard.writeText(link);
+    navigator.clipboard.writeText(`https://scholrvs.onrender.com/join/${course.join_code || course.code}`);
     setCopied(course.id); setTimeout(() => setCopied(null), 2000);
     showToast('Link copied!');
   };
@@ -645,7 +689,20 @@ function ProfessorDashboard({ token, user, onLogout }) {
   const copyCode = (course) => {
     navigator.clipboard.writeText(course.join_code || course.code);
     setCopied(course.code); setTimeout(() => setCopied(null), 2000);
-    showToast('Join code copied!');
+    showToast('Code copied!');
+  };
+
+  const uploadCover = async (courseId, file) => {
+    if (!file) return;
+    const fd = new FormData(); fd.append('file', file);
+    try {
+      const res = await fetch(`${API}/professor/courses/${courseId}/cover`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+      const data = await res.json();
+      if (data.coverImage) {
+        setCourses(prev => prev.map(c => c.id === courseId ? { ...c, cover_image: data.coverImage } : c));
+        showToast('Cover updated!');
+      }
+    } catch { showToast('Upload failed', 'error'); }
   };
 
   if (selectedCourse) return <CourseManager token={token} course={selectedCourse} onBack={() => setSelectedCourse(null)} authHeaders={authHeaders} />;
@@ -683,30 +740,42 @@ function ProfessorDashboard({ token, user, onLogout }) {
         ) : (
           <div className="space-y-3">
             {courses.map(course => (
-              <div key={course.id} className="bg-white rounded-2xl border border-gray-200 p-6 hover:border-gray-300 hover:shadow-sm transition-all">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-gray-900 font-semibold text-base mb-1">{course.name}</h3>
-                    <div className="flex items-center gap-4 mt-2">
-                      <div className="flex items-center gap-1.5">
-                        <Hash size={11} className="text-gray-400" />
-                        <span className="text-xs font-mono text-gray-500">{course.join_code || course.code}</span>
-                        <button onClick={() => copyCode(course)} className="text-gray-300 hover:text-gray-600 transition-colors ml-1">
-                          {copied === course.code ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+              <div key={course.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-gray-300 hover:shadow-sm transition-all">
+                <div className="relative cursor-pointer" onClick={() => coverRefs.current[course.id]?.click()}>
+                  {course.cover_image
+                    ? <img src={course.cover_image} alt="" className="w-full object-cover" style={{height:60}} />
+                    : <CoursePattern courseId={course.id} height={60} />}
+                  <div className="absolute inset-0 bg-black opacity-0 hover:opacity-20 transition-opacity flex items-center justify-center">
+                    <span className="text-white text-xs font-medium opacity-0 hover:opacity-100">Change cover</span>
+                  </div>
+                </div>
+                <input ref={el => coverRefs.current[course.id] = el} type="file" className="hidden" accept=".jpg,.jpeg,.png,.webp" onChange={e => { uploadCover(course.id, e.target.files[0]); e.target.value = ''; }} />
+                <div className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-gray-900 font-semibold text-base mb-2">{course.name}</h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button onClick={() => copyCode(course)} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors text-xs font-mono text-gray-600">
+                          {copied === course.code ? <Check size={10} className="text-emerald-500" /> : <Hash size={10} />}{course.join_code || course.code}
                         </button>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <ExternalLink size={11} className="text-gray-400" />
-                        <span className="text-xs text-gray-400">Invite link</span>
-                        <button onClick={() => copyLink(course)} className="text-gray-300 hover:text-gray-600 transition-colors ml-1">
-                          {copied === course.id ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+                        <button onClick={() => copyLink(course)} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors text-xs text-gray-600">
+                          {copied === course.id ? <Check size={10} className="text-emerald-500" /> : <ExternalLink size={10} />}{copied === course.id ? 'Copied!' : 'Invite link'}
                         </button>
+                        <div className="flex items-center gap-1 text-[10px] text-gray-400"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />AI Active</div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    <button onClick={() => setSelectedCourse(course)} className="px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors">Manage</button>
-                    <button onClick={() => deleteCourse(course.id)} className="p-2 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400 transition-colors"><Trash2 size={13} /></button>
+                    <div className="flex items-center gap-2 ml-4">
+                      <button onClick={() => setSelectedCourse(course)} className="px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors">Manage</button>
+                      {confirmDelete === course.id ? (
+                        <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2 py-1">
+                          <span className="text-xs text-gray-500">Delete?</span>
+                          <button onClick={() => deleteCourse(course.id)} className="text-xs text-red-500 font-medium hover:text-red-600 px-1">Yes</button>
+                          <button onClick={() => setConfirmDelete(null)} className="text-xs text-gray-400 hover:text-gray-600 px-1">No</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmDelete(course.id)} className="p-2 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400 transition-colors"><Trash2 size={13} /></button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -722,145 +791,6 @@ function ProfessorDashboard({ token, user, onLogout }) {
     </div>
   );
 }
-
-// ── Course Manager ────────────────────────────────────────────────────────────
-function CourseManager({ token, course, onBack, authHeaders }) {
-  const [mods, setMods] = useState([]);
-  const [uploading, setUploading] = useState(false);
-  const [toast, setToast] = useState(null);
-  const [dragOver, setDragOver] = useState(false);
-  const [activeTab, setActiveTab] = useState('materials');
-  const [classroomMode, setClassroomMode] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const fileRef = useRef(null);
-
-  const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
-
-  useEffect(() => {
-    fetch(`${API}/course/${course.id}/documents`)
-      .then(r => r.json()).then(data => {
-        setMods((Array.isArray(data) ? data : []).map(d => ({ id: d.name, name: d.name, sizeKb: d.sizeKb, uploaded: new Date(d.uploadedAt) })));
-      }).catch(() => showToast('Could not load documents', 'error'));
-  }, [course.id]);
-
-  const handleFile = async (file) => {
-    const supported = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
-    if (!file || !supported.some(ext => file.name.toLowerCase().endsWith(ext))) return;
-    setUploading(true);
-    const fd = new FormData(); fd.append('file', file);
-    try {
-      const res = await fetch(`${API}/course/${course.id}/upload`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setMods(prev => [{ id: data.fileName, name: data.fileName, sizeKb: data.sizeKb, uploaded: new Date() }, ...prev]);
-        showToast(`${file.name} uploaded`);
-      } else showToast(data.error || 'Upload failed', 'error');
-    } catch { showToast('Server unreachable', 'error'); }
-    setUploading(false);
-  };
-
-  const onDelete = async (mod) => {
-    setMods(prev => prev.filter(m => m.id !== mod.id));
-    await fetch(`${API}/course/${course.id}/document/${encodeURIComponent(mod.name)}`, { method: 'DELETE', headers: authHeaders });
-    showToast(`${cleanFileName(mod.name)} removed`);
-  };
-
-  const copyLink = () => {
-    navigator.clipboard.writeText(`https://scholrvs.onrender.com/join/${course.join_code || course.code}`);
-    setCopied(true); setTimeout(() => setCopied(false), 2000);
-    showToast('Student link copied!');
-  };
-
-  if (classroomMode) return <ClassroomMode courseId={course.id} onExit={() => setClassroomMode(false)} />;
-
-  return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#F7F7F7] fixed inset-0">
-      <style>{FONT}</style>
-      <aside className="w-56 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
-        <div className="px-5 py-5 border-b border-gray-100">
-          <button onClick={onBack} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 text-xs mb-4 transition-colors"><ArrowLeft size={12} />All courses</button>
-          <div className="flex items-center gap-2.5 mb-3"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></div>
-          <div className="bg-gray-900 rounded-lg px-3 py-2.5">
-            <p className="text-white text-xs font-medium truncate">{course.name}</p>
-            <p className="text-gray-500 text-[10px] mt-0.5 font-mono">{course.join_code || course.code}</p>
-          </div>
-        </div>
-        <nav className="p-3 flex-1">
-          {[{ id: 'materials', label: 'Materials', icon: FileText }, { id: 'insights', label: 'Insights', icon: BarChart2 }].map(({ id, label, icon: Icon }) => (
-            <button key={id} onClick={() => setActiveTab(id)}
-              className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors mb-0.5 ${activeTab === id ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}>
-              <Icon size={13} />{label}
-            </button>
-          ))}
-        </nav>
-        <div className="p-4 border-t border-gray-100 space-y-2">
-          <button onClick={copyLink} className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs font-medium transition-colors">
-            {copied ? <Check size={11} className="text-emerald-500" /> : <ExternalLink size={11} />}{copied ? 'Copied!' : 'Copy student link'}
-          </button>
-          <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div><span className="text-[10px] text-gray-400">Vertex AI connected</span></div>
-        </div>
-      </aside>
-      <main className="flex-1 flex flex-col overflow-hidden">
-        {activeTab === 'materials' ? (
-          <>
-            <header className="bg-white border-b border-gray-200 px-8 py-4 flex-shrink-0 flex items-center justify-between">
-              <div><h2 className="text-gray-900 text-sm font-semibold">Course Materials</h2><p className="text-gray-400 text-xs mt-0.5">{mods.length} file{mods.length !== 1 ? 's' : ''} indexed · live for all students</p></div>
-              <div className="flex items-center gap-3">
-                <input type="file" ref={fileRef} onChange={e => { handleFile(e.target.files[0]); e.target.value = ''; }} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" />
-                <button onClick={() => fileRef.current.click()} disabled={uploading}
-                  className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-xs font-medium px-4 py-2 rounded-lg transition-colors">
-                  <UploadCloud size={13} />{uploading ? 'Uploading...' : 'Upload'}
-                </button>
-              </div>
-            </header>
-            <div className="flex-1 overflow-y-auto p-8">
-              {mods.length === 0 ? (
-                <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
-                  onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }} onClick={() => fileRef.current.click()}
-                  className={`flex flex-col items-center justify-center h-56 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${dragOver ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <UploadCloud size={24} className="text-gray-300 mb-3" />
-                  <p className="text-gray-500 text-sm font-medium mb-1">{dragOver ? 'Drop to upload' : 'Upload course materials'}</p>
-                  <p className="text-gray-400 text-xs">PDF, JPG, PNG — drag and drop or click</p>
-                </div>
-              ) : (
-                <div>
-                  <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
-                    onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }} onClick={() => fileRef.current.click()}
-                    className={`mb-6 flex items-center gap-3 px-5 py-3 rounded-xl border border-dashed cursor-pointer transition-all ${dragOver ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                    <UploadCloud size={14} className="text-gray-300" /><span className="text-gray-400 text-xs">Drop another file — PDF or image</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {mods.map(m => (
-                      <div key={m.id} className="group bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-300 hover:shadow-sm transition-all">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="w-9 h-9 rounded-lg bg-gray-900 flex items-center justify-center">
-                            {/\.(jpg|jpeg|png|webp)$/i.test(m.name) ? <span className="text-white text-[10px] font-bold">IMG</span> : <FileText size={14} className="text-white" />}
-                          </div>
-                          <button onClick={() => onDelete(m)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400 transition-all"><Trash2 size={12} /></button>
-                        </div>
-                        <p className="text-gray-900 text-sm font-medium line-clamp-2">{cleanFileName(m.name)}</p>
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                          <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-[11px] text-gray-400">Live</span></div>
-                          <span className="text-[11px] text-gray-300">{m.sizeKb || 0}kb · {formatRelativeDate(m.uploaded)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </>
-        ) : <CourseInsights courseId={course.id} onStartClassMode={() => setClassroomMode(true)} />}
-      </main>
-      {toast && (
-        <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-xl text-white text-xs font-medium shadow-xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
-          {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle2 size={13} />}{toast.msg}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Course Insights ───────────────────────────────────────────────────────────
 function CourseInsights({ courseId, onStartClassMode }) {
   const [insights, setInsights] = useState(null);
