@@ -641,9 +641,17 @@ app.get('/student/chats/:courseId', requireAuth, async (req, res) => {
 app.post('/student/chats/:courseId', requireAuth, async (req, res) => {
   const { courseId } = req.params;
   const { title } = req.body;
-  const { data, error } = await supabase.from('chats').insert({ student_id: req.user.id, course_id: courseId, title: title || 'New Chat' }).select().single();
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  try {
+    const { data, error } = await supabase.from('chats').insert({ student_id: req.user.id, course_id: courseId, title: title || 'New Chat' }).select().single();
+    if (error) {
+      console.error('Chat insert error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+    res.json(data);
+  } catch (err) {
+    console.error('Chat route crash:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.patch('/student/chats/:chatId', requireAuth, async (req, res) => {
