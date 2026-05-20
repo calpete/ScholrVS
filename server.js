@@ -583,7 +583,43 @@ app.post('/course/:courseId/chat', async (req, res) => {
     res.end();
   }
 });
+// ── Student Notes ─────────────────────────────────────────────────────────────
+app.post('/student/notes/:courseId/upload', requireAuth, async (req, res) => {
+  const { courseId } = req.params;
+  const file = req.files?.file;
+  if (!file) return res.status(400).json({ error: 'No file uploaded' });
+  const mimeType = getMimeType(file.name);
+  if (!mimeType) return res.status(400).json({ error: 'Unsupported file type' });
 
+  const buffer = Buffer.from(file.data);
+  const sizeKb = Math.round(buffer.length / 1024);
+  const storagePath = `student_notes/${req.user.id}/${courseId}/${file.name}`;
+
+  const { error: uploadError } = await supabase.storage.from('documents').upload(storagePath, buffer, { contentType: mimeType, upsert: true });
+  if (uploadError) return res.status(500).json({ error: 'Upload failed: ' + uploadError.message });
+
+  await supabase.from('student_notes').upsert(
+    { student_id: req.user.id, course_id: courseId, name: file.name, size_kb: sizeKb, mime_type: mimeType, storage_path: storagePath },
+    { onConflict: 'student_id,course_id,name' }
+  );
+
+  res.json({ success: true, fileName: file.name, sizeKb, mimeType });
+});
+
+app.get('/student/notes/:courseId', requireAuth, async (req, res) => {
+  const { courseId } = req.params;
+  const { data } = await supabase.from('student_notes').select('*').eq('student_id', req.user.id).eq('course_id', courseId).order('uploaded_at', { ascending: false });
+  res.json(data || []);
+});
+
+app.delete('/student/notes/:courseId/:name', requireAuth, async (req, res) => {
+  const { courseId, name } = req.params;
+  const filename = decodeURIComponent(name);
+  const storagePath = `student_notes/${req.user.id}/${courseId}/${filename}`;
+  await supabase.storage.from('documents').remove([storagePath]);
+  await supabase.from('student_notes').delete().eq('student_id', req.user.id).eq('course_id', courseId).eq('name', filename);
+  res.json({ success: true });
+});
 // ── Legacy routes ─────────────────────────────────────────────────────────────
 app.post('/auth', (req, res) => {
   const { password } = req.body;

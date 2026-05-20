@@ -1008,7 +1008,7 @@ function ClassroomMode({ courseId, onExit }) {
 }
 
 // ── Student Chat View ─────────────────────────────────────────────────────────
-function StudentView({ course, documents, suggestedQuestions, onExit }) {
+function StudentView({ course, documents, suggestedQuestions, onExit, studentToken }) {
   const [chats, setChats] = useState([{ id: 1, title: 'New Chat', messages: [] }]);
   const [chatId, setChatId] = useState(1);
   const [input, setInput] = useState('');
@@ -1016,10 +1016,41 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
   const [copiedId, setCopiedId] = useState(null);
   const [feedback, setFeedback] = useState({});
   const [myNotes, setMyNotes] = useState([]);
+  const [notesLoading, setNotesLoading] = useState(true);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
   const paperclipRef = useRef(null);
   const abortRef = useRef(null);
+
+  const authHeaders = { Authorization: `Bearer ${studentToken}` };
+
+  // Load persisted notes on mount
+  useEffect(() => {
+    const fetchNotes = async () => {
+      try {
+        const res = await fetch(`${API}/student/notes/${course.id}`, { headers: authHeaders });
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          const notes = await Promise.all(data.map(async (n) => {
+            try {
+              const { data: fileData } = await import('@supabase/supabase-js').then(({ createClient }) =>
+                createClient('https://dtgukefqobgnreejlxyb.supabase.co', 'sb_publishable_bmvI67pGsWD52YYoIF3oDw_88izApLs')
+                  .storage.from('documents').download(n.storage_path)
+              );
+              if (fileData) {
+                const buffer = await fileData.arrayBuffer();
+                return { name: n.name, buffer, mimeType: n.mime_type };
+              }
+            } catch {}
+            return null;
+          }));
+          setMyNotes(notes.filter(Boolean));
+        }
+      } catch {}
+      setNotesLoading(false);
+    };
+    fetchNotes();
+  }, [course.id]);
 
   const DEFAULT_QUESTIONS = ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
   const questions = suggestedQuestions?.length ? suggestedQuestions : DEFAULT_QUESTIONS;
@@ -1030,11 +1061,29 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
   const createNewChat = () => { const nc = { id: Date.now(), title: 'New Chat', messages: [] }; setChats(prev => [...prev, nc]); setChatId(nc.id); };
   const deleteChat = (id) => { const remaining = chats.filter(c => c.id !== id); if (remaining.length === 0) { const nc = { id: Date.now(), title: 'New Chat', messages: [] }; setChats([nc]); setChatId(nc.id); } else { setChats(remaining); if (chatId === id) setChatId(remaining[remaining.length - 1].id); } };
 
-  const handlePaperclipFile = (file) => {
+  const handlePaperclipFile = async (file) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => { const ext = file.name.toLowerCase().split('.').pop(); const mimeMap = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }; setMyNotes(prev => [{ name: file.name, buffer: e.target.result, mimeType: mimeMap[ext] || 'application/pdf' }, ...prev.filter(d => d.name !== file.name)]); };
-    reader.readAsArrayBuffer(file);
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      await fetch(`${API}/student/notes/${course.id}/upload`, { method: 'POST', headers: authHeaders, body: fd });
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const ext = file.name.toLowerCase().split('.').pop();
+        const mimeMap = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+        setMyNotes(prev => [{ name: file.name, buffer: e.target.result, mimeType: mimeMap[ext] || 'application/pdf' }, ...prev.filter(d => d.name !== file.name)]);
+      };
+      reader.readAsArrayBuffer(file);
+    } catch {}
+  };
+
+  const deleteNote = async (name) => {
+    try {
+      await fetch(`${API}/student/notes/${course.id}/${encodeURIComponent(name)}`, { method: 'DELETE', headers: authHeaders });
+      setMyNotes(prev => prev.filter(d => d.name !== name));
+    } catch {
+      setMyNotes(prev => prev.filter(d => d.name !== name));
+    }
   };
 
   const onStop = () => {
@@ -1125,12 +1174,14 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
             <button onClick={() => paperclipRef.current?.click()} className="text-[10px] text-gray-500 hover:text-gray-800 font-medium flex items-center gap-1"><Plus size={10} />Add</button>
           </div>
           <input ref={paperclipRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e => { handlePaperclipFile(e.target.files[0]); e.target.value = ''; }} />
-          {myNotes.length === 0 ? (
+          {notesLoading ? (
+            <div className="flex items-center justify-center py-3"><div className="w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" /></div>
+          ) : myNotes.length === 0 ? (
             <button onClick={() => paperclipRef.current?.click()} className="w-full flex flex-col items-center py-3 rounded-lg border border-dashed border-gray-200 hover:border-gray-300 transition-colors cursor-pointer">
               <UploadCloud size={13} className="text-gray-300 mb-1" /><p className="text-[10px] text-gray-400">Drop notes or photos</p>
             </button>
           ) : (
-            <div className="space-y-1">{myNotes.map((doc, i) => (<div key={i} className="group flex items-center gap-2 px-2.5 py-2 rounded-lg bg-gray-50 border border-gray-100"><FileText size={10} className="text-gray-400 flex-shrink-0" /><span className="text-[11px] text-gray-700 flex-1 truncate">{cleanFileName(doc.name)}</span><button onClick={() => setMyNotes(prev => prev.filter(d => d.name !== doc.name))} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all"><X size={9} /></button></div>))}</div>
+            <div className="space-y-1">{myNotes.map((doc, i) => (<div key={i} className="group flex items-center gap-2 px-2.5 py-2 rounded-lg bg-gray-50 border border-gray-100"><FileText size={10} className="text-gray-400 flex-shrink-0" /><span className="text-[11px] text-gray-700 flex-1 truncate">{cleanFileName(doc.name)}</span><button onClick={() => deleteNote(doc.name)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all"><X size={9} /></button></div>))}</div>
           )}
           {myNotes.length > 0 && <p className="text-[10px] text-gray-400 mt-2">AI reads your notes + course materials</p>}
         </div>
@@ -1210,6 +1261,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit }) {
     </div>
   );
 }
+
 
 // ── Landing Page ──────────────────────────────────────────────────────────────
 function LandingPage({ onStudent, onInstructor, onSignIn }) {
@@ -1548,7 +1600,7 @@ export default function App() {
       case 'student-login': return <StudentLogin onLogin={handleStudentLogin} onGoSignup={() => setScreen('student-signup')} onBack={() => setScreen('landing')} pendingJoinCode={pendingJoinCode} />;
       case 'student-signup': return <StudentSignup onLogin={handleStudentLogin} onGoLogin={() => setScreen('student-login')} onBack={() => setScreen('landing')} pendingJoinCode={pendingJoinCode} />;
       case 'student-dashboard': return <StudentDashboard token={studentToken} user={studentUser} onEnterCourse={handleEnterCourse} onLogout={handleStudentLogout} />;
-      case 'student-chat': return <StudentView course={studentCourse} documents={studentDocs} suggestedQuestions={studentQuestions} onExit={() => setScreen('student-dashboard')} />;
+      case 'student-chat': return <StudentView course={studentCourse} documents={studentDocs} suggestedQuestions={studentQuestions} onExit={() => setScreen('student-dashboard')} studentToken={studentToken} />;
       case 'prof-login': return <ProfessorLogin onLogin={handleProfLogin} onGoSignup={() => setScreen('prof-signup')} onBack={() => setScreen('landing')} />;
       case 'prof-signup': return <ProfessorSignup onLogin={handleProfLogin} onGoLogin={() => setScreen('prof-login')} onBack={() => setScreen('landing')} />;
       case 'prof-dashboard': return <ProfessorDashboard token={profToken} user={profUser} onLogout={handleProfLogout} />;
