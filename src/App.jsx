@@ -1098,15 +1098,23 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
     }
   };
 
-  const deleteChat = async (id) => {
-    const chat = chats.find(c => c.id === id);
-    if (chat?.dbId) {
-      try { await fetch(`${API}/student/chats/${chat.dbId}`, { method: 'DELETE', headers: authHeaders }); } catch {}
-    }
-    const remaining = chats.filter(c => c.id !== id);
-    if (remaining.length === 0) { await createNewChat(); }
-    else { setChats(remaining); if (chatId === id) setChatId(remaining[0].id); }
-  };
+const deleteChat = async (id) => {
+  const chat = chats.find(c => c.id === id);
+  if (chat?.dbId) {
+    try { await fetch(`${API}/student/chats/${chat.dbId}`, { method: 'DELETE', headers: authHeaders }); } catch {}
+  }
+  const remaining = chats.filter(c => c.id !== id);
+  if (remaining.length === 0) {
+    const res = await fetch(`${API}/student/chats/${course.id}`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ title: 'New Chat' }) });
+    const data = await res.json();
+    const nc = { id: data.id, dbId: data.id, title: 'New Chat', messages: [] };
+    setChats([nc]);
+    setChatId(nc.id);
+  } else {
+    setChats(remaining);
+    if (chatId === id) setChatId(remaining[0].id);
+  }
+};
 
   const handlePaperclipFile = async (file) => {
     if (!file) return;
@@ -1115,7 +1123,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
     try {
       const res = await fetch(`${API}/student/notes/${course.id}/upload`, { method: 'POST', headers: authHeaders, body: fd });
       const data = await res.json();
-      if (data.success) {
+      if (data.fileName) {
         const reader = new FileReader();
         reader.onload = (e) => {
           const ext = file.name.toLowerCase().split('.').pop();
