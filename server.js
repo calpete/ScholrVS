@@ -463,8 +463,15 @@ app.delete('/course/:courseId/document/:name', requireAuth, async (req, res) => 
   const filename = decodeURIComponent(name);
   const { data: course } = await supabase.from('courses').select('*').eq('id', courseId).eq('professor_id', req.user.id).single();
   if (!course) return res.status(403).json({ error: 'Not your course' });
-  await supabase.storage.from('documents').remove([`${courseId}/${filename}`]);
+
+  const storagePath = `${courseId}/${filename}`;
+  
+  const { error: storageError } = await supabase.storage.from('documents').remove([storagePath]);
+  if (storageError) console.error('Storage delete error:', storageError.message);
+  else console.log(`✅ Deleted from storage: ${storagePath}`);
+
   await supabase.from('documents').delete().eq('course_id', courseId).eq('name', filename);
+  
   if (courseDocuments[courseId]) delete courseDocuments[courseId][filename];
   questionsCaches[courseId] = null;
   res.json({ success: true });
