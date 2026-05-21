@@ -711,8 +711,10 @@ app.post('/course/:courseId/quiz', async (req, res) => {
   for (const [name, doc] of Object.entries(docs)) {
     docParts.push({ inlineData: { mimeType: doc.mimeType, data: doc.buffer.toString('base64') } });
     docParts.push({ text: `[Document: ${name}]` });
+    
   }
-
+console.log('Quiz route hit — courseId:', courseId, 'topic:', topic || 'general');
+console.log('Docs available:', Object.keys(docs).length);
   try {
     const result = await ai.models.generateContent({
       model: MODEL,
