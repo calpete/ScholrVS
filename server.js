@@ -711,26 +711,26 @@ app.post('/course/:courseId/quiz', async (req, res) => {
   for (const [name, doc] of Object.entries(docs)) {
     docParts.push({ inlineData: { mimeType: doc.mimeType, data: doc.buffer.toString('base64') } });
     docParts.push({ text: `[Document: ${name}]` });
-    
   }
-console.log('Quiz route hit — courseId:', courseId, 'topic:', topic || 'general');
-console.log('Docs available:', Object.keys(docs).length);
+
+  const prompt = topic
+    ? `You are a quiz generator. Read the documents and create a 5-question multiple choice quiz focused on: ${topic}.`
+    : `You are a quiz generator. Read the documents and create a 5-question multiple choice quiz covering key concepts.`;
+
+  const format = `Return ONLY a JSON array with exactly 5 objects. No markdown, no backticks, no explanation. Example format:
+[{"question":"What is X?","options":["A) one","B) two","C) three","D) four"],"correct":0,"explanation":"Because X means one."}]
+Each object must have: question (string), options (array of 4 strings), correct (number 0-3), explanation (string).`;
+
   try {
     const result = await ai.models.generateContent({
       model: MODEL,
-      contents: [{
-        role: 'user',
-        parts: [...docParts, {
-          text: `Generate a practice quiz based on these course materials${topic ? ` focused on: ${topic}` : ''}.\n\nCreate exactly 5 multiple choice questions. Each question must test real understanding of the content — not trivial facts.\n\nRespond ONLY with a valid JSON array. No markdown, no backticks, no explanation. Just the raw JSON:\n[\n  {\n    "question": "Question text here?",\n    "options": ["A) option one", "B) option two", "C) option three", "D) option four"],\n    "correct": 0,\n    "explanation": "Clear explanation of why this answer is correct and why the others are wrong."\n  }\n]\n\n"correct" is the 0-based index of the correct option (0=A, 1=B, 2=C, 3=D).`
-        }]
-      }],
-      config: { temperature: 0.4, maxOutputTokens: 2048 },
+      contents: [{ role: 'user', parts: [...docParts, { text: prompt + '\n\n' + format }] }],
+      config: { temperature: 0.2, maxOutputTokens: 2048 },
     });
-
     const raw = result.text.trim().replace(/```json|```/g, '').trim();
     const start = raw.indexOf('[');
     const end = raw.lastIndexOf(']');
-    if (start === -1 || end === -1) return res.status(500).json({ error: 'Could not parse quiz questions' });
+    if (start === -1 || end === -1) return res.status(500).json({ error: 'Could not parse quiz' });
     const questions = JSON.parse(raw.slice(start, end + 1));
     res.json({ questions });
   } catch (err) {
