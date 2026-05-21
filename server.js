@@ -727,12 +727,17 @@ Each object must have: question (string), options (array of 4 strings), correct 
       contents: [{ role: 'user', parts: [...docParts, { text: prompt + '\n\n' + format }] }],
       config: { temperature: 0.2, maxOutputTokens: 2048 },
     });
-    const raw = result.text.trim().replace(/```json|```/g, '').trim();
-    const start = raw.indexOf('[');
-    const end = raw.lastIndexOf(']');
-    if (start === -1 || end === -1) return res.status(500).json({ error: 'Could not parse quiz' });
-    const questions = JSON.parse(raw.slice(start, end + 1));
-    res.json({ questions });
+    let raw = result.text.trim();
+raw = raw.replace(/```json|```/g, '').trim();
+raw = raw.replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ');
+console.error('Raw quiz response:', raw.slice(0, 500));
+const start = raw.indexOf('[');
+const end = raw.lastIndexOf(']');
+if (start === -1 || end === -1) return res.status(500).json({ error: 'Could not parse quiz' });
+let jsonStr = raw.slice(start, end + 1);
+jsonStr = jsonStr.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
+const questions = JSON.parse(jsonStr);
+res.json({ questions });
   } catch (err) {
     console.error('Quiz generation error:', err.message);
     res.status(500).json({ error: err.message });
