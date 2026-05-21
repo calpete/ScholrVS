@@ -30,7 +30,6 @@ const MODEL = 'gemini-2.5-flash';
 const ai = new GoogleGenAI({ vertexai: true, project: PROJECT, location: LOCATION });
 console.log(`✅ Vertex AI ready — project: ${PROJECT}, model: ${MODEL}`);
 
-// ── Supabase ──────────────────────────────────────────────────────────────────
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
 console.log('✅ Supabase connected');
 
@@ -78,7 +77,6 @@ After a blank line at the very end, write:
 SOURCES: DocumentName1.pdf, DocumentName2.jpg
 Only list documents you actually used. This line is parsed separately.`;
 
-// ── In-memory document cache per course ──────────────────────────────────────
 const courseDocuments = {};
 const questionsCaches = {};
 
@@ -87,7 +85,6 @@ function getCourseDocuments(courseId) {
   return courseDocuments[courseId];
 }
 
-// ── Load all course documents from Supabase Storage on startup ────────────────
 async function loadAllDocumentsFromStorage() {
   try {
     const { data: courses } = await supabase.from('courses').select('id');
@@ -145,6 +142,7 @@ async function getCourseInsights(courseId) {
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(fileUpload({ limits: { fileSize: 50 * 1024 * 1024 } }));
+
 app.get('/join/:code', async (req, res) => {
   const { code } = req.params;
   let courseName = 'a class';
@@ -170,8 +168,6 @@ app.get('/join/:code', async (req, res) => {
   </head><body>Redirecting...</body></html>`);
 });
 
-
-// ── Health ────────────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
 
 // ── Professor Auth ────────────────────────────────────────────────────────────
@@ -200,21 +196,17 @@ app.post('/professor/login', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-// ── Smart Login (detects professor vs student) ────────────────────────────────
+
 app.post('/smart-login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   try {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return res.status(401).json({ error: error.message });
-
-    // Check professors table first
     const { data: prof } = await supabase.from('professors').select('*').eq('id', data.user.id).single();
     if (prof) {
       return res.json({ success: true, role: 'professor', token: data.session.access_token, user: { id: data.user.id, email: data.user.email, name: prof.name || email.split('@')[0] } });
     }
-
-    // Fall back to student
     const { data: student } = await supabase.from('students').select('*').eq('id', data.user.id).single();
     return res.json({ success: true, role: 'student', token: data.session.access_token, user: { id: data.user.id, email: data.user.email, name: student?.name || email.split('@')[0] } });
   } catch (err) {
@@ -245,7 +237,6 @@ app.post('/student/login', async (req, res) => {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return res.status(401).json({ error: error.message });
-    // Make sure they have a students row (in case they signed up as prof first)
     const { data: student } = await supabase.from('students').select('*').eq('id', data.user.id).single();
     if (!student) {
       await supabase.from('students').upsert(
@@ -263,11 +254,6 @@ app.post('/student/login', async (req, res) => {
   }
 });
 
-// ── Google OAuth for students ─────────────────────────────────────────────────
-// This redirects to Supabase's Google OAuth, then Supabase redirects back to
-// your FRONTEND_URL with the session. The frontend reads it from the URL.
-// In Supabase dashboard → Auth → URL Configuration, set your site URL and
-// add your frontend URL to redirect allow-list.
 app.get('/student/auth/google', (req, res) => {
   const redirectTo = encodeURIComponent(`${process.env.FRONTEND_URL || 'https://scholr.study'}/auth/callback`);
   const supabaseUrl = process.env.SUPABASE_URL;
@@ -289,8 +275,6 @@ async function requireAuth(req, res, next) {
 }
 
 // ── Student routes ────────────────────────────────────────────────────────────
-
-// Get all courses a student is enrolled in
 app.get('/student/courses', requireAuth, async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -329,12 +313,10 @@ app.get('/student/courses', requireAuth, async (req, res) => {
   }
 });
 
-// Enroll a student in a course
 app.post('/student/enroll', requireAuth, async (req, res) => {
   const { course_id } = req.body;
   if (!course_id) return res.status(400).json({ error: 'course_id required' });
   try {
-    // Make sure student row exists
     await supabase.from('students').upsert(
       { id: req.user.id, email: req.user.email, name: req.user.email.split('@')[0] },
       { onConflict: 'id' }
@@ -346,7 +328,6 @@ app.post('/student/enroll', requireAuth, async (req, res) => {
     });
 
     if (error) {
-      // Unique constraint violation = already enrolled, that's fine
       if (error.code === '23505') return res.json({ success: true, already_enrolled: true });
       return res.status(500).json({ error: error.message });
     }
@@ -357,11 +338,9 @@ app.post('/student/enroll', requireAuth, async (req, res) => {
   }
 });
 
-// Look up a course by its join_code (used when student clicks invite link)
 app.get('/course/join/:code', async (req, res) => {
   const { code } = req.params;
   try {
-    // Try join_code first, fall back to legacy code column
     let { data: course } = await supabase
       .from('courses')
       .select('id, name, code, join_code')
@@ -411,8 +390,6 @@ app.delete('/professor/courses/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ── Course lookup by id (public) ──────────────────────────────────────────────
-// NOTE: keep this AFTER /course/join/:code so Express matches join first
 app.get('/course/:idOrCode', async (req, res) => {
   const { idOrCode } = req.params;
   let { data: course } = await supabase.from('courses').select('id, name, code, join_code').eq('id', idOrCode).single();
@@ -467,24 +444,21 @@ app.delete('/course/:courseId/document/:name', requireAuth, async (req, res) => 
   if (!course) return res.status(403).json({ error: 'Not your course' });
 
   const storagePath = `${courseId}/${filename}`;
-  
   const { error: storageError } = await supabase.storage.from('documents').remove([storagePath]);
   if (storageError) console.error('Storage delete error:', storageError.message);
   else console.log(`✅ Deleted from storage: ${storagePath}`);
 
   await supabase.from('documents').delete().eq('course_id', courseId).eq('name', filename);
-  
+
   if (courseDocuments[courseId]) delete courseDocuments[courseId][filename];
   questionsCaches[courseId] = null;
   res.json({ success: true });
 });
 
-// ── Insights per course ───────────────────────────────────────────────────────
 app.get('/course/:courseId/insights', async (req, res) => {
   res.json(await getCourseInsights(req.params.courseId));
 });
 
-// ── Suggested questions per course ────────────────────────────────────────────
 app.get('/course/:courseId/suggested-questions', async (req, res) => {
   const { courseId } = req.params;
   const docs = getCourseDocuments(courseId);
@@ -585,6 +559,7 @@ app.post('/course/:courseId/chat', async (req, res) => {
     res.end();
   }
 });
+
 // ── Student Notes ─────────────────────────────────────────────────────────────
 app.post('/student/notes/:courseId/upload', requireAuth, async (req, res) => {
   const { courseId } = req.params;
@@ -622,6 +597,7 @@ app.delete('/student/notes/:courseId/:name', requireAuth, async (req, res) => {
   await supabase.from('student_notes').delete().eq('student_id', req.user.id).eq('course_id', courseId).eq('name', filename);
   res.json({ success: true });
 });
+
 app.get('/student/notes/:courseId/file/:name', requireAuth, async (req, res) => {
   const { courseId, name } = req.params;
   const storagePath = `student_notes/${req.user.id}/${courseId}/${decodeURIComponent(name)}`;
@@ -631,18 +607,71 @@ app.get('/student/notes/:courseId/file/:name', requireAuth, async (req, res) => 
   res.set('Content-Type', req.query.mimeType || 'application/octet-stream');
   res.send(buffer);
 });
-// ── Chat History ──────────────────────────────────────────────────────────────
+
+// ── Chat History — FIXED ──────────────────────────────────────────────────────
 app.get('/student/chats/:courseId', requireAuth, async (req, res) => {
   const { courseId } = req.params;
-  const { data } = await supabase.from('chats').select('*, messages(*)').eq('student_id', req.user.id).eq('course_id', courseId).order('updated_at', { ascending: false });
-  res.json(data || []);
+  try {
+    // FIX: fetch chats and messages separately to guarantee message ordering
+    // and avoid the nested query returning null for messages
+    const { data: chats, error: chatsError } = await supabase
+      .from('chats')
+      .select('id, title, created_at, updated_at')
+      .eq('student_id', req.user.id)
+      .eq('course_id', courseId)
+      .order('updated_at', { ascending: false });
+
+    if (chatsError) {
+      console.error('Chats fetch error:', chatsError.message);
+      return res.status(500).json({ error: chatsError.message });
+    }
+
+    if (!chats || chats.length === 0) {
+      return res.json([]);
+    }
+
+    // Fetch messages for all chats in one query
+    const chatIds = chats.map(c => c.id);
+    const { data: messages, error: messagesError } = await supabase
+      .from('messages')
+      .select('id, chat_id, role, content, sources, created_at')
+      .in('chat_id', chatIds)
+      .order('created_at', { ascending: true });
+
+    if (messagesError) {
+      console.error('Messages fetch error:', messagesError.message);
+      // Return chats without messages rather than failing entirely
+      return res.json(chats.map(c => ({ ...c, messages: [] })));
+    }
+
+    // Group messages by chat_id
+    const messagesByChat = {};
+    for (const msg of (messages || [])) {
+      if (!messagesByChat[msg.chat_id]) messagesByChat[msg.chat_id] = [];
+      messagesByChat[msg.chat_id].push(msg);
+    }
+
+    const result = chats.map(c => ({
+      ...c,
+      messages: messagesByChat[c.id] || [],
+    }));
+
+    res.json(result);
+  } catch (err) {
+    console.error('GET chats crash:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/student/chats/:courseId', requireAuth, async (req, res) => {
   const { courseId } = req.params;
   const { title } = req.body;
   try {
-    const { data, error } = await supabase.from('chats').insert({ student_id: req.user.id, course_id: courseId, title: title || 'New Chat' }).select().single();
+    const { data, error } = await supabase
+      .from('chats')
+      .insert({ student_id: req.user.id, course_id: courseId, title: title || 'New Chat' })
+      .select()
+      .single();
     if (error) {
       console.error('Chat insert error:', error);
       return res.status(500).json({ error: error.message });
@@ -657,7 +686,15 @@ app.post('/student/chats/:courseId', requireAuth, async (req, res) => {
 app.patch('/student/chats/:chatId', requireAuth, async (req, res) => {
   const { chatId } = req.params;
   const { title } = req.body;
-  await supabase.from('chats').update({ title, updated_at: new Date().toISOString() }).eq('id', chatId).eq('student_id', req.user.id);
+  const { error } = await supabase
+    .from('chats')
+    .update({ title, updated_at: new Date().toISOString() })
+    .eq('id', chatId)
+    .eq('student_id', req.user.id);
+  if (error) {
+    console.error('Chat PATCH error:', error.message);
+    return res.status(500).json({ error: error.message });
+  }
   res.json({ success: true });
 });
 
@@ -670,11 +707,25 @@ app.delete('/student/chats/:chatId', requireAuth, async (req, res) => {
 app.post('/student/chats/:chatId/messages', requireAuth, async (req, res) => {
   const { chatId } = req.params;
   const { role, content, sources } = req.body;
-  const { data, error } = await supabase.from('messages').insert({ chat_id: chatId, role, content, sources: sources || [] }).select().single();
+
+  const { data, error } = await supabase
+    .from('messages')
+    .insert({ chat_id: chatId, role, content, sources: sources || [] })
+    .select()
+    .single();
+
   if (error) return res.status(500).json({ error: error.message });
-  await supabase.from('chats').update({ updated_at: new Date().toISOString() }).eq('id', chatId);
+
+  // FIX: always bump updated_at so the chat sorts to top of history
+  await supabase
+    .from('chats')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', chatId)
+    .eq('student_id', req.user.id);
+
   res.json(data);
 });
+
 app.post('/professor/courses/:courseId/cover', requireAuth, async (req, res) => {
   const { courseId } = req.params;
   const { data: course } = await supabase.from('courses').select('*').eq('id', courseId).eq('professor_id', req.user.id).single();
@@ -692,14 +743,11 @@ app.post('/professor/courses/:courseId/cover', requireAuth, async (req, res) => 
   if (uploadError) return res.status(500).json({ error: 'Upload failed: ' + uploadError.message });
 
   const { data: { publicUrl } } = supabase.storage.from('documents').getPublicUrl(storagePath);
-
   await supabase.from('courses').update({ cover_image: publicUrl }).eq('id', courseId);
 
   res.json({ success: true, coverImage: publicUrl });
 });
-// ── ADD THIS ROUTE TO server.js ──
-// Paste it right before the line that says:
-// // ── Legacy routes ─────────────────────────────────────────────────────────────
+
 app.post('/course/:courseId/quiz', async (req, res) => {
   const { courseId } = req.params;
   const { topic } = req.body;
@@ -735,7 +783,7 @@ Generate all 5 questions now:`;
 
     const text = result.text.trim();
     const blocks = text.split(/---+|\n(?=QUESTION:)/).map(b => b.trim()).filter(b => b.length > 20);
-    
+
     const questions = blocks.slice(0, 5).map(block => {
       const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
       const get = (prefix) => {
@@ -762,6 +810,7 @@ Generate all 5 questions now:`;
     res.status(500).json({ error: err.message });
   }
 });
+
 // ── Legacy routes ─────────────────────────────────────────────────────────────
 app.post('/auth', (req, res) => {
   const { password } = req.body;

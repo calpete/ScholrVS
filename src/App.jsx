@@ -161,7 +161,6 @@ function ErrorMessage({ content }) {
   );
 }
 
-// ── Google SVG ────────────────────────────────────────────────────────────────
 const GoogleIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16">
     <path d="M15.68 8.18c0-.57-.05-1.11-.14-1.64H8v3.1h4.3a3.67 3.67 0 01-1.59 2.41v2h2.57c1.5-1.38 2.4-3.42 2.4-5.87z" fill="#4285F4"/>
@@ -171,7 +170,6 @@ const GoogleIcon = () => (
   </svg>
 );
 
-// ── Smart Sign In (detects professor vs student) ───────────────────────────────
 function SmartSignIn({ onProfLogin, onStudentLogin, onBack }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -218,9 +216,9 @@ function SmartSignIn({ onProfLogin, onStudentLogin, onBack }) {
           <div className="flex-1 h-px bg-gray-200" /><span className="text-xs text-gray-400">or</span><div className="flex-1 h-px bg-gray-200" />
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
+          <input id="signin-email" name="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password"
+          <input id="signin-password" name="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
           {error && <p className="text-red-500 text-xs text-center">{error}</p>}
           <button type="submit" disabled={!email || !password || loading}
@@ -236,7 +234,6 @@ function SmartSignIn({ onProfLogin, onStudentLogin, onBack }) {
   );
 }
 
-// ── Professor Auth Pages ──────────────────────────────────────────────────────
 function ProfessorLogin({ onLogin, onGoSignup, onBack }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -267,9 +264,9 @@ function ProfessorLogin({ onLogin, onGoSignup, onBack }) {
           <p className="text-gray-400 text-sm">Sign in to manage your courses</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
+          <input id="prof-email" name="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password"
+          <input id="prof-password" name="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
           {error && <p className="text-red-500 text-xs text-center">{error}</p>}
           <button type="submit" disabled={!email || !password || loading}
@@ -320,11 +317,11 @@ function ProfessorSignup({ onLogin, onGoLogin, onBack }) {
           <p className="text-gray-400 text-sm">Set up your instructor workspace</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
+          <input id="prof-signup-name" name="name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
+          <input id="prof-signup-email" name="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password (min 6 chars)"
+          <input id="prof-signup-password" name="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password (min 6 chars)"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
           {error && <p className="text-red-500 text-xs text-center">{error}</p>}
           <button type="submit" disabled={!email || !password || loading}
@@ -341,7 +338,6 @@ function ProfessorSignup({ onLogin, onGoLogin, onBack }) {
   );
 }
 
-// ── Student Auth Pages ────────────────────────────────────────────────────────
 function StudentLogin({ onLogin, onGoSignup, onBack, pendingJoinCode }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -384,9 +380,9 @@ function StudentLogin({ onLogin, onGoSignup, onBack, pendingJoinCode }) {
           <div className="flex-1 h-px bg-gray-200" /><span className="text-xs text-gray-400">or</span><div className="flex-1 h-px bg-gray-200" />
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
+          <input id="student-email" name="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password"
+          <input id="student-password" name="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
           {error && <p className="text-red-500 text-xs text-center">{error}</p>}
           <button type="submit" disabled={!email || !password || loading}
@@ -449,11 +445,11 @@ function StudentSignup({ onLogin, onGoLogin, onBack, pendingJoinCode }) {
           <div className="flex-1 h-px bg-gray-200" /><span className="text-xs text-gray-400">or</span><div className="flex-1 h-px bg-gray-200" />
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
-          <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
+          <input id="student-signup-name" name="name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
+          <input id="student-signup-email" name="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password (min 6 chars)"
+          <input id="student-signup-password" name="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password (min 6 chars)"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
           {error && <p className="text-red-500 text-xs text-center">{error}</p>}
           <button type="submit" disabled={!name || !email || !password || loading}
@@ -470,7 +466,6 @@ function StudentSignup({ onLogin, onGoLogin, onBack, pendingJoinCode }) {
   );
 }
 
-// ── Student Dashboard ─────────────────────────────────────────────────────────
 function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -528,7 +523,6 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
     } catch { onEnterCourse(course, [], []); }
   };
 
-  // Get hour for greeting
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const firstName = (user.name || user.email).split(' ')[0];
@@ -553,7 +547,7 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
             <h3 className="text-sm font-semibold text-gray-900 mb-1">Join a course</h3>
             <p className="text-xs text-gray-400 mb-4">Enter the join code your professor shared with you</p>
             <div className="flex gap-3">
-              <input autoFocus type="text" value={joiningCode} onChange={e => { setJoiningCode(e.target.value.toUpperCase()); setJoinError(''); }}
+              <input autoFocus id="join-code" name="join-code" type="text" value={joiningCode} onChange={e => { setJoiningCode(e.target.value.toUpperCase()); setJoinError(''); }}
                 onKeyDown={e => e.key === 'Enter' && handleJoin()} placeholder="e.g. A306-UCB2"
                 className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300 font-mono uppercase tracking-wider" />
               <button onClick={() => handleJoin()} disabled={!joiningCode.trim() || joining}
@@ -607,7 +601,7 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
     </div>
   );
 }
-// ── Pattern generator for courses without a cover image ──────────────────────
+
 function CoursePattern({ courseId, height = 80 }) {
   const hash = courseId.split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
   const bg = ['#0F0F0F', '#1a1a2e', '#0d1b2a', '#1a0a2e', '#0a1a1a'][ Math.abs(hash) % 5];
@@ -640,7 +634,7 @@ function CoursePattern({ courseId, height = 80 }) {
     </svg>
   );
 }
-// ── Professor Dashboard ───────────────────────────────────────────────────────
+
 function ProfessorDashboard({ token, user, onLogout }) {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -726,7 +720,7 @@ function ProfessorDashboard({ token, user, onLogout }) {
           <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-5">
             <h3 className="text-sm font-semibold text-gray-900 mb-4">New course</h3>
             <form onSubmit={createCourse} className="flex gap-3">
-              <input autoFocus type="text" value={newCourseName} onChange={e => setNewCourseName(e.target.value)} placeholder="e.g. BUS-A 306 Management Accounting"
+              <input autoFocus id="new-course-name" name="course-name" type="text" value={newCourseName} onChange={e => setNewCourseName(e.target.value)} placeholder="e.g. BUS-A 306 Management Accounting"
                 className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
               <button type="submit" disabled={!newCourseName.trim()} className="px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">Create</button>
               <button type="button" onClick={() => { setCreating(false); setNewCourseName(''); }} className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm transition-colors">Cancel</button>
@@ -791,7 +785,7 @@ function ProfessorDashboard({ token, user, onLogout }) {
     </div>
   );
 }
-// ── Course Manager ────────────────────────────────────────────────────────────
+
 function CourseManager({ token, course, onBack, authHeaders }) {
   const [mods, setMods] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -929,7 +923,6 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   );
 }
 
-// ── Course Insights ───────────────────────────────────────────────────────────
 function CourseInsights({ courseId, onStartClassMode }) {
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1036,7 +1029,6 @@ function CourseInsights({ courseId, onStartClassMode }) {
   );
 }
 
-// ── Classroom Mode ────────────────────────────────────────────────────────────
 function ClassroomMode({ courseId, onExit }) {
   const [questions, setQuestions] = useState([]);
   const [newCount, setNewCount] = useState(0);
@@ -1075,8 +1067,7 @@ function ClassroomMode({ courseId, onExit }) {
   );
 }
 
-// ── REPLACE YOUR ENTIRE StudentView FUNCTION WITH THIS ──
-
+// ── StudentView — all three bugs fixed ────────────────────────────────────────
 function StudentView({ course, documents, suggestedQuestions, onExit, studentToken }) {
   const [chats, setChats] = useState([]);
   const [chatId, setChatId] = useState(null);
@@ -1088,7 +1079,6 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
   const [notesLoading, setNotesLoading] = useState(true);
   const [chatsLoading, setChatsLoading] = useState(true);
 
-  // Quiz state
   const [quizOpen, setQuizOpen] = useState(false);
   const [quizLoading, setQuizLoading] = useState(false);
   const [quizQuestions, setQuizQuestions] = useState([]);
@@ -1105,7 +1095,6 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
   const authHeaders = { Authorization: `Bearer ${studentToken}` };
   const jsonHeaders = { Authorization: `Bearer ${studentToken}`, 'Content-Type': 'application/json' };
 
-  // Detect if message is a full quiz request
   const isFullQuizRequest = (msg) => {
     const m = msg.toLowerCase();
     if (/\b(make|create|generate|build)\b.{0,25}\bquiz\b/i.test(m)) return true;
@@ -1116,7 +1105,6 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
     return false;
   };
 
-  // Extract topic from quiz request
   const extractQuizTopic = (msg) => {
     const patterns = [
       /quiz.{0,15}(?:on|about|over|covering)\s+(.+)/i,
@@ -1130,7 +1118,6 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
     return '';
   };
 
-  // Generate quiz
   const generateQuiz = async (topic) => {
     setQuizOpen(true);
     setQuizLoading(true);
@@ -1155,7 +1142,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
   };
 
   const handleQuizAnswer = (questionIndex, optionIndex) => {
-    if (quizAnswers[questionIndex] !== undefined) return; // already answered
+    if (quizAnswers[questionIndex] !== undefined) return;
     setQuizAnswers(prev => ({ ...prev, [questionIndex]: optionIndex }));
   };
 
@@ -1185,7 +1172,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
     fetchNotes();
   }, [course.id]);
 
-  // Load chats
+  // ── FIX 1: Load chats with safe messages fallback ─────────────────────────
   useEffect(() => {
     const fetchChats = async () => {
       try {
@@ -1193,27 +1180,53 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           const loaded = data.map(c => ({
-            id: c.id, dbId: c.id, title: c.title,
-            messages: (c.messages || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map(m => ({
-              id: m.id, role: m.role, content: m.content, sources: m.sources || [], ts: new Date(m.created_at).getTime()
-            }))
+            id: c.id,
+            dbId: c.id,
+            title: c.title || 'New Chat',
+            // FIX: safe fallback if messages is null/undefined
+            messages: Array.isArray(c.messages)
+              ? c.messages
+                  .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+                  .map(m => ({
+                    id: m.id,
+                    role: m.role,
+                    content: m.content,
+                    sources: m.sources || [],
+                    ts: new Date(m.created_at).getTime(),
+                  }))
+              : [],
           }));
-          setChats(loaded); setChatId(loaded[0].id); setChatsLoading(false);
+          setChats(loaded);
+          setChatId(loaded[0].id);
+          setChatsLoading(false);
         } else {
+          // No chats — create the first one
           try {
-            const res2 = await fetch(`${API}/student/chats/${course.id}`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ title: 'New Chat' }) });
+            const res2 = await fetch(`${API}/student/chats/${course.id}`, {
+              method: 'POST',
+              headers: jsonHeaders,
+              body: JSON.stringify({ title: 'New Chat' }),
+            });
             const newChat = await res2.json();
-            const nc = { id: newChat.id, dbId: newChat.id, title: 'New Chat', messages: [] };
-            setChats([nc]); setChatId(nc.id);
+            if (newChat.id) {
+              const nc = { id: newChat.id, dbId: newChat.id, title: 'New Chat', messages: [] };
+              setChats([nc]);
+              setChatId(nc.id);
+            } else {
+              throw new Error('No id returned');
+            }
           } catch {
             const nc = { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
-            setChats([nc]); setChatId(nc.id);
+            setChats([nc]);
+            setChatId(nc.id);
           }
           setChatsLoading(false);
         }
       } catch {
         const nc = { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
-        setChats([nc]); setChatId(nc.id); setChatsLoading(false);
+        setChats([nc]);
+        setChatId(nc.id);
+        setChatsLoading(false);
       }
     };
     fetchChats();
@@ -1227,12 +1240,23 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
 
   const createNewChat = async () => {
     try {
-      const res = await fetch(`${API}/student/chats/${course.id}`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ title: 'New Chat' }) });
+      const res = await fetch(`${API}/student/chats/${course.id}`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ title: 'New Chat' }),
+      });
       const data = await res.json();
-      if (data.id) { const nc = { id: data.id, dbId: data.id, title: 'New Chat', messages: [] }; setChats(prev => [nc, ...prev]); setChatId(nc.id); return nc; }
+      if (data.id) {
+        const nc = { id: data.id, dbId: data.id, title: 'New Chat', messages: [] };
+        setChats(prev => [nc, ...prev]);
+        setChatId(nc.id);
+        return nc;
+      }
     } catch {}
     const nc = { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
-    setChats(prev => [nc, ...prev]); setChatId(nc.id); return nc;
+    setChats(prev => [nc, ...prev]);
+    setChatId(nc.id);
+    return nc;
   };
 
   const deleteChat = async (id) => {
@@ -1243,13 +1267,26 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
     const remaining = chats.filter(c => c.id !== id);
     if (remaining.length === 0) {
       try {
-        const res = await fetch(`${API}/student/chats/${course.id}`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ title: 'New Chat' }) });
+        const res = await fetch(`${API}/student/chats/${course.id}`, {
+          method: 'POST',
+          headers: jsonHeaders,
+          body: JSON.stringify({ title: 'New Chat' }),
+        });
         const data = await res.json();
-        if (data.id) { const nc = { id: data.id, dbId: data.id, title: 'New Chat', messages: [] }; setChats([nc]); setChatId(nc.id); return; }
+        if (data.id) {
+          const nc = { id: data.id, dbId: data.id, title: 'New Chat', messages: [] };
+          setChats([nc]);
+          setChatId(nc.id);
+          return;
+        }
       } catch {}
       const nc = { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
-      setChats([nc]); setChatId(nc.id);
-    } else { setChats(remaining); if (chatId === id) setChatId(remaining[0].id); }
+      setChats([nc]);
+      setChatId(nc.id);
+    } else {
+      setChats(remaining);
+      if (chatId === id) setChatId(remaining[0].id);
+    }
   };
 
   const handlePaperclipFile = async (file) => {
@@ -1277,7 +1314,10 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
 
   const onStop = () => {
     if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
-    setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: c.messages.map(m => m.streaming ? { ...m, streaming: false } : m) } : c));
+    setChats(prev => prev.map(c => c.id === chatId
+      ? { ...c, messages: c.messages.map(m => m.streaming ? { ...m, streaming: false } : m) }
+      : c
+    ));
     setIsTyping(false);
   };
 
@@ -1285,33 +1325,70 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
     const message = messageOverride || input;
     if (!message.trim() || isTyping) return;
 
-    // Check if this is a full quiz request
+    // Quiz shortcut
     if (isFullQuizRequest(message)) {
       const topic = extractQuizTopic(message);
       setInput('');
-      // Also send a chat message acknowledging it
       const currentChatId = chatId;
       const streamingMsgId = Date.now();
-      setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: [...c.messages,
-        { role: 'user', content: message, ts: Date.now() },
-        { id: streamingMsgId, role: 'assistant', content: `Generating your quiz${topic ? ` on **${topic}**` : ''} — check the panel on the right! You can keep asking me questions while it loads. 📝`, sources: [], ts: Date.now(), streaming: false }
-      ]} : c));
+      setChats(prev => prev.map(c => c.id === currentChatId ? {
+        ...c,
+        messages: [
+          ...c.messages,
+          { role: 'user', content: message, ts: Date.now() },
+          { id: streamingMsgId, role: 'assistant', content: `Generating your quiz${topic ? ` on **${topic}**` : ''} — check the panel on the right! 📝`, sources: [], ts: Date.now(), streaming: false },
+        ],
+      } : c));
       generateQuiz(topic);
       return;
     }
 
-    const isFirstMessage = active.messages.length === 0;
+    // ── FIX 2: capture isFirstMessage BEFORE the optimistic state update ──
+    const currentActive = chats.find(c => c.id === chatId) || chats[0];
+    const isFirstMessage = (currentActive?.messages || []).filter(m => !m.streaming).length === 0;
+
     const currentChatId = chatId;
-    const currentChat = chats.find(c => c.id === currentChatId);
-    const completedMessages = active.messages.filter(m => !m.streaming);
-    const fallback = isFirstMessage ? message.trim().split(/\s+/).slice(0, 5).join(' ') : null;
+    const currentChatDbId = currentActive?.dbId || null;
+
+    // ── FIX 3: title from user's question (reliable), not AI response ──
+    const titleFromQuestion = message.trim().split(/\s+/).slice(0, 6).join(' ').replace(/[.!?]$/, '');
+
+    const completedMessages = (currentActive?.messages || []).filter(m => !m.streaming);
     const streamingMsgId = Date.now();
 
-    setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, ...(fallback ? { title: fallback } : {}), messages: [...c.messages, { role: 'user', content: message, ts: Date.now() }, { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true }] } : c));
-    setInput(''); setIsTyping(true);
+    // Optimistic UI update
+    setChats(prev => prev.map(c => c.id === currentChatId ? {
+      ...c,
+      title: isFirstMessage ? titleFromQuestion : c.title,
+      messages: [
+        ...c.messages,
+        { role: 'user', content: message, ts: Date.now() },
+        { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true },
+      ],
+    } : c));
+    setInput('');
+    setIsTyping(true);
 
-    if (currentChat?.dbId && !String(currentChat.dbId).startsWith('local-')) {
-      try { await fetch(`${API}/student/chats/${currentChat.dbId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'user', content: message }) }); } catch {}
+    // Save user message to DB
+    if (currentChatDbId && !String(currentChatDbId).startsWith('local-')) {
+      try {
+        await fetch(`${API}/student/chats/${currentChatDbId}/messages`, {
+          method: 'POST',
+          headers: jsonHeaders,
+          body: JSON.stringify({ role: 'user', content: message }),
+        });
+      } catch {}
+    }
+
+    // Persist title immediately on first message
+    if (isFirstMessage && currentChatDbId && !String(currentChatDbId).startsWith('local-')) {
+      try {
+        await fetch(`${API}/student/chats/${currentChatDbId}`, {
+          method: 'PATCH',
+          headers: jsonHeaders,
+          body: JSON.stringify({ title: titleFromQuestion }),
+        });
+      } catch {}
     }
 
     const controller = new AbortController();
@@ -1320,16 +1397,24 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
     try {
       let response;
       if (myNotes.length > 0) {
-        const fd = new FormData(); fd.append('message', message); fd.append('history', JSON.stringify(completedMessages.map(m => ({ role: m.role, content: m.content }))));
+        const fd = new FormData();
+        fd.append('message', message);
+        fd.append('history', JSON.stringify(completedMessages.map(m => ({ role: m.role, content: m.content }))));
         myNotes.forEach((n, i) => fd.append(`note_${i}`, new Blob([n.buffer], { type: n.mimeType }), n.name));
         response = await fetch(`${API}/course/${course.id}/chat`, { method: 'POST', body: fd, signal: controller.signal });
       } else {
-        response = await fetch(`${API}/course/${course.id}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal, body: JSON.stringify({ message, history: completedMessages.map(m => ({ role: m.role, content: m.content })) }) });
+        response = await fetch(`${API}/course/${course.id}/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({ message, history: completedMessages.map(m => ({ role: m.role, content: m.content })) }),
+        });
       }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buf = '', fullText = '', finalSources = [];
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -1339,30 +1424,53 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
           if (!line.startsWith('data: ')) continue;
           try {
             const event = JSON.parse(line.slice(6));
-            if (event.type === 'token') { fullText += event.token; setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: m.content + event.token } : m) } : c)); scrollToBottom(); }
-            else if (event.type === 'sources') { finalSources = event.sources; setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, sources: event.sources } : m) } : c)); }
-            else if (event.type === 'done') {
-              setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) } : c));
-              if (isFirstMessage) {
-                const finalTitle = fullText.trim().split(/\s+/).slice(0, 6).join(' ').replace(/[.!?]$/, '') || fallback;
-                setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title: finalTitle } : c));
-                if (currentChat?.dbId && !String(currentChat.dbId).startsWith('local-')) {
-                  try { await fetch(`${API}/student/chats/${currentChat.dbId}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ title: finalTitle }) }); } catch {}
-                }
+            if (event.type === 'token') {
+              fullText += event.token;
+              setChats(prev => prev.map(c => c.id === currentChatId
+                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: m.content + event.token } : m) }
+                : c
+              ));
+              scrollToBottom();
+            } else if (event.type === 'sources') {
+              finalSources = event.sources;
+              setChats(prev => prev.map(c => c.id === currentChatId
+                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, sources: event.sources } : m) }
+                : c
+              ));
+            } else if (event.type === 'done') {
+              setChats(prev => prev.map(c => c.id === currentChatId
+                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) }
+                : c
+              ));
+              // Save assistant message to DB
+              if (currentChatDbId && !String(currentChatDbId).startsWith('local-')) {
+                try {
+                  await fetch(`${API}/student/chats/${currentChatDbId}/messages`, {
+                    method: 'POST',
+                    headers: jsonHeaders,
+                    body: JSON.stringify({ role: 'assistant', content: fullText, sources: finalSources }),
+                  });
+                } catch {}
               }
-              if (currentChat?.dbId && !String(currentChat.dbId).startsWith('local-')) {
-                try { await fetch(`${API}/student/chats/${currentChat.dbId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'assistant', content: fullText, sources: finalSources }) }); } catch {}
-              }
+            } else if (event.type === 'error') {
+              setChats(prev => prev.map(c => c.id === currentChatId
+                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'error:' + event.error, streaming: false, isError: true } : m) }
+                : c
+              ));
             }
-            else if (event.type === 'error') { setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'error:' + event.error, streaming: false, isError: true } : m) } : c)); }
           } catch {}
         }
       }
     } catch (err) {
       const isAbort = err?.name === 'AbortError';
-      setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: isAbort ? m.content : 'error:network', streaming: false, isError: !isAbort } : m) } : c));
+      setChats(prev => prev.map(c => c.id === currentChatId
+        ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: isAbort ? m.content : 'error:network', streaming: false, isError: !isAbort } : m) }
+        : c
+      ));
     }
-    abortRef.current = null; setIsTyping(false); inputRef.current?.focus();
+    abortRef.current = null;
+    setIsTyping(false);
+    inputRef.current?.focus();
   };
 
   if (chatsLoading) return (
@@ -1393,7 +1501,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
           {chats.map(c => (
             <div key={c.id} className="group relative mb-0.5">
               <button onClick={() => setChatId(c.id)} className={`flex items-center gap-2 w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors pr-7 ${c.id === chatId ? 'bg-white border border-gray-200 text-gray-900 font-medium shadow-sm' : 'text-gray-500 hover:bg-white hover:text-gray-700'}`}>
-                <MessageSquare size={11} className="flex-shrink-0 opacity-40" /><span className="truncate">{c.title}</span>
+                <MessageSquare size={11} className="flex-shrink-0 opacity-40" /><span className="truncate">{c.title || 'New Chat'}</span>
               </button>
               <button onClick={e => { e.stopPropagation(); deleteChat(c.id); }} className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded text-gray-300 hover:text-red-400 transition-all"><Trash2 size={10} /></button>
             </div>
@@ -1489,8 +1597,17 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
               <div className="max-w-3xl mx-auto">
                 <div className="flex items-center bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2 focus-within:border-gray-400 focus-within:bg-white focus-within:shadow-sm transition-all gap-2">
                   <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Paperclip size={15} /></button>
-                  <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!isTyping) onSend(); } }}
-                    className="flex-1 bg-transparent text-gray-800 text-sm outline-none placeholder-gray-400 py-1.5" placeholder={myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course..."} />
+                  <input
+                    ref={inputRef}
+                    id="chat-input"
+                    name="chat-input"
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!isTyping) onSend(); } }}
+                    className="flex-1 bg-transparent text-gray-800 text-sm outline-none placeholder-gray-400 py-1.5"
+                    placeholder={myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course..."}
+                    autoComplete="off"
+                  />
                   {isTyping ? (
                     <button onClick={onStop} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0"><Square size={11} fill="currentColor" /></button>
                   ) : (
@@ -1514,17 +1631,13 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
                   <span className="text-[11px] text-gray-400">{quizIndex + 1} / {quizQuestions.length}</span>
                 )}
               </div>
-
               <div className="flex-1 overflow-y-auto p-5">
-                {/* Loading state */}
                 {quizLoading && (
                   <div className="flex flex-col items-center justify-center h-full gap-4">
                     <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
                     <p className="text-gray-400 text-xs text-center">Generating your quiz from course materials...</p>
                   </div>
                 )}
-
-                {/* Failed state */}
                 {!quizLoading && quizQuestions.length === 0 && (
                   <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
                     <AlertCircle size={24} className="text-gray-200" />
@@ -1532,8 +1645,6 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
                     <p className="text-gray-400 text-xs">Try asking again with a specific topic</p>
                   </div>
                 )}
-
-                {/* Score / done state */}
                 {!quizLoading && quizDone && quizQuestions.length > 0 && (
                   <div className="flex flex-col items-center justify-center h-full gap-5 text-center">
                     <div className="w-20 h-20 rounded-full bg-gray-900 flex items-center justify-center">
@@ -1553,25 +1664,17 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
                     </div>
                   </div>
                 )}
-
-                {/* Active question */}
                 {!quizLoading && !quizDone && quizQuestions.length > 0 && (() => {
                   const q = quizQuestions[quizIndex];
                   const answered = quizAnswers[quizIndex];
                   const isAnswered = answered !== undefined;
                   const isCorrect = answered === q.correct;
-
                   return (
                     <div className="flex flex-col gap-4">
-                      {/* Progress bar */}
                       <div className="w-full bg-gray-100 rounded-full h-1">
                         <div className="bg-gray-900 h-1 rounded-full transition-all" style={{ width: `${((quizIndex) / quizQuestions.length) * 100}%` }} />
                       </div>
-
-                      {/* Question */}
                       <p className="text-gray-900 text-sm font-medium leading-relaxed">{q.question}</p>
-
-                      {/* Options */}
                       <div className="flex flex-col gap-2">
                         {q.options.map((opt, oi) => {
                           let style = 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 hover:border-gray-300';
@@ -1592,16 +1695,12 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
                           );
                         })}
                       </div>
-
-                      {/* Explanation after answer */}
                       {isAnswered && (
                         <div className={`rounded-xl p-4 text-xs leading-relaxed ${isCorrect ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-amber-50 border border-amber-200 text-amber-800'}`}>
                           <p className="font-semibold mb-1">{isCorrect ? '✓ Correct!' : '✗ Not quite'}</p>
                           <p>{q.explanation}</p>
                         </div>
                       )}
-
-                      {/* Next button */}
                       {isAnswered && (
                         <button onClick={() => {
                           if (quizIndex < quizQuestions.length - 1) setQuizIndex(i => i + 1);
@@ -1622,10 +1721,6 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
   );
 }
 
-
-
-
-// ── Landing Page ──────────────────────────────────────────────────────────────
 function LandingPage({ onStudent, onInstructor, onSignIn }) {
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -1639,18 +1734,13 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
   return (
     <div className="min-h-screen bg-[#FAFAFA] flex flex-col">
       <style>{FONT}</style>
-
       <nav className="flex items-center justify-between px-10 py-4 border-b border-gray-200 bg-white sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <Logo size={28} />
-          <span className="text-gray-900 font-semibold text-base tracking-tight">Scholr</span>
-        </div>
+        <div className="flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold text-base tracking-tight">Scholr</span></div>
         <div className="flex items-center gap-3">
           <button onClick={onSignIn} className="px-4 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium transition-colors">Sign in</button>
           <button onClick={onInstructor} className="px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">Get started →</button>
         </div>
       </nav>
-
       <div className="max-w-3xl mx-auto px-6 pt-20 pb-16 text-center">
         <div className="sr in inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-gray-200 text-gray-500 text-xs font-medium mb-8">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Course-grounded AI tutoring
@@ -1662,26 +1752,17 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
           <button onClick={onStudent} className="px-7 py-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium transition-colors">Join a course</button>
         </div>
       </div>
-
-      {/* Product Mockup */}
       <div className="bg-gray-100 border-y border-gray-200 px-6 py-12">
         <div className="max-w-3xl mx-auto">
           <div className="sr bg-white rounded-2xl border border-gray-200 overflow-hidden" style={{boxShadow:'0 4px 24px rgba(0,0,0,0.06)'}}>
             <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center gap-3">
-              <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-red-400" />
-                <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                <div className="w-3 h-3 rounded-full bg-green-400" />
-              </div>
+              <div className="flex gap-1.5"><div className="w-3 h-3 rounded-full bg-red-400" /><div className="w-3 h-3 rounded-full bg-yellow-400" /><div className="w-3 h-3 rounded-full bg-green-400" /></div>
               <div className="flex-1 bg-white border border-gray-200 rounded-md px-3 py-1 text-xs text-gray-400 font-mono">scholr.study</div>
             </div>
             <div className="flex" style={{height:'340px'}}>
               <div className="w-44 bg-gray-50 border-r border-gray-200 flex flex-col flex-shrink-0 p-3">
                 <div className="flex items-center gap-2 mb-3"><Logo size={18} /><span className="text-gray-900 text-xs font-semibold">Scholr</span></div>
-                <div className="bg-gray-900 rounded-lg px-2.5 py-2 mb-3">
-                  <p className="text-white text-[10px] font-medium">BUS-A 306</p>
-                  <p className="text-gray-500 text-[9px]">Management Acct.</p>
-                </div>
+                <div className="bg-gray-900 rounded-lg px-2.5 py-2 mb-3"><p className="text-white text-[10px] font-medium">BUS-A 306</p><p className="text-gray-500 text-[9px]">Management Acct.</p></div>
                 <p className="text-[9px] text-gray-400 uppercase tracking-widest font-semibold mb-1.5 px-1">Chats</p>
                 <div className="bg-gray-900 rounded-lg px-2.5 py-1.5 mb-1"><p className="text-white text-[10px]">Midterm topics</p></div>
                 <div className="bg-white border border-gray-100 rounded-lg px-2.5 py-1.5 mb-1"><p className="text-gray-500 text-[10px]">Grading breakdown</p></div>
@@ -1693,26 +1774,10 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
                   <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-[10px] text-emerald-600">AI Active</span></div>
                 </div>
                 <div className="flex-1 overflow-hidden px-5 py-4 flex flex-col gap-3">
-                  <div className="flex justify-end">
-                    <div className="bg-gray-900 text-white rounded-xl rounded-br-sm px-3 py-2 text-[11px] max-w-[70%]">What topics will be on the midterm?</div>
-                  </div>
+                  <div className="flex justify-end"><div className="bg-gray-900 text-white rounded-xl rounded-br-sm px-3 py-2 text-[11px] max-w-[70%]">What topics will be on the midterm?</div></div>
                   <div className="flex flex-col gap-1.5 max-w-[88%]">
-                    <div className="bg-gray-50 border border-gray-200 rounded-xl rounded-bl-sm px-3 py-2.5 text-[11px] text-gray-700 leading-relaxed">The midterm covers chapters 1–4, with emphasis on cost-volume-profit analysis and contribution margin. You'll also need to know job-order costing and overhead allocation from week 3. (p. 12, 34)</div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] text-gray-400">From</span>
-                      <div className="flex items-center gap-1 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5"><FileText size={8} className="text-gray-500" /><span className="text-[9px] text-gray-600">Syllabus.pdf</span></div>
-                      <div className="flex items-center gap-1 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5"><FileText size={8} className="text-gray-500" /><span className="text-[9px] text-gray-600">Week3_Notes.pdf</span></div>
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <div className="bg-gray-900 text-white rounded-xl rounded-br-sm px-3 py-2 text-[11px] max-w-[70%]">How much is it worth?</div>
-                  </div>
-                  <div className="flex flex-col gap-1.5 max-w-[88%]">
-                    <div className="bg-gray-50 border border-gray-200 rounded-xl rounded-bl-sm px-3 py-2.5 text-[11px] text-gray-700 leading-relaxed">The midterm is worth 25% of your final grade. (p. 2)</div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] text-gray-400">From</span>
-                      <div className="flex items-center gap-1 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5"><FileText size={8} className="text-gray-500" /><span className="text-[9px] text-gray-600">Syllabus.pdf</span></div>
-                    </div>
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl rounded-bl-sm px-3 py-2.5 text-[11px] text-gray-700 leading-relaxed">The midterm covers chapters 1–4, with emphasis on cost-volume-profit analysis and contribution margin. (p. 12, 34)</div>
+                    <div className="flex items-center gap-1.5"><span className="text-[9px] text-gray-400">From</span><div className="flex items-center gap-1 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5"><FileText size={8} className="text-gray-500" /><span className="text-[9px] text-gray-600">Syllabus.pdf</span></div></div>
                   </div>
                 </div>
                 <div className="border-t border-gray-100 px-4 py-2.5 flex items-center gap-2">
@@ -1724,8 +1789,6 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
           </div>
         </div>
       </div>
-
-      {/* How it works */}
       <div className="max-w-3xl mx-auto px-6 py-20">
         <p className="sr text-xs font-semibold text-gray-400 uppercase tracking-widest text-center mb-3">How it works</p>
         <h2 className="sr sr-d1 serif text-4xl text-gray-900 text-center mb-14 font-normal">Up and running in minutes</h2>
@@ -1743,8 +1806,6 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
           ))}
         </div>
       </div>
-
-      {/* Features */}
       <div className="bg-white border-t border-gray-200 py-20">
         <div className="max-w-3xl mx-auto px-6">
           <p className="sr text-xs font-semibold text-gray-400 uppercase tracking-widest text-center mb-3">Why Scholr</p>
@@ -1767,8 +1828,6 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
           </div>
         </div>
       </div>
-
-      {/* CTA Banner */}
       <div className="bg-gray-900 py-16">
         <div className="sr max-w-xl mx-auto px-6 text-center">
           <h2 className="serif text-4xl text-white mb-4 font-normal">Ready to get started?</h2>
@@ -1779,32 +1838,22 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
           </div>
         </div>
       </div>
-
-      {/* Footer */}
       <footer className="bg-gray-900 border-t border-white/10 py-8">
         <div className="max-w-3xl mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-6 h-6 bg-white rounded-md flex items-center justify-center">
-              <svg width="12" height="12" viewBox="0 0 28 28" fill="none"><path d="M8 10h8M8 14h12M8 18h6" stroke="#0F0F0F" strokeWidth="2" strokeLinecap="round"/></svg>
-            </div>
+            <div className="w-6 h-6 bg-white rounded-md flex items-center justify-center"><svg width="12" height="12" viewBox="0 0 28 28" fill="none"><path d="M8 10h8M8 14h12M8 18h6" stroke="#0F0F0F" strokeWidth="2" strokeLinecap="round"/></svg></div>
             <span className="text-white text-sm font-semibold">Scholr</span>
             <span className="text-gray-600 text-xs">© 2025</span>
           </div>
           <div className="flex items-center gap-6 text-xs text-gray-500">
-            <span>FERPA aligned</span>
-            <span>·</span>
-            <span>Powered by Google Vertex AI</span>
-            <span>·</span>
-            <span>Answers from your materials only</span>
+            <span>FERPA aligned</span><span>·</span><span>Powered by Google Vertex AI</span><span>·</span><span>Answers from your materials only</span>
           </div>
         </div>
       </footer>
-
     </div>
   );
 }
 
-// ── Join Course Page ──────────────────────────────────────────────────────────
 function JoinCoursePage({ studentToken, studentUser, onStudentLogin, onEnterCourse }) {
   const { code } = useParams();
   const navigate = useNavigate();
@@ -1888,7 +1937,6 @@ function JoinCoursePage({ studentToken, studentUser, onStudentLogin, onEnterCour
   );
 }
 
-// ── Root App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const navigate = useNavigate();
   const [screen, setScreen] = useState('landing');
