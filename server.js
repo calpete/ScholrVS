@@ -734,7 +734,7 @@ Generate all 5 questions now:`;
     });
 
     const text = result.text.trim();
-    const blocks = text.split('---').map(b => b.trim()).filter(b => b.length > 20);
+    const blocks = text.split(/---+|\n(?=QUESTION:)/).map(b => b.trim()).filter(b => b.length > 20);
     
     const questions = blocks.slice(0, 5).map(block => {
       const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
