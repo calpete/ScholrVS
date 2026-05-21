@@ -700,7 +700,6 @@ app.post('/professor/courses/:courseId/cover', requireAuth, async (req, res) => 
 // ── ADD THIS ROUTE TO server.js ──
 // Paste it right before the line that says:
 // // ── Legacy routes ─────────────────────────────────────────────────────────────
-
 app.post('/course/:courseId/quiz', async (req, res) => {
   const { courseId } = req.params;
   const { topic } = req.body;
@@ -713,31 +712,51 @@ app.post('/course/:courseId/quiz', async (req, res) => {
     docParts.push({ text: `[Document: ${name}]` });
   }
 
-  const prompt = topic
-    ? `You are a quiz generator. Read the documents and create a 5-question multiple choice quiz focused on: ${topic}.`
-    : `You are a quiz generator. Read the documents and create a 5-question multiple choice quiz covering key concepts.`;
+  const prompt = `Read these course documents and generate 5 multiple choice quiz questions${topic ? ` about: ${topic}` : ''}.
 
-  const format = `Return ONLY a JSON array with exactly 5 objects. No markdown, no backticks, no explanation. Example format:
-[{"question":"What is X?","options":["A) one","B) two","C) three","D) four"],"correct":0,"explanation":"Because X means one."}]
-Each object must have: question (string), options (array of 4 strings), correct (number 0-3), explanation (string).`;
+For each question, write it in this EXACT format with no variations:
+QUESTION: [question text]
+A: [option a]
+B: [option b]
+C: [option c]
+D: [option d]
+CORRECT: [A or B or C or D]
+EXPLANATION: [one sentence explanation]
+---
+
+Generate all 5 questions now:`;
 
   try {
     const result = await ai.models.generateContent({
       model: MODEL,
-      contents: [{ role: 'user', parts: [...docParts, { text: prompt + '\n\n' + format }] }],
-      config: { temperature: 0.2, maxOutputTokens: 2048 },
+      contents: [{ role: 'user', parts: [...docParts, { text: prompt }] }],
+      config: { temperature: 0.3, maxOutputTokens: 3000 },
     });
-    let raw = result.text.trim();
-raw = raw.replace(/```json|```/g, '').trim();
-raw = raw.replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ');
-console.error('Raw quiz response:', raw.slice(0, 500));
-const start = raw.indexOf('[');
-const end = raw.lastIndexOf(']');
-if (start === -1 || end === -1) return res.status(500).json({ error: 'Could not parse quiz' });
-let jsonStr = raw.slice(start, end + 1);
-jsonStr = jsonStr.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
-const questions = JSON.parse(jsonStr);
-res.json({ questions });
+
+    const text = result.text.trim();
+    const blocks = text.split('---').map(b => b.trim()).filter(b => b.length > 20);
+    
+    const questions = blocks.slice(0, 5).map(block => {
+      const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+      const get = (prefix) => {
+        const line = lines.find(l => l.startsWith(prefix));
+        return line ? line.slice(prefix.length).trim() : '';
+      };
+      const question = get('QUESTION:');
+      const options = [
+        `A) ${get('A:')}`,
+        `B) ${get('B:')}`,
+        `C) ${get('C:')}`,
+        `D) ${get('D:')}`,
+      ];
+      const correctLetter = get('CORRECT:').toUpperCase().trim();
+      const correct = ['A', 'B', 'C', 'D'].indexOf(correctLetter);
+      const explanation = get('EXPLANATION:');
+      return { question, options, correct: correct === -1 ? 0 : correct, explanation };
+    }).filter(q => q.question && q.options[0] !== 'A) ');
+
+    if (questions.length === 0) return res.status(500).json({ error: 'Could not generate quiz questions' });
+    res.json({ questions });
   } catch (err) {
     console.error('Quiz generation error:', err.message);
     res.status(500).json({ error: err.message });
