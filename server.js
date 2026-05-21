@@ -697,6 +697,45 @@ app.post('/professor/courses/:courseId/cover', requireAuth, async (req, res) => 
 
   res.json({ success: true, coverImage: publicUrl });
 });
+// ── ADD THIS ROUTE TO server.js ──
+// Paste it right before the line that says:
+// // ── Legacy routes ─────────────────────────────────────────────────────────────
+
+app.post('/course/:courseId/quiz', async (req, res) => {
+  const { courseId } = req.params;
+  const { topic } = req.body;
+  const docs = getCourseDocuments(courseId);
+  if (Object.keys(docs).length === 0) return res.status(400).json({ error: 'No documents uploaded yet' });
+
+  const docParts = [];
+  for (const [name, doc] of Object.entries(docs)) {
+    docParts.push({ inlineData: { mimeType: doc.mimeType, data: doc.buffer.toString('base64') } });
+    docParts.push({ text: `[Document: ${name}]` });
+  }
+
+  try {
+    const result = await ai.models.generateContent({
+      model: MODEL,
+      contents: [{
+        role: 'user',
+        parts: [...docParts, {
+          text: `Generate a practice quiz based on these course materials${topic ? ` focused on: ${topic}` : ''}.\n\nCreate exactly 5 multiple choice questions. Each question must test real understanding of the content — not trivial facts.\n\nRespond ONLY with a valid JSON array. No markdown, no backticks, no explanation. Just the raw JSON:\n[\n  {\n    "question": "Question text here?",\n    "options": ["A) option one", "B) option two", "C) option three", "D) option four"],\n    "correct": 0,\n    "explanation": "Clear explanation of why this answer is correct and why the others are wrong."\n  }\n]\n\n"correct" is the 0-based index of the correct option (0=A, 1=B, 2=C, 3=D).`
+        }]
+      }],
+      config: { temperature: 0.4, maxOutputTokens: 2048 },
+    });
+
+    const raw = result.text.trim().replace(/```json|```/g, '').trim();
+    const start = raw.indexOf('[');
+    const end = raw.lastIndexOf(']');
+    if (start === -1 || end === -1) return res.status(500).json({ error: 'Could not parse quiz questions' });
+    const questions = JSON.parse(raw.slice(start, end + 1));
+    res.json({ questions });
+  } catch (err) {
+    console.error('Quiz generation error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 // ── Legacy routes ─────────────────────────────────────────────────────────────
 app.post('/auth', (req, res) => {
   const { password } = req.body;

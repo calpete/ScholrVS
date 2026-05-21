@@ -1075,7 +1075,8 @@ function ClassroomMode({ courseId, onExit }) {
   );
 }
 
-// ── Student Chat View ─────────────────────────────────────────────────────────
+// ── REPLACE YOUR ENTIRE StudentView FUNCTION WITH THIS ──
+
 function StudentView({ course, documents, suggestedQuestions, onExit, studentToken }) {
   const [chats, setChats] = useState([]);
   const [chatId, setChatId] = useState(null);
@@ -1086,6 +1087,16 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
   const [myNotes, setMyNotes] = useState([]);
   const [notesLoading, setNotesLoading] = useState(true);
   const [chatsLoading, setChatsLoading] = useState(true);
+
+  // Quiz state
+  const [quizOpen, setQuizOpen] = useState(false);
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [quizQuestions, setQuizQuestions] = useState([]);
+  const [quizIndex, setQuizIndex] = useState(0);
+  const [quizAnswers, setQuizAnswers] = useState({});
+  const [quizDone, setQuizDone] = useState(false);
+  const [quizTopic, setQuizTopic] = useState('');
+
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
   const paperclipRef = useRef(null);
@@ -1094,7 +1105,65 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
   const authHeaders = { Authorization: `Bearer ${studentToken}` };
   const jsonHeaders = { Authorization: `Bearer ${studentToken}`, 'Content-Type': 'application/json' };
 
-  // Load persisted notes via server
+  // Detect if message is a full quiz request
+  const isFullQuizRequest = (msg) => {
+    const m = msg.toLowerCase();
+    if (/\b(make|create|generate|build)\b.{0,25}\bquiz\b/i.test(m)) return true;
+    if (/\bpractice quiz\b/i.test(m)) return true;
+    if (/\bgive me a quiz\b/i.test(m)) return true;
+    if (/\bstart a quiz\b/i.test(m)) return true;
+    if (/\bquiz me\b.{0,30}\b(on|about|over|the|this)\b/i.test(m)) return true;
+    return false;
+  };
+
+  // Extract topic from quiz request
+  const extractQuizTopic = (msg) => {
+    const patterns = [
+      /quiz.{0,15}(?:on|about|over|covering)\s+(.+)/i,
+      /(?:on|about|over)\s+(.+?)\s+(?:quiz|questions)/i,
+      /quiz me on\s+(.+)/i,
+    ];
+    for (const p of patterns) {
+      const m = msg.match(p);
+      if (m) return m[1].trim().slice(0, 80);
+    }
+    return '';
+  };
+
+  // Generate quiz
+  const generateQuiz = async (topic) => {
+    setQuizOpen(true);
+    setQuizLoading(true);
+    setQuizQuestions([]);
+    setQuizIndex(0);
+    setQuizAnswers({});
+    setQuizDone(false);
+    setQuizTopic(topic);
+    try {
+      const res = await fetch(`${API}/course/${course.id}/quiz`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic }),
+      });
+      const data = await res.json();
+      if (data.questions?.length) setQuizQuestions(data.questions);
+      else setQuizQuestions([]);
+    } catch {
+      setQuizQuestions([]);
+    }
+    setQuizLoading(false);
+  };
+
+  const handleQuizAnswer = (questionIndex, optionIndex) => {
+    if (quizAnswers[questionIndex] !== undefined) return; // already answered
+    setQuizAnswers(prev => ({ ...prev, [questionIndex]: optionIndex }));
+  };
+
+  const quizScore = Object.entries(quizAnswers).filter(([qi, ai]) =>
+    quizQuestions[parseInt(qi)]?.correct === ai
+  ).length;
+
+  // Load notes
   useEffect(() => {
     const fetchNotes = async () => {
       try {
@@ -1104,10 +1173,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
           const notes = await Promise.all(data.map(async (n) => {
             try {
               const fileRes = await fetch(`${API}/student/notes/${course.id}/file/${encodeURIComponent(n.name)}`, { headers: authHeaders });
-              if (fileRes.ok) {
-                const buffer = await fileRes.arrayBuffer();
-                return { name: n.name, buffer, mimeType: n.mime_type };
-              }
+              if (fileRes.ok) { const buffer = await fileRes.arrayBuffer(); return { name: n.name, buffer, mimeType: n.mime_type }; }
             } catch {}
             return null;
           }));
@@ -1119,7 +1185,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
     fetchNotes();
   }, [course.id]);
 
-  // Load persisted chats from server
+  // Load chats
   useEffect(() => {
     const fetchChats = async () => {
       try {
@@ -1127,42 +1193,27 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           const loaded = data.map(c => ({
-            id: c.id,
-            dbId: c.id,
-            title: c.title,
-            messages: (c.messages || [])
-              .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-              .map(m => ({
-                id: m.id,
-                role: m.role,
-                content: m.content,
-                sources: m.sources || [],
-                ts: new Date(m.created_at).getTime()
-              }))
+            id: c.id, dbId: c.id, title: c.title,
+            messages: (c.messages || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map(m => ({
+              id: m.id, role: m.role, content: m.content, sources: m.sources || [], ts: new Date(m.created_at).getTime()
+            }))
           }));
-          setChats(loaded);
-          setChatId(loaded[0].id);
-          setChatsLoading(false);
+          setChats(loaded); setChatId(loaded[0].id); setChatsLoading(false);
         } else {
-          // No chats yet — create one
           try {
             const res2 = await fetch(`${API}/student/chats/${course.id}`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ title: 'New Chat' }) });
             const newChat = await res2.json();
             const nc = { id: newChat.id, dbId: newChat.id, title: 'New Chat', messages: [] };
-            setChats([nc]);
-            setChatId(nc.id);
+            setChats([nc]); setChatId(nc.id);
           } catch {
             const nc = { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
-            setChats([nc]);
-            setChatId(nc.id);
+            setChats([nc]); setChatId(nc.id);
           }
           setChatsLoading(false);
         }
       } catch {
         const nc = { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
-        setChats([nc]);
-        setChatId(nc.id);
-        setChatsLoading(false);
+        setChats([nc]); setChatId(nc.id); setChatsLoading(false);
       }
     };
     fetchChats();
@@ -1178,58 +1229,32 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
     try {
       const res = await fetch(`${API}/student/chats/${course.id}`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ title: 'New Chat' }) });
       const data = await res.json();
-      if (data.id) {
-        const nc = { id: data.id, dbId: data.id, title: 'New Chat', messages: [] };
-        setChats(prev => [nc, ...prev]);
-        setChatId(nc.id);
-        return nc;
-      }
+      if (data.id) { const nc = { id: data.id, dbId: data.id, title: 'New Chat', messages: [] }; setChats(prev => [nc, ...prev]); setChatId(nc.id); return nc; }
     } catch {}
     const nc = { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
-    setChats(prev => [nc, ...prev]);
-    setChatId(nc.id);
-    return nc;
+    setChats(prev => [nc, ...prev]); setChatId(nc.id); return nc;
   };
 
   const deleteChat = async (id) => {
-    // Find the chat to delete
     const chat = chats.find(c => c.id === id);
-    
-    // Delete from DB if it has a real DB id
     if (chat?.dbId && !String(chat.dbId).startsWith('local-')) {
-      try {
-        await fetch(`${API}/student/chats/${chat.dbId}`, { method: 'DELETE', headers: authHeaders });
-      } catch {}
+      try { await fetch(`${API}/student/chats/${chat.dbId}`, { method: 'DELETE', headers: authHeaders }); } catch {}
     }
-
-    // Remove from local state
     const remaining = chats.filter(c => c.id !== id);
-    
     if (remaining.length === 0) {
-      // Create a fresh chat
       try {
         const res = await fetch(`${API}/student/chats/${course.id}`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ title: 'New Chat' }) });
         const data = await res.json();
-        if (data.id) {
-          const nc = { id: data.id, dbId: data.id, title: 'New Chat', messages: [] };
-          setChats([nc]);
-          setChatId(nc.id);
-          return;
-        }
+        if (data.id) { const nc = { id: data.id, dbId: data.id, title: 'New Chat', messages: [] }; setChats([nc]); setChatId(nc.id); return; }
       } catch {}
       const nc = { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
-      setChats([nc]);
-      setChatId(nc.id);
-    } else {
-      setChats(remaining);
-      if (chatId === id) setChatId(remaining[0].id);
-    }
+      setChats([nc]); setChatId(nc.id);
+    } else { setChats(remaining); if (chatId === id) setChatId(remaining[0].id); }
   };
 
   const handlePaperclipFile = async (file) => {
     if (!file) return;
-    const fd = new FormData();
-    fd.append('file', file);
+    const fd = new FormData(); fd.append('file', file);
     try {
       const res = await fetch(`${API}/student/notes/${course.id}/upload`, { method: 'POST', headers: authHeaders, body: fd });
       const data = await res.json();
@@ -1259,6 +1284,22 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
   const onSend = async (messageOverride) => {
     const message = messageOverride || input;
     if (!message.trim() || isTyping) return;
+
+    // Check if this is a full quiz request
+    if (isFullQuizRequest(message)) {
+      const topic = extractQuizTopic(message);
+      setInput('');
+      // Also send a chat message acknowledging it
+      const currentChatId = chatId;
+      const streamingMsgId = Date.now();
+      setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: [...c.messages,
+        { role: 'user', content: message, ts: Date.now() },
+        { id: streamingMsgId, role: 'assistant', content: `Generating your quiz${topic ? ` on **${topic}**` : ''} — check the panel on the right! You can keep asking me questions while it loads. 📝`, sources: [], ts: Date.now(), streaming: false }
+      ]} : c));
+      generateQuiz(topic);
+      return;
+    }
+
     const isFirstMessage = active.messages.length === 0;
     const currentChatId = chatId;
     const currentChat = chats.find(c => c.id === currentChatId);
@@ -1269,7 +1310,6 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
     setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, ...(fallback ? { title: fallback } : {}), messages: [...c.messages, { role: 'user', content: message, ts: Date.now() }, { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true }] } : c));
     setInput(''); setIsTyping(true);
 
-    // Save user message to DB
     if (currentChat?.dbId && !String(currentChat.dbId).startsWith('local-')) {
       try { await fetch(`${API}/student/chats/${currentChat.dbId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'user', content: message }) }); } catch {}
     }
@@ -1280,9 +1320,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
     try {
       let response;
       if (myNotes.length > 0) {
-        const fd = new FormData();
-        fd.append('message', message);
-        fd.append('history', JSON.stringify(completedMessages.map(m => ({ role: m.role, content: m.content }))));
+        const fd = new FormData(); fd.append('message', message); fd.append('history', JSON.stringify(completedMessages.map(m => ({ role: m.role, content: m.content }))));
         myNotes.forEach((n, i) => fd.append(`note_${i}`, new Blob([n.buffer], { type: n.mimeType }), n.name));
         response = await fetch(`${API}/course/${course.id}/chat`, { method: 'POST', body: fd, signal: controller.signal });
       } else {
@@ -1301,30 +1339,22 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
           if (!line.startsWith('data: ')) continue;
           try {
             const event = JSON.parse(line.slice(6));
-            if (event.type === 'token') {
-              fullText += event.token;
-              setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: m.content + event.token } : m) } : c));
-              scrollToBottom();
-            } else if (event.type === 'sources') {
-              finalSources = event.sources;
-              setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, sources: event.sources } : m) } : c));
-            } else if (event.type === 'done') {
+            if (event.type === 'token') { fullText += event.token; setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: m.content + event.token } : m) } : c)); scrollToBottom(); }
+            else if (event.type === 'sources') { finalSources = event.sources; setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, sources: event.sources } : m) } : c)); }
+            else if (event.type === 'done') {
               setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, streaming: false } : m) } : c));
               if (isFirstMessage) {
-                const smartTitle = fullText.trim().split(/\s+/).slice(0, 6).join(' ').replace(/[.!?]$/, '');
-                const finalTitle = smartTitle || fallback;
+                const finalTitle = fullText.trim().split(/\s+/).slice(0, 6).join(' ').replace(/[.!?]$/, '') || fallback;
                 setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, title: finalTitle } : c));
                 if (currentChat?.dbId && !String(currentChat.dbId).startsWith('local-')) {
                   try { await fetch(`${API}/student/chats/${currentChat.dbId}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ title: finalTitle }) }); } catch {}
                 }
               }
-              // Save assistant message to DB
               if (currentChat?.dbId && !String(currentChat.dbId).startsWith('local-')) {
                 try { await fetch(`${API}/student/chats/${currentChat.dbId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'assistant', content: fullText, sources: finalSources }) }); } catch {}
               }
-            } else if (event.type === 'error') {
-              setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'error:' + event.error, streaming: false, isError: true } : m) } : c));
             }
+            else if (event.type === 'error') { setChats(prev => prev.map(c => c.id === currentChatId ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: 'error:' + event.error, streaming: false, isError: true } : m) } : c)); }
           } catch {}
         }
       }
@@ -1345,6 +1375,8 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
   return (
     <div className="flex h-screen w-screen overflow-hidden fixed inset-0 bg-white">
       <style>{FONT}</style>
+
+      {/* ── Left sidebar ── */}
       <aside className="w-56 bg-[#F7F7F7] border-r border-gray-200 flex flex-col flex-shrink-0">
         <div className="px-4 py-4 border-b border-gray-200">
           <div className="flex items-center gap-2.5 mb-3"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></div>
@@ -1388,73 +1420,202 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
           <button onClick={onExit} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs"><LogOut size={11} />Back to courses</button>
         </div>
       </aside>
+
+      {/* ── Main chat ── */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-12 bg-white border-b border-gray-100 flex items-center justify-between px-8 flex-shrink-0">
           <h2 className="text-gray-900 text-sm font-medium">{active?.title || 'New Chat'}</h2>
-          <div className="flex items-center gap-1.5 text-[11px] text-emerald-600"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />AI Active</div>
+          <div className="flex items-center gap-3">
+            {quizOpen && (
+              <button onClick={() => setQuizOpen(false)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium transition-colors">
+                <X size={11} />Close quiz
+              </button>
+            )}
+            <div className="flex items-center gap-1.5 text-[11px] text-emerald-600"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />AI Active</div>
+          </div>
         </header>
-        <div className="flex-1 overflow-y-auto px-8 py-8 flex flex-col gap-5">
-          {(!active || active.messages.length === 0) && (
-            <div className="flex flex-col items-center justify-center flex-1 pb-10 fade-up">
-              {documents.length === 0 ? (
-                <div className="text-center max-w-xs"><Clock size={20} className="text-gray-200 mx-auto mb-4" /><h3 className="text-gray-700 font-medium text-sm mb-1">Setting up your course</h3><p className="text-gray-400 text-xs">Your instructor is uploading materials.</p></div>
-              ) : (
-                <div className="text-center max-w-md w-full flex flex-col items-center">
-                  <Logo size={36} />
-                  <h3 className="text-gray-900 font-semibold text-lg mt-5 mb-1.5">Ask anything about your course</h3>
-                  <p className="text-gray-400 text-sm mb-8">Every answer is grounded in your professor's materials.</p>
-                  <div className="space-y-2 text-left w-full">{questions.map((q, i) => (<button key={i} onClick={() => onSend(q)} className="w-full text-left px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 text-sm hover:bg-gray-100 hover:border-gray-300 transition-all"><span className="text-gray-300 mr-2 text-xs font-mono">{i + 1}.</span>{q}</button>))}</div>
-                </div>
-              )}
-            </div>
-          )}
-          {active?.messages.map((m, i) => {
-            const msgId = m.id || i;
-            const isError = m.isError || m.content?.startsWith('error:');
-            return (
-              <div key={msgId} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`flex flex-col ${m.role === 'user' ? 'items-end max-w-xl' : 'items-start max-w-2xl w-full'}`}>
-                  <div className={`rounded-2xl text-sm w-full ${m.role === 'user' ? 'bg-gray-900 text-white px-4 py-3 rounded-br-sm' : 'text-gray-800'}`}>
-                    {m.role === 'assistant' && m.content === '' && m.streaming ? (
-                      <div className="flex items-center gap-3 py-2"><div className="flex flex-col justify-center gap-1" style={{ width: '22px' }}><div className="eq-bar eq1" /><div className="eq-bar eq2" /><div className="eq-bar eq3" /></div><span className="text-xs text-gray-400">Reading your materials...</span></div>
-                    ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user' ? <p className="leading-relaxed whitespace-pre-wrap text-white">{m.content}</p> : <MarkdownMessage content={m.content} />}
-                    {m.role === 'assistant' && m.streaming && m.content && <span className="inline-block w-0.5 h-4 bg-gray-400 animate-pulse ml-0.5 align-middle" />}
-                    {m.role === 'assistant' && m.sources?.length > 0 && !m.streaming && !isError && (
-                      <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-1.5 items-center">
-                        <span className="text-[10px] text-gray-300 uppercase tracking-wide mr-0.5">From</span>
-                        {m.sources.map((source, idx) => (<span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 border border-gray-200 text-gray-600 text-[11px] font-medium"><FileText size={9} /><span className="max-w-[200px] truncate">{cleanFileName(source)}</span></span>))}
-                      </div>
-                    )}
-                    {m.role === 'user' && <span className="block text-[10px] mt-1.5 opacity-30">{formatTime(m.ts)}</span>}
-                  </div>
-                  {m.role === 'assistant' && !m.streaming && m.content && !isError && (
-                    <div className="flex items-center gap-0.5 mt-1.5">
-                      <button onClick={() => { navigator.clipboard.writeText(m.content.replace(/\nSOURCES:.*$/m, '').trim()); setCopiedId(msgId); setTimeout(() => setCopiedId(null), 2000); }} className={`p-1.5 rounded-lg transition-colors ${copiedId === msgId ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>{copiedId === msgId ? <Check size={12} /> : <Copy size={12} />}</button>
-                      <button onClick={() => setFeedback(prev => ({ ...prev, [msgId]: prev[msgId] === 'up' ? null : 'up' }))} className={`p-1.5 rounded-lg transition-colors ${feedback[msgId] === 'up' ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}><ThumbsUp size={12} /></button>
-                      <button onClick={() => setFeedback(prev => ({ ...prev, [msgId]: prev[msgId] === 'down' ? null : 'down' }))} className={`p-1.5 rounded-lg transition-colors ${feedback[msgId] === 'down' ? 'text-red-400' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}><ThumbsDown size={12} /></button>
-                      <span className="text-[10px] text-gray-200 ml-1.5">{formatTime(m.ts)}</span>
+        <div className="flex flex-1 overflow-hidden">
+          {/* Chat messages */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto px-8 py-8 flex flex-col gap-5">
+              {(!active || active.messages.length === 0) && (
+                <div className="flex flex-col items-center justify-center flex-1 pb-10 fade-up">
+                  {documents.length === 0 ? (
+                    <div className="text-center max-w-xs"><Clock size={20} className="text-gray-200 mx-auto mb-4" /><h3 className="text-gray-700 font-medium text-sm mb-1">Setting up your course</h3><p className="text-gray-400 text-xs">Your instructor is uploading materials.</p></div>
+                  ) : (
+                    <div className="text-center max-w-md w-full flex flex-col items-center">
+                      <Logo size={36} />
+                      <h3 className="text-gray-900 font-semibold text-lg mt-5 mb-1.5">Ask anything about your course</h3>
+                      <p className="text-gray-400 text-sm mb-8">Every answer is grounded in your professor's materials.</p>
+                      <div className="space-y-2 text-left w-full">{questions.map((q, i) => (<button key={i} onClick={() => onSend(q)} className="w-full text-left px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 text-sm hover:bg-gray-100 hover:border-gray-300 transition-all"><span className="text-gray-300 mr-2 text-xs font-mono">{i + 1}.</span>{q}</button>))}</div>
                     </div>
                   )}
                 </div>
-              </div>
-            );
-          })}
-          <div ref={bottomRef} />
-        </div>
-        <div className="px-8 py-4 bg-white border-t border-gray-100 flex-shrink-0">
-          <div className="max-w-3xl mx-auto">
-            <div className="flex items-center bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2 focus-within:border-gray-400 focus-within:bg-white focus-within:shadow-sm transition-all gap-2">
-              <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Paperclip size={15} /></button>
-              <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!isTyping) onSend(); } }}
-                className="flex-1 bg-transparent text-gray-800 text-sm outline-none placeholder-gray-400 py-1.5" placeholder={myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course..."} />
-              {isTyping ? (
-                <button onClick={onStop} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0"><Square size={11} fill="currentColor" /></button>
-              ) : (
-                <button onClick={() => onSend()} disabled={!input.trim()} className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${!input.trim() ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}><Send size={12} /></button>
               )}
+              {active?.messages.map((m, i) => {
+                const msgId = m.id || i;
+                const isError = m.isError || m.content?.startsWith('error:');
+                return (
+                  <div key={msgId} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`flex flex-col ${m.role === 'user' ? 'items-end max-w-xl' : 'items-start max-w-2xl w-full'}`}>
+                      <div className={`rounded-2xl text-sm w-full ${m.role === 'user' ? 'bg-gray-900 text-white px-4 py-3 rounded-br-sm' : 'text-gray-800'}`}>
+                        {m.role === 'assistant' && m.content === '' && m.streaming ? (
+                          <div className="flex items-center gap-3 py-2"><div className="flex flex-col justify-center gap-1" style={{ width: '22px' }}><div className="eq-bar eq1" /><div className="eq-bar eq2" /><div className="eq-bar eq3" /></div><span className="text-xs text-gray-400">Reading your materials...</span></div>
+                        ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user' ? <p className="leading-relaxed whitespace-pre-wrap text-white">{m.content}</p> : <MarkdownMessage content={m.content} />}
+                        {m.role === 'assistant' && m.streaming && m.content && <span className="inline-block w-0.5 h-4 bg-gray-400 animate-pulse ml-0.5 align-middle" />}
+                        {m.role === 'assistant' && m.sources?.length > 0 && !m.streaming && !isError && (
+                          <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-1.5 items-center">
+                            <span className="text-[10px] text-gray-300 uppercase tracking-wide mr-0.5">From</span>
+                            {m.sources.map((source, idx) => (<span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 border border-gray-200 text-gray-600 text-[11px] font-medium"><FileText size={9} /><span className="max-w-[200px] truncate">{cleanFileName(source)}</span></span>))}
+                          </div>
+                        )}
+                        {m.role === 'user' && <span className="block text-[10px] mt-1.5 opacity-30">{formatTime(m.ts)}</span>}
+                      </div>
+                      {m.role === 'assistant' && !m.streaming && m.content && !isError && (
+                        <div className="flex items-center gap-0.5 mt-1.5">
+                          <button onClick={() => { navigator.clipboard.writeText(m.content.replace(/\nSOURCES:.*$/m, '').trim()); setCopiedId(msgId); setTimeout(() => setCopiedId(null), 2000); }} className={`p-1.5 rounded-lg transition-colors ${copiedId === msgId ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>{copiedId === msgId ? <Check size={12} /> : <Copy size={12} />}</button>
+                          <button onClick={() => setFeedback(prev => ({ ...prev, [msgId]: prev[msgId] === 'up' ? null : 'up' }))} className={`p-1.5 rounded-lg transition-colors ${feedback[msgId] === 'up' ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}><ThumbsUp size={12} /></button>
+                          <button onClick={() => setFeedback(prev => ({ ...prev, [msgId]: prev[msgId] === 'down' ? null : 'down' }))} className={`p-1.5 rounded-lg transition-colors ${feedback[msgId] === 'down' ? 'text-red-400' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}><ThumbsDown size={12} /></button>
+                          <span className="text-[10px] text-gray-200 ml-1.5">{formatTime(m.ts)}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={bottomRef} />
+            </div>
+            <div className="px-8 py-4 bg-white border-t border-gray-100 flex-shrink-0">
+              <div className="max-w-3xl mx-auto">
+                <div className="flex items-center bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2 focus-within:border-gray-400 focus-within:bg-white focus-within:shadow-sm transition-all gap-2">
+                  <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Paperclip size={15} /></button>
+                  <input ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!isTyping) onSend(); } }}
+                    className="flex-1 bg-transparent text-gray-800 text-sm outline-none placeholder-gray-400 py-1.5" placeholder={myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course..."} />
+                  {isTyping ? (
+                    <button onClick={onStop} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0"><Square size={11} fill="currentColor" /></button>
+                  ) : (
+                    <button onClick={() => onSend()} disabled={!input.trim()} className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${!input.trim() ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}><Send size={12} /></button>
+                  )}
+                </div>
+              </div>
+              <p className="text-center text-[10px] text-gray-300 mt-2">Grounded in your course materials · Vertex AI</p>
             </div>
           </div>
-          <p className="text-center text-[10px] text-gray-300 mt-2">Grounded in your course materials · Vertex AI</p>
+
+          {/* ── Quiz sidebar ── */}
+          {quizOpen && (
+            <div className="w-80 border-l border-gray-200 bg-white flex flex-col flex-shrink-0 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+                <div>
+                  <p className="text-gray-900 text-sm font-semibold">Practice Quiz</p>
+                  {quizTopic && <p className="text-gray-400 text-[10px] mt-0.5 truncate">{quizTopic}</p>}
+                </div>
+                {!quizLoading && quizQuestions.length > 0 && !quizDone && (
+                  <span className="text-[11px] text-gray-400">{quizIndex + 1} / {quizQuestions.length}</span>
+                )}
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-5">
+                {/* Loading state */}
+                {quizLoading && (
+                  <div className="flex flex-col items-center justify-center h-full gap-4">
+                    <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-gray-400 text-xs text-center">Generating your quiz from course materials...</p>
+                  </div>
+                )}
+
+                {/* Failed state */}
+                {!quizLoading && quizQuestions.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
+                    <AlertCircle size={24} className="text-gray-200" />
+                    <p className="text-gray-500 text-sm font-medium">Couldn't generate quiz</p>
+                    <p className="text-gray-400 text-xs">Try asking again with a specific topic</p>
+                  </div>
+                )}
+
+                {/* Score / done state */}
+                {!quizLoading && quizDone && quizQuestions.length > 0 && (
+                  <div className="flex flex-col items-center justify-center h-full gap-5 text-center">
+                    <div className="w-20 h-20 rounded-full bg-gray-900 flex items-center justify-center">
+                      <span className="text-white text-2xl font-bold">{quizScore}/{quizQuestions.length}</span>
+                    </div>
+                    <div>
+                      <p className="text-gray-900 font-semibold text-base mb-1">
+                        {quizScore === quizQuestions.length ? '🎉 Perfect score!' : quizScore >= quizQuestions.length * 0.7 ? '👍 Great job!' : '📚 Keep studying!'}
+                      </p>
+                      <p className="text-gray-400 text-xs">You got {quizScore} out of {quizQuestions.length} correct</p>
+                    </div>
+                    <div className="flex flex-col gap-2 w-full">
+                      <button onClick={() => { setQuizIndex(0); setQuizAnswers({}); setQuizDone(false); }}
+                        className="w-full py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors">Retake quiz</button>
+                      <button onClick={() => generateQuiz(quizTopic)}
+                        className="w-full py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 text-xs font-medium transition-colors">New quiz</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Active question */}
+                {!quizLoading && !quizDone && quizQuestions.length > 0 && (() => {
+                  const q = quizQuestions[quizIndex];
+                  const answered = quizAnswers[quizIndex];
+                  const isAnswered = answered !== undefined;
+                  const isCorrect = answered === q.correct;
+
+                  return (
+                    <div className="flex flex-col gap-4">
+                      {/* Progress bar */}
+                      <div className="w-full bg-gray-100 rounded-full h-1">
+                        <div className="bg-gray-900 h-1 rounded-full transition-all" style={{ width: `${((quizIndex) / quizQuestions.length) * 100}%` }} />
+                      </div>
+
+                      {/* Question */}
+                      <p className="text-gray-900 text-sm font-medium leading-relaxed">{q.question}</p>
+
+                      {/* Options */}
+                      <div className="flex flex-col gap-2">
+                        {q.options.map((opt, oi) => {
+                          let style = 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 hover:border-gray-300';
+                          if (isAnswered) {
+                            if (oi === q.correct) style = 'bg-emerald-50 border-emerald-400 text-emerald-800';
+                            else if (oi === answered) style = 'bg-red-50 border-red-400 text-red-700';
+                            else style = 'bg-gray-50 border-gray-100 text-gray-400';
+                          }
+                          return (
+                            <button key={oi} onClick={() => handleQuizAnswer(quizIndex, oi)} disabled={isAnswered}
+                              className={`w-full text-left px-4 py-3 rounded-xl border text-xs font-medium transition-all ${style} ${!isAnswered ? 'cursor-pointer' : 'cursor-default'}`}>
+                              <span className="flex items-center gap-2">
+                                {isAnswered && oi === q.correct && <CheckCircle2 size={12} className="text-emerald-500 flex-shrink-0" />}
+                                {isAnswered && oi === answered && oi !== q.correct && <X size={12} className="text-red-400 flex-shrink-0" />}
+                                {opt}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Explanation after answer */}
+                      {isAnswered && (
+                        <div className={`rounded-xl p-4 text-xs leading-relaxed ${isCorrect ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-amber-50 border border-amber-200 text-amber-800'}`}>
+                          <p className="font-semibold mb-1">{isCorrect ? '✓ Correct!' : '✗ Not quite'}</p>
+                          <p>{q.explanation}</p>
+                        </div>
+                      )}
+
+                      {/* Next button */}
+                      {isAnswered && (
+                        <button onClick={() => {
+                          if (quizIndex < quizQuestions.length - 1) setQuizIndex(i => i + 1);
+                          else setQuizDone(true);
+                        }} className="w-full py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors">
+                          {quizIndex < quizQuestions.length - 1 ? 'Next question →' : 'See results'}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
