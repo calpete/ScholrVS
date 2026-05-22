@@ -6,6 +6,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
+import { Storage } from '@google-cloud/storage';
 import fs from 'fs';
 import os from 'os';
 
@@ -32,6 +33,14 @@ console.log(`✅ Vertex AI ready — project: ${PROJECT}, model: ${MODEL}`);
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
 console.log('✅ Supabase connected');
+
+// GCS — caches PDFs so Vertex AI can read them by gs:// URI instead of
+// receiving the full file inline base64 on every chat. Vertex AI doesn't
+// support the standalone Gemini File API, so GCS is the proper path.
+const GCS_BUCKET = process.env.GCS_BUCKET;
+const gcs = GCS_BUCKET ? new Storage({ projectId: PROJECT }) : null;
+if (gcs) console.log(`✅ GCS ready — bucket: ${GCS_BUCKET}`);
+else console.warn('⚠️ GCS_BUCKET not set — falling back to inline base64 on every chat (slow)');
 
 function getMimeType(filename) {
   const ext = filename.toLowerCase().split('.').pop();
@@ -94,94 +103,82 @@ function getGeminiUriCache(courseId) {
   return geminiUriCache[courseId];
 }
 
-// ── Gemini File API helpers ───────────────────────────────────────────────────
+// ── GCS file caching ─────────────────────────────────────────────────────────
+// Vertex AI accepts gs:// URIs in fileData.fileUri, sourced from a bucket the
+// service account can read. We upload each PDF once on teacher upload, then
+// reference it on every chat — no more inline base64.
 
-// Upload a single file to Gemini File API and return the URI + expiry
-async function uploadToGemini(buffer, mimeType, displayName) {
+const courseGcsPath = (courseId, filename) => `courses/${courseId}/${filename}`;
+
+async function uploadToGCS(buffer, mimeType, gcsPath) {
+  if (!gcs) return null;
   try {
-    // Write to a temp file — the Gemini SDK needs a file path
-    const tmpPath = path.join(os.tmpdir(), `scholr_${Date.now()}_${displayName.replace(/[^a-zA-Z0-9._-]/g, '_')}`);
-    fs.writeFileSync(tmpPath, buffer);
-
-    const uploaded = await ai.files.upload({
-      file: tmpPath,
-      config: { mimeType, displayName },
+    const file = gcs.bucket(GCS_BUCKET).file(gcsPath);
+    await file.save(buffer, {
+      contentType: mimeType,
+      resumable: false,  // single-shot upload, much faster for small files
+      metadata: { cacheControl: 'public, max-age=31536000' },
     });
-
-    // Clean up temp file
-    try { fs.unlinkSync(tmpPath); } catch {}
-
-    // Gemini files expire after 48 hours; we store expiry as 47h to be safe
-    const expiresAt = new Date(Date.now() + 47 * 60 * 60 * 1000).toISOString();
-    console.log(`✅ Gemini upload: ${displayName} → ${uploaded.name}`);
-    return { uri: uploaded.uri || uploaded.name, expiresAt };
+    const uri = `gs://${GCS_BUCKET}/${gcsPath}`;
+    console.log(`✅ GCS upload: ${gcsPath}`);
+    return uri;
   } catch (err) {
-    console.error(`❌ Gemini upload failed for ${displayName}:`, err.message);
+    console.error(`❌ GCS upload failed for ${gcsPath}:`, err.message);
     return null;
   }
 }
 
-// Delete a file from Gemini File API by URI/name
-async function deleteFromGemini(uri) {
-  if (!uri) return;
+async function deleteFromGCS(uri) {
+  if (!gcs || !uri || !uri.startsWith(`gs://${GCS_BUCKET}/`)) return;
   try {
-    // uri looks like "https://generativelanguage.googleapis.com/v1beta/files/abc123"
-    // or just "files/abc123" — extract the file name
-    const fileName = uri.includes('/files/') ? uri.split('/files/')[1] : uri;
-    await ai.files.delete({ name: `files/${fileName}` });
-    console.log(`✅ Gemini file deleted: ${fileName}`);
+    const objectPath = uri.slice(`gs://${GCS_BUCKET}/`.length);
+    await gcs.bucket(GCS_BUCKET).file(objectPath).delete({ ignoreNotFound: true });
+    console.log(`✅ GCS deleted: ${objectPath}`);
   } catch (err) {
-    // Non-fatal — file may have already expired
-    console.warn(`⚠️ Gemini delete skipped (${uri}):`, err.message);
+    console.warn(`⚠️ GCS delete skipped (${uri}):`, err.message);
   }
 }
 
-// Get a valid Gemini URI for a document.
-// Checks memory cache first, then DB, then re-uploads if expired/missing.
+// Get a valid gs:// URI for a course document.
+// Checks memory cache, then DB, then uploads to GCS if missing.
+// (We keep the column name `gemini_uri` to avoid a migration — it now stores gs:// URIs.)
 async function getGeminiUri(courseId, filename, doc) {
+  if (!gcs) return null;  // No bucket configured → caller falls back to inline base64
   const memCache = getGeminiUriCache(courseId);
 
-  // 1. Check memory cache
-  if (memCache[filename]) {
-    const cached = memCache[filename];
-    if (new Date(cached.expiresAt) > new Date()) {
-      return cached.uri;
-    }
-    // Expired in memory — clear it
-    delete memCache[filename];
+  // 1. Memory cache
+  if (memCache[filename]?.uri?.startsWith('gs://')) {
+    return memCache[filename].uri;
   }
 
-  // 2. Check DB
+  // 2. DB
   const { data: dbDoc } = await supabase
     .from('documents')
-    .select('gemini_uri, gemini_uri_expires_at')
+    .select('gemini_uri')
     .eq('course_id', courseId)
     .eq('name', filename)
-    .single();
+    .maybeSingle();
 
-  if (dbDoc?.gemini_uri && dbDoc?.gemini_uri_expires_at) {
-    if (new Date(dbDoc.gemini_uri_expires_at) > new Date()) {
-      // Valid URI in DB — warm the memory cache
-      memCache[filename] = { uri: dbDoc.gemini_uri, expiresAt: dbDoc.gemini_uri_expires_at };
-      return dbDoc.gemini_uri;
-    }
+  if (dbDoc?.gemini_uri?.startsWith('gs://')) {
+    memCache[filename] = { uri: dbDoc.gemini_uri };
+    return dbDoc.gemini_uri;
   }
 
-  // 3. Need to upload (either never uploaded, or expired)
-  console.log(`🔄 Re-uploading to Gemini: ${filename}`);
-  const result = await uploadToGemini(doc.buffer, doc.mimeType, filename);
-  if (!result) return null; // Upload failed — will fall back to inline
+  // 3. Need to upload (never uploaded, or old broken Files API URI)
+  console.log(`🔄 Uploading to GCS: ${filename}`);
+  const gcsPath = courseGcsPath(courseId, filename);
+  const uri = await uploadToGCS(doc.buffer, doc.mimeType, gcsPath);
+  if (!uri) return null;
 
-  // Save to DB
+  // Persist — GCS URIs don't expire, so we set the legacy expires_at far in the future.
   await supabase
     .from('documents')
-    .update({ gemini_uri: result.uri, gemini_uri_expires_at: result.expiresAt })
+    .update({ gemini_uri: uri, gemini_uri_expires_at: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString() })
     .eq('course_id', courseId)
     .eq('name', filename);
 
-  // Warm memory cache
-  memCache[filename] = result;
-  return result.uri;
+  memCache[filename] = { uri };
+  return uri;
 }
 
 // ── Startup: load all documents + seed Gemini URIs ───────────────────────────
@@ -234,21 +231,21 @@ async function loadAllDocumentsFromStorage() {
   }
 }
 
-// After startup, upload any docs that are missing a Gemini URI in the background
+// After startup, upload any docs that don't yet have a gs:// URI to GCS.
+// This handles existing documents that were uploaded before GCS was wired up
+// (and ones that have stale Files API URIs from the Vertex AI mismatch).
 async function seedMissingGeminiUris() {
-  console.log('🔄 Seeding missing Gemini URIs in background...');
+  if (!gcs) return;
+  console.log('🔄 Seeding missing GCS URIs in background...');
   for (const [courseId, docs] of Object.entries(courseDocuments)) {
     for (const [filename, doc] of Object.entries(docs)) {
       const memCache = getGeminiUriCache(courseId);
-      if (!memCache[filename]) {
-        // Not in memory — check DB then upload if needed
-        await getGeminiUri(courseId, filename, doc);
-        // Small delay to avoid hammering the API
-        await new Promise(r => setTimeout(r, 500));
-      }
+      if (memCache[filename]?.uri?.startsWith('gs://')) continue;
+      await getGeminiUri(courseId, filename, doc);
+      await new Promise(r => setTimeout(r, 300));
     }
   }
-  console.log('✅ Gemini URI seeding complete');
+  console.log('✅ GCS URI seeding complete');
 }
 
 function getTopicTag(question) {
@@ -532,30 +529,32 @@ app.post('/course/:courseId/upload', requireAuth, async (req, res) => {
   const sizeKb = Math.round(buffer.length / 1024);
   const storagePath = `${courseId}/${file.name}`;
 
-  // 1. Upload to Supabase Storage
+  // 1. Upload to Supabase Storage (canonical durable copy)
   const { error: uploadError } = await supabase.storage.from('documents').upload(storagePath, buffer, { contentType: mimeType, upsert: true });
   if (uploadError) return res.status(500).json({ error: 'Storage upload failed: ' + uploadError.message });
 
-  // 2. Upload to Gemini File API immediately
-  const geminiResult = await uploadToGemini(buffer, mimeType, file.name);
+  // 2. Upload to GCS so Vertex AI can read it by gs:// URI on every chat
+  //    (no more 10MB+ base64 in every chat request)
+  const gcsUri = await uploadToGCS(buffer, mimeType, courseGcsPath(courseId, file.name));
 
-  // 3. Save to documents table including Gemini URI
+  // 3. Save to documents table
+  const farFuture = new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString();
   const { error: dbError } = await supabase.from('documents').upsert({
     name: file.name, course_id: courseId, size_kb: sizeKb, mime_type: mimeType,
     storage_path: storagePath, uploaded_at: new Date().toISOString(),
-    gemini_uri: geminiResult?.uri || null,
-    gemini_uri_expires_at: geminiResult?.expiresAt || null,
+    gemini_uri: gcsUri || null,
+    gemini_uri_expires_at: gcsUri ? farFuture : null,
   }, { onConflict: 'name,course_id' });
   if (dbError) console.error('DB insert error:', dbError.message);
 
   // 4. Warm in-memory caches
   getCourseDocuments(courseId)[file.name] = { buffer, sizeKb, mimeType, uploadedAt: new Date().toISOString() };
-  if (geminiResult) {
-    getGeminiUriCache(courseId)[file.name] = { uri: geminiResult.uri, expiresAt: geminiResult.expiresAt };
+  if (gcsUri) {
+    getGeminiUriCache(courseId)[file.name] = { uri: gcsUri };
   }
   questionsCaches[courseId] = null;
 
-  console.log(`✅ Uploaded: ${storagePath} — ${sizeKb}kb${geminiResult ? ' + Gemini URI cached' : ' (Gemini upload failed, will use inline)'}`);
+  console.log(`✅ Uploaded: ${storagePath} — ${sizeKb}kb${gcsUri ? ' + GCS URI cached' : ' (GCS upload failed, will fall back to inline)'}`);
   res.json({ success: true, fileName: file.name, sizeKb, mimeType });
 });
 
@@ -584,7 +583,7 @@ app.delete('/course/:courseId/document/:name', requireAuth, async (req, res) => 
   await supabase.from('documents').delete().eq('course_id', courseId).eq('name', filename);
 
   // 4. Delete from Gemini File API
-  if (dbDoc?.gemini_uri) await deleteFromGemini(dbDoc.gemini_uri);
+  if (dbDoc?.gemini_uri) await deleteFromGCS(dbDoc.gemini_uri);
 
   // 5. Clear in-memory caches
   if (courseDocuments[courseId]) delete courseDocuments[courseId][filename];
@@ -641,12 +640,16 @@ app.get('/course/:courseId/suggested-questions', requireAuth, requireCourseAcces
     const pdfs = Object.entries(docs).filter(([, doc]) => doc.mimeType === 'application/pdf').slice(0, 5);
     if (pdfs.length === 0) return res.json({ questions: FALLBACK_QUESTIONS });
 
-    // Build a multi-part request: each PDF as inlineData, then a single instruction
+    // Build a multi-part request. Prefer gs:// URIs (no inline upload cost);
+    // fall back to inline base64 only if GCS isn't ready yet.
+    const uris = await Promise.all(pdfs.map(([name, doc]) => getGeminiUri(courseId, name, doc)));
     const parts = [];
-    for (const [name, doc] of pdfs) {
-      parts.push({ inlineData: { mimeType: 'application/pdf', data: doc.buffer.toString('base64') } });
+    pdfs.forEach(([name, doc], i) => {
+      const uri = uris[i];
+      if (uri) parts.push({ fileData: { mimeType: 'application/pdf', fileUri: uri } });
+      else parts.push({ inlineData: { mimeType: 'application/pdf', data: doc.buffer.toString('base64') } });
       parts.push({ text: `[Course document: ${name}]` });
-    }
+    });
     parts.push({ text: `Read ALL of the course documents above. Write exactly 3 short student questions a student would realistically ask about this course. Draw from across the materials — do not focus on just one document. Each question must be 4-12 words and end with a question mark.
 
 Output ONLY a JSON array, nothing else, no markdown, no commentary. Example:
@@ -687,19 +690,20 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
   const docNames = Object.keys(docs);
   const docParts = [];
 
-  // Build doc parts — use Gemini URI if available, fall back to inline base64
-  for (const [name, doc] of Object.entries(docs)) {
-    const uri = await getGeminiUri(courseId, name, doc);
+  // Resolve all GCS URIs in parallel (was serial — slow if many docs).
+  // Use gs:// reference when available; fall back to inline base64 only if GCS
+  // isn't configured or the upload failed.
+  const docEntries = Object.entries(docs);
+  const docUris = await Promise.all(docEntries.map(([name, doc]) => getGeminiUri(courseId, name, doc)));
+  docEntries.forEach(([name, doc], i) => {
+    const uri = docUris[i];
     if (uri) {
-      // Fast path — just a URI reference, no data upload
       docParts.push({ fileData: { mimeType: doc.mimeType, fileUri: uri } });
-      docParts.push({ text: isImage(doc.mimeType) ? `[Professor image: ${name}]` : `[Professor document: ${name}]` });
     } else {
-      // Fallback — inline base64 (same as before)
       docParts.push({ inlineData: { mimeType: doc.mimeType, data: doc.buffer.toString('base64') } });
-      docParts.push({ text: isImage(doc.mimeType) ? `[Professor image: ${name}]` : `[Professor document: ${name}]` });
     }
-  }
+    docParts.push({ text: isImage(doc.mimeType) ? `[Professor image: ${name}]` : `[Professor document: ${name}]` });
+  });
 
   // Student notes always sent inline (they are per-student, not worth caching)
   if (req.files) {
@@ -890,16 +894,18 @@ app.post('/course/:courseId/quiz', requireAuth, requireCourseAccess, async (req,
   const docs = getCourseDocuments(courseId);
   if (Object.keys(docs).length === 0) return res.status(400).json({ error: 'No documents uploaded yet' });
 
+  const docEntries = Object.entries(docs);
+  const docUris = await Promise.all(docEntries.map(([name, doc]) => getGeminiUri(courseId, name, doc)));
   const docParts = [];
-  for (const [name, doc] of Object.entries(docs)) {
-    const uri = await getGeminiUri(courseId, name, doc);
+  docEntries.forEach(([name, doc], i) => {
+    const uri = docUris[i];
     if (uri) {
       docParts.push({ fileData: { mimeType: doc.mimeType, fileUri: uri } });
     } else {
       docParts.push({ inlineData: { mimeType: doc.mimeType, data: doc.buffer.toString('base64') } });
     }
     docParts.push({ text: `[Document: ${name}]` });
-  }
+  });
 
   const prompt = `Read these course documents and generate 5 multiple choice quiz questions${topic ? ` about: ${topic}` : ''}.
 
