@@ -511,17 +511,12 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
     setJoining(false);
   };
 
-  const handleEnterCourse = async (course) => {
-    try {
-      const authH = { Authorization: `Bearer ${token}` };
-      const [docsRes, qRes] = await Promise.all([
-        fetch(`${API}/course/${course.id}/documents`, { headers: authH }),
-        fetch(`${API}/course/${course.id}/suggested-questions`, { headers: authH }),
-      ]);
-      const docs = await docsRes.json();
-      const qData = await qRes.json();
-      onEnterCourse(course, Array.isArray(docs) ? docs : [], qData.questions || []);
-    } catch { onEnterCourse(course, [], []); }
+  const handleEnterCourse = (course) => {
+    // Navigate immediately — StudentView fetches docs + suggested-questions
+    // in its own background effects so the click feels instant. Previously
+    // we awaited both before transitioning, which blocked up to 5s on
+    // Gemini for the questions.
+    onEnterCourse(course, [], []);
   };
 
   const hour = new Date().getHours();
@@ -1127,7 +1122,9 @@ function ClassroomMode({ courseId, token, onExit }) {
 }
 
 // ── StudentView — all three bugs fixed ────────────────────────────────────────
-function StudentView({ course, documents, suggestedQuestions, onExit, studentToken }) {
+function StudentView({ course, documents: initialDocuments, suggestedQuestions: initialSuggestedQuestions, onExit, studentToken }) {
+  const [documents, setDocuments] = useState(initialDocuments || []);
+  const [suggestedQuestions, setSuggestedQuestions] = useState(initialSuggestedQuestions || []);
   const [chats, setChats] = useState([]);
   const [chatId, setChatId] = useState(null);
   const [input, setInput] = useState('');
@@ -1209,26 +1206,63 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
     quizQuestions[parseInt(qi)]?.correct === ai
   ).length;
 
-  // Load notes
+  // Background: fetch docs + suggested-questions in parallel so the chat
+  // view renders instantly without waiting for either. Suggested-questions
+  // is the slow one (calls Gemini) — students see the sidebar render first
+  // and questions pop in when ready.
   useEffect(() => {
+    if (initialDocuments?.length) return; // dashboard pre-fetched (legacy path)
+    fetch(`${API}/course/${course.id}/documents`, { headers: authHeaders })
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setDocuments(data); })
+      .catch(() => {});
+  }, [course.id]);
+
+  useEffect(() => {
+    if (initialSuggestedQuestions?.length) return;
+    fetch(`${API}/course/${course.id}/suggested-questions`, { headers: authHeaders })
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data.questions)) setSuggestedQuestions(data.questions); })
+      .catch(() => {});
+  }, [course.id]);
+
+  // Notes: load metadata fast so UI renders immediately, then download
+  // each PDF blob in the background. Blobs are only needed when sending
+  // a chat message — by the time the student types, they're usually ready.
+  useEffect(() => {
+    let cancelled = false;
     const fetchNotes = async () => {
       try {
         const res = await fetch(`${API}/student/notes/${course.id}`, { headers: authHeaders });
+        if (cancelled) return;
         const data = await res.json();
+        if (cancelled) return;
         if (Array.isArray(data) && data.length > 0) {
-          const notes = await Promise.all(data.map(async (n) => {
+          // Show note names immediately with no buffer yet
+          setMyNotes(data.map(n => ({ name: n.name, buffer: null, mimeType: n.mime_type })));
+          setNotesLoading(false);
+          // Background: fetch blobs one-by-one, update state as each arrives
+          for (const n of data) {
+            if (cancelled) return;
             try {
               const fileRes = await fetch(`${API}/student/notes/${course.id}/file/${encodeURIComponent(n.name)}`, { headers: authHeaders });
-              if (fileRes.ok) { const buffer = await fileRes.arrayBuffer(); return { name: n.name, buffer, mimeType: n.mime_type }; }
+              if (cancelled) return;
+              if (fileRes.ok) {
+                const buffer = await fileRes.arrayBuffer();
+                if (cancelled) return;
+                setMyNotes(prev => prev.map(p => p.name === n.name ? { ...p, buffer } : p));
+              }
             } catch {}
-            return null;
-          }));
-          setMyNotes(notes.filter(Boolean));
+          }
+        } else {
+          setNotesLoading(false);
         }
-      } catch {}
-      setNotesLoading(false);
+      } catch {
+        if (!cancelled) setNotesLoading(false);
+      }
     };
     fetchNotes();
+    return () => { cancelled = true; };
   }, [course.id]);
 
   // ── FIX 1: Load chats with safe messages fallback ─────────────────────────
@@ -1477,11 +1511,12 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
 
     try {
       let response;
-      if (myNotes.length > 0) {
+      const loadedNotes = myNotes.filter(n => n.buffer);
+      if (loadedNotes.length > 0) {
         const fd = new FormData();
         fd.append('message', message);
         fd.append('history', JSON.stringify(completedMessages.map(m => ({ role: m.role, content: m.content }))));
-        myNotes.forEach((n, i) => fd.append(`note_${i}`, new Blob([n.buffer], { type: n.mimeType }), n.name));
+        loadedNotes.forEach((n, i) => fd.append(`note_${i}`, new Blob([n.buffer], { type: n.mimeType }), n.name));
         response = await fetch(`${API}/course/${course.id}/chat`, { method: 'POST', headers: { Authorization: `Bearer ${studentToken}` }, body: fd, signal: controller.signal });
       } else {
         response = await fetch(`${API}/course/${course.id}/chat`, {
