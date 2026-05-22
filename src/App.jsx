@@ -963,11 +963,38 @@ function CourseInsights({ courseId, token, onStartClassMode }) {
       </div>
     );
   }
-  const d = { ...DEMO_DATA, totalQuestions: insights.totalQuestions, weekQuestions: insights.weekQuestions, timeSavedHours: insights.timeSavedHours, timeSavedMinutes: insights.timeSavedMinutes, confidenceRate: insights.flagged?.length > 0 ? Math.round(((insights.totalQuestions - insights.flagged.length) / insights.totalQuestions) * 100) : 94, estimatedStudents: Math.max(1, Math.round(insights.totalQuestions / 4.5)), peakHour: insights.peakHourLabel || '10 PM', topTopics: insights.topTopics?.length ? insights.topTopics : DEMO_DATA.topTopics, recent: insights.recent?.length ? insights.recent : DEMO_DATA.recent, flagged: insights.flagged?.length ? insights.flagged : DEMO_DATA.flagged };
+  // Build dailyActivity from real `recent` timestamps (the backend doesn't return this directly)
+  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const dailyCounts = dayLabels.map(d => ({ day: d, questions: 0 }));
+  (insights.recent || []).forEach(q => {
+    const t = new Date(q.ts).getTime();
+    if (t >= weekAgo) dailyCounts[new Date(t).getDay()].questions += 1;
+  });
+  // Rotate so the chart ends with today
+  const today = new Date().getDay();
+  const dailyActivity = [...dailyCounts.slice(today + 1), ...dailyCounts.slice(0, today + 1)];
+
+  const totalAnswered = insights.totalQuestions || 0;
+  const flaggedCount = insights.flagged?.length || 0;
+  const d = {
+    totalQuestions: totalAnswered,
+    weekQuestions: insights.weekQuestions || 0,
+    timeSavedHours: insights.timeSavedHours || 0,
+    timeSavedMinutes: insights.timeSavedMinutes || 0,
+    // Confidence = % of questions NOT flagged. With no flags, that's 100%.
+    confidenceRate: totalAnswered > 0 ? Math.round(((totalAnswered - flaggedCount) / totalAnswered) * 100) : 0,
+    estimatedStudents: Math.max(1, Math.round(totalAnswered / 4.5)),
+    peakHour: insights.peakHourLabel || '—',
+    topTopics: insights.topTopics || [],
+    recent: insights.recent || [],
+    flagged: insights.flagged || [],
+    dailyActivity,
+  };
   const totalForPie = d.topTopics.reduce((s, t) => s + t.count, 0) || 1;
   const pieData = d.topTopics.map(t => ({ name: t.topic, value: t.count, percent: t.count / totalForPie }));
   const timeSaved = d.timeSavedHours > 0 ? `${d.timeSavedHours}h ${d.timeSavedMinutes}m` : `${d.timeSavedMinutes}m`;
-  const topTopic = d.topTopics?.[0]?.topic || 'Concepts';
+  const topTopic = d.topTopics?.[0]?.topic || '—';
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#F7F7F7]">
@@ -1014,33 +1041,47 @@ function CourseInsights({ courseId, token, onStartClassMode }) {
             <div className="bg-white rounded-2xl border border-gray-200 p-6">
               <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-0.5">Topic Distribution</h3>
               <p className="text-[11px] text-gray-400 mb-4">What students are asking about</p>
-              <div className="flex items-center gap-4">
-                <ResponsiveContainer width={150} height={150}>
-                  <PieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={42} outerRadius={70} paddingAngle={3} dataKey="value">{pieData.map((_, i) => <Cell key={i} fill={TOPIC_COLORS[i % TOPIC_COLORS.length]} />)}</Pie><Tooltip content={<PieTooltipCustom />} /></PieChart>
-                </ResponsiveContainer>
-                <div className="flex-1 space-y-2">{pieData.map((entry, i) => (<div key={i} className="flex items-center gap-2"><div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: TOPIC_COLORS[i % TOPIC_COLORS.length] }} /><span className="text-xs text-gray-600 flex-1 truncate">{entry.name}</span><span className="text-xs font-semibold text-gray-900">{Math.round(entry.percent * 100)}%</span></div>))}</div>
-              </div>
+              {pieData.length > 0 ? (
+                <div className="flex items-center gap-4">
+                  <ResponsiveContainer width={150} height={150}>
+                    <PieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={42} outerRadius={70} paddingAngle={3} dataKey="value">{pieData.map((_, i) => <Cell key={i} fill={TOPIC_COLORS[i % TOPIC_COLORS.length]} />)}</Pie><Tooltip content={<PieTooltipCustom />} /></PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex-1 space-y-2">{pieData.map((entry, i) => (<div key={i} className="flex items-center gap-2"><div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: TOPIC_COLORS[i % TOPIC_COLORS.length] }} /><span className="text-xs text-gray-600 flex-1 truncate">{entry.name}</span><span className="text-xs font-semibold text-gray-900">{Math.round(entry.percent * 100)}%</span></div>))}</div>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 py-6 text-center">No topic data yet</p>
+              )}
             </div>
           </div>
-          <div className="bg-gray-900 rounded-2xl p-6 text-white">
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 text-lg">💡</div>
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">Scholr AI Insight</p>
-                <p className="text-sm leading-relaxed text-white/80">Students asked about <strong className="text-white">{topTopic}</strong> most this week.{d.flagged?.length > 0 && <> {d.flagged.length} question{d.flagged.length > 1 ? 's' : ''} couldn't be answered confidently.</>}{d.weekQuestions > 5 && <> Peak activity was at <strong className="text-white">{d.peakHour}</strong>.</>}</p>
+          {d.topTopics.length > 0 && (
+            <div className="bg-gray-900 rounded-2xl p-6 text-white">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 text-lg">💡</div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">Scholr AI Insight</p>
+                  <p className="text-sm leading-relaxed text-white/80">Students asked about <strong className="text-white">{topTopic}</strong> most this week.{d.flagged?.length > 0 && <> {d.flagged.length} question{d.flagged.length > 1 ? 's' : ''} couldn't be answered confidently.</>}{d.weekQuestions > 5 && d.peakHour !== '—' && <> Peak activity was at <strong className="text-white">{d.peakHour}</strong>.</>}</p>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </>)}
         {activeTab === 'questions' && (<>
           <div className="bg-white rounded-2xl border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-5"><div><h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide">Recent Questions</h3><p className="text-[11px] text-gray-400 mt-0.5">What students asked in real time</p></div><div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><span className="text-[10px] text-gray-400">Live</span></div></div>
-            <div className="divide-y divide-gray-50">{d.recent.slice(0, 10).map((q, i) => { const label = getTopicLabel(q.question); return (<div key={i} className="flex items-start gap-4 py-3"><div className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${q.confident !== false ? 'bg-emerald-400' : 'bg-amber-400'}`} /><div className="flex-1 min-w-0"><p className="text-sm text-gray-800 leading-snug">{q.question}</p><span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-1 inline-block ${TOPIC_ACCENT[label] || 'bg-gray-100 text-gray-600'}`}>{label}</span></div><span className="text-[10px] text-gray-300 flex-shrink-0 mt-1">{formatRelativeDate(q.ts)}</span></div>); })}</div>
+            {d.recent.length > 0 ? (
+              <div className="divide-y divide-gray-50">{d.recent.slice(0, 10).map((q, i) => { const label = getTopicLabel(q.question); return (<div key={i} className="flex items-start gap-4 py-3"><div className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${q.confident !== false ? 'bg-emerald-400' : 'bg-amber-400'}`} /><div className="flex-1 min-w-0"><p className="text-sm text-gray-800 leading-snug">{q.question}</p><span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-1 inline-block ${TOPIC_ACCENT[label] || 'bg-gray-100 text-gray-600'}`}>{label}</span></div><span className="text-[10px] text-gray-300 flex-shrink-0 mt-1">{formatRelativeDate(q.ts)}</span></div>); })}</div>
+            ) : (
+              <p className="text-xs text-gray-400 py-6 text-center">No questions yet</p>
+            )}
           </div>
         </>)}
         {activeTab === 'gaps' && (<>
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6"><div className="flex items-start gap-4"><div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 text-lg">⚠️</div><div><h3 className="text-sm font-semibold text-amber-900 mb-1">Knowledge Gap Analysis</h3><p className="text-xs text-amber-700 leading-relaxed">These questions couldn't be answered confidently from your uploaded materials.</p></div></div></div>
-          <div className="space-y-3">{d.flagged.map((q, i) => (<div key={i} className="bg-white rounded-2xl border border-gray-200 p-5"><div className="flex items-start gap-4"><div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0"><span className="text-amber-500 text-xs font-bold">#{i + 1}</span></div><div className="flex-1"><p className="text-sm text-gray-800 font-medium">{q.question}</p><div className="flex items-center gap-3 mt-2"><span className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">Low confidence</span><span className="text-[10px] text-gray-400">{formatRelativeDate(q.ts)}</span></div></div></div></div>))}</div>
+          {d.flagged.length > 0 ? (
+            <div className="space-y-3">{d.flagged.map((q, i) => (<div key={i} className="bg-white rounded-2xl border border-gray-200 p-5"><div className="flex items-start gap-4"><div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0"><span className="text-amber-500 text-xs font-bold">#{i + 1}</span></div><div className="flex-1"><p className="text-sm text-gray-800 font-medium">{q.question}</p><div className="flex items-center gap-3 mt-2"><span className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">Low confidence</span><span className="text-[10px] text-gray-400">{formatRelativeDate(q.ts)}</span></div></div></div></div>))}</div>
+          ) : (
+            <p className="text-xs text-gray-400 py-6 text-center">No flagged questions — every answer landed confidently.</p>
+          )}
         </>)}
       </div>
     </div>
@@ -1193,9 +1234,21 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
   // ── FIX 1: Load chats with safe messages fallback ─────────────────────────
   useEffect(() => {
     let cancelled = false;
+    // Safety net: if loading hangs past 12s (cold backend, network hiccup),
+    // render the UI anyway with a local fallback chat so the student isn't stuck.
+    const safetyTimer = setTimeout(() => {
+      if (cancelled) return;
+      console.warn('[Scholr] chats fetch took >12s, rendering with local fallback');
+      const localId = `local-${Date.now()}`;
+      setChats(prev => prev.length > 0 ? prev : [{ id: localId, title: 'New Chat', messages: [] }]);
+      setChatId(prev => prev || localId);
+      setChatsLoading(false);
+    }, 12000);
     const fetchChats = async () => {
       try {
+        console.log('[Scholr] fetching chats for', course.id);
         const res = await fetch(`${API}/student/chats/${course.id}`, { headers: authHeaders });
+        console.log('[Scholr] chats response status', res.status);
         if (cancelled) return;
         const data = await res.json();
         if (cancelled) return;
@@ -1257,7 +1310,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
       }
     };
     fetchChats();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(safetyTimer); };
   }, [course.id]);
 
   const DEFAULT_QUESTIONS = ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
