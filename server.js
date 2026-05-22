@@ -596,28 +596,74 @@ app.get('/course/:courseId/insights', requireAuth, requireCourseAccess, async (r
   res.json(await getCourseInsights(req.params.courseId));
 });
 
+const FALLBACK_QUESTIONS = [
+  "What are the main topics in this course?",
+  "Summarize the key concepts",
+  "What should I focus on for the exam?",
+];
+
+function parseSuggestedQuestions(raw) {
+  if (!raw) return [];
+  const text = raw.trim();
+  // 1. Try parsing a JSON array (may be wrapped in markdown code fences)
+  const arrayMatch = text.match(/\[[\s\S]*?\]/);
+  if (arrayMatch) {
+    try {
+      const parsed = JSON.parse(arrayMatch[0]);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.map(q => String(q).trim()).filter(q => q.length >= 5 && q.length <= 120);
+        if (cleaned.length) return cleaned.slice(0, 3);
+      }
+    } catch {}
+  }
+  // 2. Fall back to any quoted strings of reasonable length
+  const quoted = text.match(/"([^"]{5,120})"/g);
+  if (quoted) {
+    const out = quoted.map(s => s.replace(/^"|"$/g, '').trim()).filter(Boolean);
+    if (out.length) return out.slice(0, 3);
+  }
+  // 3. Last resort: any lines ending with ? that look like questions
+  const lines = text.split('\n')
+    .map(l => l.replace(/^[-*\d.\s]+/, '').replace(/^["']|["']$/g, '').trim())
+    .filter(l => l.length >= 5 && l.length <= 120 && l.endsWith('?'));
+  return lines.slice(0, 3);
+}
+
 app.get('/course/:courseId/suggested-questions', requireAuth, requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const docs = getCourseDocuments(courseId);
   if (Object.keys(docs).length === 0) return res.json({ questions: [] });
   if (questionsCaches[courseId]) return res.json({ questions: questionsCaches[courseId] });
   try {
-    const firstPdf = Object.entries(docs).find(([, doc]) => doc.mimeType === 'application/pdf');
-    if (!firstPdf) return res.json({ questions: ["What are the main topics in this course?", "Summarize the key concepts", "What should I focus on for the exam?"] });
+    const pdfs = Object.entries(docs).filter(([, doc]) => doc.mimeType === 'application/pdf').slice(0, 5);
+    if (pdfs.length === 0) return res.json({ questions: FALLBACK_QUESTIONS });
+
+    // Build a multi-part request: each PDF as inlineData, then a single instruction
+    const parts = [];
+    for (const [name, doc] of pdfs) {
+      parts.push({ inlineData: { mimeType: 'application/pdf', data: doc.buffer.toString('base64') } });
+      parts.push({ text: `[Course document: ${name}]` });
+    }
+    parts.push({ text: `Read ALL of the course documents above. Write exactly 3 short student questions a student would realistically ask about this course. Draw from across the materials — do not focus on just one document. Each question must be 4-12 words and end with a question mark.
+
+Output ONLY a JSON array, nothing else, no markdown, no commentary. Example:
+["When is the midterm?","How is participation graded?","What chapters cover the Bohr model?"]` });
+
     const result = await ai.models.generateContent({
       model: MODEL,
-      contents: [{ role: 'user', parts: [{ inlineData: { mimeType: 'application/pdf', data: firstPdf[1].buffer.toString('base64') } }, { text: 'Read this course document and write exactly 3 short student questions about the content. Each question must be under 8 words. Output only a JSON array on a single line.\n\nExample: ["Short question one?","Short question two?","Short question three?"]' }] }],
-      config: { temperature: 0.5, maxOutputTokens: 256 },
+      contents: [{ role: 'user', parts }],
+      // gemini-2.5-flash burns tokens on internal reasoning before output —
+      // 512 wasn't enough to finish 3 questions, so give it room.
+      config: { temperature: 0.5, maxOutputTokens: 2048 },
     });
-    const raw = result.text.trim();
-    let questions = [];
-    try { const m = raw.match(/\[.*?\]/s); if (m) questions = JSON.parse(m[0]); } catch {}
-    if (!questions.length) { const m = raw.match(/"([^"]{5,60})"/g); if (m) questions = m.map(x => x.replace(/"/g, '')).slice(0, 3); }
-    const final = questions.length ? questions.slice(0, 3) : ["What are the main topics in this course?", "Summarize the key concepts", "What should I focus on for the exam?"];
+
+    const parsed = parseSuggestedQuestions(result.text);
+    const final = parsed.length >= 3 ? parsed.slice(0, 3) : [...parsed, ...FALLBACK_QUESTIONS].slice(0, 3);
     questionsCaches[courseId] = final;
     res.json({ questions: final });
-  } catch {
-    res.json({ questions: ["What are the main topics in this course?", "Summarize the key concepts", "What should I focus on for the exam?"] });
+  } catch (err) {
+    console.error('suggested-questions error:', err.message);
+    res.json({ questions: FALLBACK_QUESTIONS });
   }
 });
 
