@@ -297,7 +297,10 @@ app.use(cors({
     if (ALLOWED_ORIGINS.has(origin)) return cb(null, true);
     cb(new Error(`CORS blocked: ${origin}`));
   },
-  credentials: true,
+  // credentials: false on purpose. We auth with Bearer tokens in the
+  // Authorization header, never with cookies. Setting credentials: true
+  // triggers Safari ITP to flag the backend as a tracker and silently
+  // block cross-origin requests.
 }));
 app.use(express.json());
 app.use(fileUpload({ limits: { fileSize: 50 * 1024 * 1024 } }));
