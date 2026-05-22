@@ -283,7 +283,22 @@ async function getCourseInsights(courseId) {
   }
 }
 
-app.use(cors({ origin: '*' }));
+const ALLOWED_ORIGINS = new Set([
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'https://scholr.study',
+  'https://www.scholr.study',
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
+]);
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow requests with no Origin header (curl, server-to-server, mobile apps)
+    if (!origin) return cb(null, true);
+    if (ALLOWED_ORIGINS.has(origin)) return cb(null, true);
+    cb(new Error(`CORS blocked: ${origin}`));
+  },
+  credentials: true,
+}));
 app.use(express.json());
 app.use(fileUpload({ limits: { fileSize: 50 * 1024 * 1024 } }));
 
@@ -391,6 +406,32 @@ async function requireAuth(req, res, next) {
     req.user = data.user;
     next();
   } catch { res.status(401).json({ error: 'Unauthorized' }); }
+}
+
+// User can access a course if they own it (professor) or are enrolled (student)
+async function userCanAccessCourse(userId, courseId) {
+  const { data: course } = await supabase
+    .from('courses')
+    .select('professor_id')
+    .eq('id', courseId)
+    .maybeSingle();
+  if (!course) return false;
+  if (course.professor_id === userId) return true;
+  const { data: enrollment } = await supabase
+    .from('enrollments')
+    .select('course_id')
+    .eq('course_id', courseId)
+    .eq('student_id', userId)
+    .maybeSingle();
+  return !!enrollment;
+}
+
+async function requireCourseAccess(req, res, next) {
+  const courseId = req.params.courseId;
+  if (!courseId) return res.status(400).json({ error: 'Missing courseId' });
+  const allowed = await userCanAccessCourse(req.user.id, courseId);
+  if (!allowed) return res.status(403).json({ error: 'Not enrolled in this course' });
+  next();
 }
 
 // ── Student routes ────────────────────────────────────────────────────────────
@@ -515,7 +556,7 @@ app.post('/course/:courseId/upload', requireAuth, async (req, res) => {
   res.json({ success: true, fileName: file.name, sizeKb, mimeType });
 });
 
-app.get('/course/:courseId/documents', async (req, res) => {
+app.get('/course/:courseId/documents', requireAuth, requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const { data } = await supabase.from('documents').select('*').eq('course_id', courseId).order('uploaded_at', { ascending: false });
   res.json((data || []).map(d => ({ name: d.name, sizeKb: d.size_kb, mimeType: d.mime_type, uploadedAt: d.uploaded_at })));
@@ -551,11 +592,11 @@ app.delete('/course/:courseId/document/:name', requireAuth, async (req, res) => 
   res.json({ success: true });
 });
 
-app.get('/course/:courseId/insights', async (req, res) => {
+app.get('/course/:courseId/insights', requireAuth, requireCourseAccess, async (req, res) => {
   res.json(await getCourseInsights(req.params.courseId));
 });
 
-app.get('/course/:courseId/suggested-questions', async (req, res) => {
+app.get('/course/:courseId/suggested-questions', requireAuth, requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const docs = getCourseDocuments(courseId);
   if (Object.keys(docs).length === 0) return res.json({ questions: [] });
@@ -581,7 +622,7 @@ app.get('/course/:courseId/suggested-questions', async (req, res) => {
 });
 
 // ── Chat — uses Gemini URIs instead of re-uploading PDFs ─────────────────────
-app.post('/course/:courseId/chat', async (req, res) => {
+app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const message = req.body?.message;
   const history = req.body?.history || [];
@@ -794,7 +835,7 @@ app.post('/professor/courses/:courseId/cover', requireAuth, async (req, res) => 
   res.json({ success: true, coverImage: publicUrl });
 });
 
-app.post('/course/:courseId/quiz', async (req, res) => {
+app.post('/course/:courseId/quiz', requireAuth, requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const { topic } = req.body;
   const docs = getCourseDocuments(courseId);

@@ -513,9 +513,10 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
 
   const handleEnterCourse = async (course) => {
     try {
+      const authH = { Authorization: `Bearer ${token}` };
       const [docsRes, qRes] = await Promise.all([
-        fetch(`${API}/course/${course.id}/documents`),
-        fetch(`${API}/course/${course.id}/suggested-questions`),
+        fetch(`${API}/course/${course.id}/documents`, { headers: authH }),
+        fetch(`${API}/course/${course.id}/suggested-questions`, { headers: authH }),
       ]);
       const docs = await docsRes.json();
       const qData = await qRes.json();
@@ -799,7 +800,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
   useEffect(() => {
-    fetch(`${API}/course/${course.id}/documents`)
+    fetch(`${API}/course/${course.id}/documents`, { headers: authHeaders })
       .then(r => r.json()).then(data => {
         setMods((Array.isArray(data) ? data : []).map(d => ({ id: d.name, name: d.name, sizeKb: d.sizeKb, uploaded: new Date(d.uploadedAt) })));
       }).catch(() => showToast('Could not load documents', 'error'));
@@ -833,7 +834,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
     showToast('Student link copied!');
   };
 
-  if (classroomMode) return <ClassroomMode courseId={course.id} onExit={() => setClassroomMode(false)} />;
+  if (classroomMode) return <ClassroomMode courseId={course.id} token={token} onExit={() => setClassroomMode(false)} />;
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#F7F7F7] fixed inset-0">
@@ -912,7 +913,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
               )}
             </div>
           </>
-        ) : <CourseInsights courseId={course.id} onStartClassMode={() => setClassroomMode(true)} />}
+        ) : <CourseInsights courseId={course.id} token={token} onStartClassMode={() => setClassroomMode(true)} />}
       </main>
       {toast && (
         <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-xl text-white text-xs font-medium shadow-xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
@@ -923,7 +924,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   );
 }
 
-function CourseInsights({ courseId, onStartClassMode }) {
+function CourseInsights({ courseId, token, onStartClassMode }) {
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
@@ -932,7 +933,7 @@ function CourseInsights({ courseId, onStartClassMode }) {
 
   const fetchInsights = async () => {
     try {
-      const res = await fetch(`${API}/course/${courseId}/insights`);
+      const res = await fetch(`${API}/course/${courseId}/insights`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
       if (lastCount > 0 && data.totalQuestions > lastCount) setNewCount(data.totalQuestions - lastCount);
       setLastCount(data.totalQuestions);
@@ -945,7 +946,24 @@ function CourseInsights({ courseId, onStartClassMode }) {
   if (loading) return <div className="flex-1 flex items-center justify-center"><div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" /></div>;
 
   const isEmpty = !insights || insights.totalQuestions === 0;
-  const d = isEmpty ? DEMO_DATA : { ...DEMO_DATA, totalQuestions: insights.totalQuestions, weekQuestions: insights.weekQuestions, timeSavedHours: insights.timeSavedHours, timeSavedMinutes: insights.timeSavedMinutes, confidenceRate: insights.flagged?.length > 0 ? Math.round(((insights.totalQuestions - insights.flagged.length) / insights.totalQuestions) * 100) : 94, estimatedStudents: Math.max(1, Math.round(insights.totalQuestions / 4.5)), peakHour: insights.peakHourLabel || '10 PM', topTopics: insights.topTopics?.length ? insights.topTopics : DEMO_DATA.topTopics, recent: insights.recent?.length ? insights.recent : DEMO_DATA.recent, flagged: insights.flagged?.length ? insights.flagged : DEMO_DATA.flagged };
+  if (isEmpty) {
+    return (
+      <div className="flex-1 flex flex-col bg-[#F7F7F7]">
+        <div className="bg-white border-b border-gray-200 px-8 py-5 flex-shrink-0">
+          <h2 className="text-gray-900 font-semibold text-sm">Student Insights</h2>
+          <div className="flex items-center gap-2 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><p className="text-gray-400 text-xs">Live · updates every 10s</p></div>
+        </div>
+        <div className="flex-1 flex items-center justify-center px-8">
+          <div className="text-center max-w-md">
+            <div className="text-4xl mb-4">📊</div>
+            <h3 className="serif text-2xl text-gray-900 mb-2">No questions yet</h3>
+            <p className="text-gray-400 text-sm">Once your students start asking the AI questions, you'll see what topics they're confused about, when they're studying, and which answers need your review.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  const d = { ...DEMO_DATA, totalQuestions: insights.totalQuestions, weekQuestions: insights.weekQuestions, timeSavedHours: insights.timeSavedHours, timeSavedMinutes: insights.timeSavedMinutes, confidenceRate: insights.flagged?.length > 0 ? Math.round(((insights.totalQuestions - insights.flagged.length) / insights.totalQuestions) * 100) : 94, estimatedStudents: Math.max(1, Math.round(insights.totalQuestions / 4.5)), peakHour: insights.peakHourLabel || '10 PM', topTopics: insights.topTopics?.length ? insights.topTopics : DEMO_DATA.topTopics, recent: insights.recent?.length ? insights.recent : DEMO_DATA.recent, flagged: insights.flagged?.length ? insights.flagged : DEMO_DATA.flagged };
   const totalForPie = d.topTopics.reduce((s, t) => s + t.count, 0) || 1;
   const pieData = d.topTopics.map(t => ({ name: t.topic, value: t.count, percent: t.count / totalForPie }));
   const timeSaved = d.timeSavedHours > 0 ? `${d.timeSavedHours}h ${d.timeSavedMinutes}m` : `${d.timeSavedMinutes}m`;
@@ -955,7 +973,7 @@ function CourseInsights({ courseId, onStartClassMode }) {
     <div className="flex-1 flex flex-col overflow-hidden bg-[#F7F7F7]">
       <div className="bg-white border-b border-gray-200 px-8 py-5 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <div><h2 className="text-gray-900 font-semibold text-sm">Student Insights</h2><div className="flex items-center gap-2 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><p className="text-gray-400 text-xs">Live · updates every 10s{isEmpty ? ' · showing sample data' : ''}</p></div></div>
+          <div><h2 className="text-gray-900 font-semibold text-sm">Student Insights</h2><div className="flex items-center gap-2 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><p className="text-gray-400 text-xs">Live · updates every 10s</p></div></div>
           <div className="flex items-center gap-3">
             {newCount > 0 && <button onClick={() => { setNewCount(0); fetchInsights(); }} className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">↑ {newCount} new</button>}
             <button onClick={onStartClassMode} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors"><span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />Live Mode</button>
@@ -1029,14 +1047,14 @@ function CourseInsights({ courseId, onStartClassMode }) {
   );
 }
 
-function ClassroomMode({ courseId, onExit }) {
+function ClassroomMode({ courseId, token, onExit }) {
   const [questions, setQuestions] = useState([]);
   const [newCount, setNewCount] = useState(0);
 
   useEffect(() => {
     const poll = async () => {
       try {
-        const res = await fetch(`${API}/course/${courseId}/insights`);
+        const res = await fetch(`${API}/course/${courseId}/insights`, { headers: { Authorization: `Bearer ${token}` } });
         const data = await res.json();
         const incoming = (data.recent || []).slice(0, 20);
         if (incoming.length > questions.length) setNewCount(incoming.length - questions.length);
@@ -1129,7 +1147,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
     try {
       const res = await fetch(`${API}/course/${course.id}/quiz`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${studentToken}` },
         body: JSON.stringify({ topic }),
       });
       const data = await res.json();
@@ -1174,10 +1192,13 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
 
   // ── FIX 1: Load chats with safe messages fallback ─────────────────────────
   useEffect(() => {
+    let cancelled = false;
     const fetchChats = async () => {
       try {
         const res = await fetch(`${API}/student/chats/${course.id}`, { headers: authHeaders });
+        if (cancelled) return;
         const data = await res.json();
+        if (cancelled) return;
         if (Array.isArray(data) && data.length > 0) {
           const loaded = data.map(c => ({
             id: c.id,
@@ -1200,14 +1221,18 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
           setChatId(loaded[0].id);
           setChatsLoading(false);
         } else {
-          // No chats — create the first one
+          // No chats — create the first one. Cancellation guards prevent
+          // StrictMode's double-effect from creating two empty chats.
+          if (cancelled) return;
           try {
             const res2 = await fetch(`${API}/student/chats/${course.id}`, {
               method: 'POST',
               headers: jsonHeaders,
               body: JSON.stringify({ title: 'New Chat' }),
             });
+            if (cancelled) return;
             const newChat = await res2.json();
+            if (cancelled) return;
             if (newChat.id) {
               const nc = { id: newChat.id, dbId: newChat.id, title: 'New Chat', messages: [] };
               setChats([nc]);
@@ -1216,6 +1241,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
               throw new Error('No id returned');
             }
           } catch {
+            if (cancelled) return;
             const nc = { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
             setChats([nc]);
             setChatId(nc.id);
@@ -1223,6 +1249,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
           setChatsLoading(false);
         }
       } catch {
+        if (cancelled) return;
         const nc = { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
         setChats([nc]);
         setChatId(nc.id);
@@ -1230,6 +1257,7 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
       }
     };
     fetchChats();
+    return () => { cancelled = true; };
   }, [course.id]);
 
   const DEFAULT_QUESTIONS = ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
@@ -1401,11 +1429,11 @@ function StudentView({ course, documents, suggestedQuestions, onExit, studentTok
         fd.append('message', message);
         fd.append('history', JSON.stringify(completedMessages.map(m => ({ role: m.role, content: m.content }))));
         myNotes.forEach((n, i) => fd.append(`note_${i}`, new Blob([n.buffer], { type: n.mimeType }), n.name));
-        response = await fetch(`${API}/course/${course.id}/chat`, { method: 'POST', body: fd, signal: controller.signal });
+        response = await fetch(`${API}/course/${course.id}/chat`, { method: 'POST', headers: { Authorization: `Bearer ${studentToken}` }, body: fd, signal: controller.signal });
       } else {
         response = await fetch(`${API}/course/${course.id}/chat`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${studentToken}` },
           signal: controller.signal,
           body: JSON.stringify({ message, history: completedMessages.map(m => ({ role: m.role, content: m.content })) }),
         });
@@ -1873,7 +1901,7 @@ function JoinCoursePage({ studentToken, studentUser, onStudentLogin, onEnterCour
   const handleJoinNow = async () => {
     if (!studentToken) {
       sessionStorage.setItem('scholr_pending_join', code);
-      navigate('/student/login');
+      navigate('/student/signup');
       return;
     }
     setJoining(true);
@@ -1999,7 +2027,7 @@ export default function App() {
 
   const handleProfLogin = (token, user) => { localStorage.setItem('scholr_token', token); localStorage.setItem('scholr_user', JSON.stringify(user)); setProfToken(token); setProfUser(user); setScreen('prof-dashboard'); };
   const handleProfLogout = () => { localStorage.removeItem('scholr_token'); localStorage.removeItem('scholr_user'); setProfToken(null); setProfUser(null); setScreen('landing'); };
-  const handleStudentLogin = (token, user) => { localStorage.setItem('scholr_student_token', token); localStorage.setItem('scholr_student_user', JSON.stringify(user)); setStudentToken(token); setStudentUser(user); setTimeout(() => setScreen('student-dashboard'), 50); };
+  const handleStudentLogin = (token, user) => { localStorage.setItem('scholr_student_token', token); localStorage.setItem('scholr_student_user', JSON.stringify(user)); setStudentToken(token); setStudentUser(user); setScreen('student-dashboard'); navigate('/student'); };
   const handleStudentLogout = () => { localStorage.removeItem('scholr_student_token'); localStorage.removeItem('scholr_student_user'); setStudentToken(null); setStudentUser(null); setScreen('landing'); };
   const handleEnterCourse = (course, docs, questions) => { setStudentCourse(course); setStudentDocs(docs); setStudentQuestions(questions); setScreen('student-chat'); };
 
@@ -2023,7 +2051,13 @@ export default function App() {
       <Route path="/join/:code" element={<JoinCoursePage studentToken={studentToken} studentUser={studentUser} onStudentLogin={handleStudentLogin} onEnterCourse={handleEnterCourse} />} />
       <Route path="/student/login" element={<StudentLogin onLogin={handleStudentLogin} onGoSignup={() => navigate('/student/signup')} onBack={() => navigate('/')} pendingJoinCode={pendingJoinCode} />} />
       <Route path="/student/signup" element={<StudentSignup onLogin={handleStudentLogin} onGoLogin={() => navigate('/student/login')} onBack={() => navigate('/')} pendingJoinCode={pendingJoinCode} />} />
-      <Route path="/student" element={studentToken ? <StudentDashboard token={studentToken} user={studentUser} onEnterCourse={handleEnterCourse} onLogout={handleStudentLogout} /> : <LandingPage onStudent={() => navigate('/student/login')} onInstructor={() => setScreen('prof-signup')} onSignIn={() => setScreen('smart-signin')} />} />
+      <Route path="/student" element={
+        studentToken
+          ? (screen === 'student-chat' && studentCourse
+              ? <StudentView course={studentCourse} documents={studentDocs} suggestedQuestions={studentQuestions} onExit={() => setScreen('student-dashboard')} studentToken={studentToken} />
+              : <StudentDashboard token={studentToken} user={studentUser} onEnterCourse={handleEnterCourse} onLogout={handleStudentLogout} />)
+          : <LandingPage onStudent={() => navigate('/student/login')} onInstructor={() => setScreen('prof-signup')} onSignIn={() => setScreen('smart-signin')} />
+      } />
       <Route path="/*" element={renderScreen()} />
     </Routes>
   );
