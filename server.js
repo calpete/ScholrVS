@@ -598,6 +598,26 @@ app.get('/course/:courseId/insights', requireAuth, requireCourseAccess, async (r
   res.json(await getCourseInsights(req.params.courseId));
 });
 
+// Owner-only — wipes all logged questions for this course so the professor
+// can reset analytics before sharing with real students. Does not touch
+// student chat history or course materials, only the questions table that
+// powers Insights.
+app.delete('/course/:courseId/insights-data', requireAuth, async (req, res) => {
+  const { courseId } = req.params;
+  const { data: course } = await supabase
+    .from('courses')
+    .select('id')
+    .eq('id', courseId)
+    .eq('professor_id', req.user.id)
+    .maybeSingle();
+  if (!course) return res.status(403).json({ error: 'Only the course owner can clear insights data' });
+  const { error } = await supabase.from('questions').delete().eq('course_id', courseId);
+  if (error) return res.status(500).json({ error: error.message });
+  delete aiSummaryCache[courseId];
+  console.log(`✅ Cleared insights data for course ${courseId}`);
+  res.json({ success: true });
+});
+
 // ── AI summary ───────────────────────────────────────────────────────────────
 // Generates a short 2-3 sentence professor-facing summary of what students
 // have been asking about. Cached per course for 5 minutes so we don't spam

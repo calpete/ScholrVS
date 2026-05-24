@@ -953,6 +953,26 @@ function CourseInsights({ courseId, token, onStartClassMode }) {
     setSummaryLoading(false);
   };
 
+  const clearData = async () => {
+    if (!confirm('Delete all logged questions for this course?\n\nThis wipes the Total Questions count, Weekly Activity chart, and AI Summary. Student chat history and uploaded materials are NOT affected.\n\nThis cannot be undone.')) return;
+    try {
+      const res = await fetch(`${API}/course/${courseId}/insights-data`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Could not clear data');
+        return;
+      }
+      // Reset local state and refetch
+      setSummary(null);
+      setSummaryGeneratedAt(null);
+      setLastCount(0);
+      setNewCount(0);
+      fetchInsights();
+    } catch {
+      alert('Server unreachable');
+    }
+  };
+
   useEffect(() => { fetchInsights(); const i = setInterval(fetchInsights, 10000); return () => clearInterval(i); }, [courseId, lastCount]);
   // Fetch the AI summary once on mount and again whenever total question count crosses a threshold
   useEffect(() => { if (insights?.totalQuestions > 0 && !summary) fetchSummary(); }, [insights?.totalQuestions]);
@@ -1017,6 +1037,7 @@ function CourseInsights({ courseId, token, onStartClassMode }) {
           <div><h2 className="text-gray-900 font-semibold text-sm">Student Insights</h2><div className="flex items-center gap-2 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><p className="text-gray-400 text-xs">Live · updates every 10s</p></div></div>
           <div className="flex items-center gap-3">
             {newCount > 0 && <button onClick={() => { setNewCount(0); fetchInsights(); }} className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">↑ {newCount} new</button>}
+            <button onClick={clearData} className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-red-300 hover:text-red-600 text-gray-500 text-xs font-medium transition-colors">Clear data</button>
             <button onClick={onStartClassMode} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors"><span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />Live Mode</button>
           </div>
         </div>
