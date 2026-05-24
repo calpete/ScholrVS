@@ -598,6 +598,59 @@ app.get('/course/:courseId/insights', requireAuth, requireCourseAccess, async (r
   res.json(await getCourseInsights(req.params.courseId));
 });
 
+// ── AI summary ───────────────────────────────────────────────────────────────
+// Generates a short 2-3 sentence professor-facing summary of what students
+// have been asking about. Cached per course for 5 minutes so we don't spam
+// Gemini if a professor sits on the page.
+const aiSummaryCache = {};  // { courseId: { summary, generatedAt, totalAtGeneration } }
+
+app.get('/course/:courseId/ai-summary', requireAuth, requireCourseAccess, async (req, res) => {
+  const { courseId } = req.params;
+  const insights = await getCourseInsights(courseId);
+  if (!insights.totalQuestions) {
+    return res.json({ summary: null, generatedAt: null });
+  }
+
+  // Serve cached summary if fresh AND no new questions arrived since last gen
+  const cached = aiSummaryCache[courseId];
+  const fiveMinAgo = Date.now() - 5 * 60 * 1000;
+  if (cached && new Date(cached.generatedAt).getTime() > fiveMinAgo && cached.totalAtGeneration === insights.totalQuestions) {
+    return res.json({ summary: cached.summary, generatedAt: cached.generatedAt, cached: true });
+  }
+
+  try {
+    const recentQs = (insights.recent || []).slice(0, 30).map(q => `- ${q.question}${q.confident === false ? ' [unanswered confidently]' : ''}`).join('\n');
+    const topTopics = (insights.topTopics || []).map(t => `${t.topic} (${t.count})`).join(', ') || 'none yet';
+    const prompt = `You are an academic-insights assistant for a college professor. Based on what their students have been asking the course AI tutor, write a brief 2-3 sentence summary for the professor.
+
+Be specific, conversational, and actionable. Mention what students are asking about most, any clear pattern (confusion, common topics), and one practical suggestion for the professor if obvious. Don't repeat the raw numbers — they already see the stat cards. Don't use lists. Just plain prose.
+
+STATS:
+- ${insights.totalQuestions} total questions, ${insights.weekQuestions} this week
+- Top topics: ${topTopics}
+- ${insights.flagged?.length || 0} questions the AI couldn't answer confidently
+${insights.peakHourLabel ? `- Peak study time: ${insights.peakHourLabel}` : ''}
+
+RECENT STUDENT QUESTIONS:
+${recentQs}
+
+Write the summary now in 2-3 sentences, no preamble, no headers.`;
+
+    const result = await ai.models.generateContent({
+      model: MODEL,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: { temperature: 0.4, maxOutputTokens: 600 },
+    });
+    const summary = (result.text || '').trim();
+    const generatedAt = new Date().toISOString();
+    aiSummaryCache[courseId] = { summary, generatedAt, totalAtGeneration: insights.totalQuestions };
+    res.json({ summary, generatedAt, cached: false });
+  } catch (err) {
+    console.error('ai-summary error:', err.message);
+    res.status(500).json({ error: 'Could not generate summary' });
+  }
+});
+
 const FALLBACK_QUESTIONS = [
   "What are the main topics in this course?",
   "Summarize the key concepts",

@@ -922,9 +922,11 @@ function CourseManager({ token, course, onBack, authHeaders }) {
 function CourseInsights({ courseId, token, onStartClassMode }) {
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
   const [newCount, setNewCount] = useState(0);
   const [lastCount, setLastCount] = useState(0);
+  const [summary, setSummary] = useState(null);
+  const [summaryGeneratedAt, setSummaryGeneratedAt] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   const fetchInsights = async () => {
     try {
@@ -936,7 +938,24 @@ function CourseInsights({ courseId, token, onStartClassMode }) {
     } catch { setLoading(false); }
   };
 
+  const fetchSummary = async () => {
+    setSummaryLoading(true);
+    try {
+      const res = await fetch(`${API}/course/${courseId}/ai-summary`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.summary) {
+        setSummary(data.summary);
+        setSummaryGeneratedAt(data.generatedAt);
+      } else {
+        setSummary(null);
+      }
+    } catch {}
+    setSummaryLoading(false);
+  };
+
   useEffect(() => { fetchInsights(); const i = setInterval(fetchInsights, 10000); return () => clearInterval(i); }, [courseId, lastCount]);
+  // Fetch the AI summary once on mount and again whenever total question count crosses a threshold
+  useEffect(() => { if (insights?.totalQuestions > 0 && !summary) fetchSummary(); }, [insights?.totalQuestions]);
 
   if (loading) return <div className="flex-1 flex items-center justify-center"><div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" /></div>;
 
@@ -1001,83 +1020,46 @@ function CourseInsights({ courseId, token, onStartClassMode }) {
             <button onClick={onStartClassMode} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors"><span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />Live Mode</button>
           </div>
         </div>
-        <div className="flex gap-1 mt-4">
-          {[{ id: 'overview', label: 'Overview' }, { id: 'questions', label: 'Questions' }, { id: 'gaps', label: 'Knowledge Gaps' }].map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeTab === tab.id ? 'bg-gray-900 text-white' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'}`}>{tab.label}</button>
-          ))}
-        </div>
       </div>
       <div className="flex-1 overflow-y-auto p-8 space-y-5">
-        {activeTab === 'overview' && (<>
-          <div className="grid grid-cols-3 gap-4">
-            <StatCard dark label="Total Questions" value={d.totalQuestions.toLocaleString()} sub={`${d.weekQuestions} this week`} icon="💬" />
-            <StatCard label="Time Saved" value={timeSaved} sub="professor hours freed up" icon="⏱" />
-            <StatCard label="AI Confidence" value={`${d.confidenceRate}%`} sub="answers grounded in materials" icon="✓" />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <StatCard label="Students Engaged" value={d.estimatedStudents} sub="unique sessions detected" icon="👥" />
-            <StatCard label="Peak Study Time" value={d.peakHour} sub="most active hour" icon="🌙" />
-            <StatCard label="Top Topic" value={topTopic} sub="most asked this week" icon="📌" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl border border-gray-200 p-6">
-              <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-0.5">Weekly Activity</h3>
-              <p className="text-[11px] text-gray-400 mb-5">Questions asked per day</p>
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={d.dailyActivity} barSize={24}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} width={20} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: '#F9FAFB' }} />
-                  <Bar dataKey="questions" fill="#0F0F0F" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="bg-white rounded-2xl border border-gray-200 p-6">
-              <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-0.5">Topic Distribution</h3>
-              <p className="text-[11px] text-gray-400 mb-4">What students are asking about</p>
-              {pieData.length > 0 ? (
-                <div className="flex items-center gap-4">
-                  <ResponsiveContainer width={150} height={150}>
-                    <PieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={42} outerRadius={70} paddingAngle={3} dataKey="value">{pieData.map((_, i) => <Cell key={i} fill={TOPIC_COLORS[i % TOPIC_COLORS.length]} />)}</Pie><Tooltip content={<PieTooltipCustom />} /></PieChart>
-                  </ResponsiveContainer>
-                  <div className="flex-1 space-y-2">{pieData.map((entry, i) => (<div key={i} className="flex items-center gap-2"><div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: TOPIC_COLORS[i % TOPIC_COLORS.length] }} /><span className="text-xs text-gray-600 flex-1 truncate">{entry.name}</span><span className="text-xs font-semibold text-gray-900">{Math.round(entry.percent * 100)}%</span></div>))}</div>
-                </div>
+        <div className="grid grid-cols-2 gap-4">
+          <StatCard dark label="Total Questions" value={d.totalQuestions.toLocaleString()} sub={`${d.weekQuestions} this week`} icon="💬" />
+          <StatCard label="Time Saved" value={timeSaved} sub="professor hours freed up" icon="⏱" />
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+          <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-0.5">Weekly Activity</h3>
+          <p className="text-[11px] text-gray-400 mb-5">Questions asked per day</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={d.dailyActivity} barSize={32}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
+              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} width={20} />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: '#F9FAFB' }} />
+              <Bar dataKey="questions" fill="#0F0F0F" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="bg-gray-900 rounded-2xl p-6 text-white">
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 text-lg">💡</div>
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40">AI Summary</p>
+                <button onClick={fetchSummary} disabled={summaryLoading} className="text-[10px] text-white/40 hover:text-white/80 transition-colors disabled:opacity-40">{summaryLoading ? 'Refreshing…' : 'Refresh'}</button>
+              </div>
+              {summaryLoading && !summary ? (
+                <p className="text-sm text-white/60">Generating summary from recent student questions…</p>
+              ) : summary ? (
+                <>
+                  <p className="text-sm leading-relaxed text-white/85 whitespace-pre-line">{summary}</p>
+                  {summaryGeneratedAt && <p className="text-[10px] text-white/30 mt-3">Updated {formatRelativeDate(summaryGeneratedAt)}</p>}
+                </>
               ) : (
-                <p className="text-xs text-gray-400 py-6 text-center">No topic data yet</p>
+                <p className="text-sm text-white/60">Waiting for more student activity to summarize.</p>
               )}
             </div>
           </div>
-          {d.topTopics.length > 0 && (
-            <div className="bg-gray-900 rounded-2xl p-6 text-white">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 text-lg">💡</div>
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40 mb-1.5">Scholr AI Insight</p>
-                  <p className="text-sm leading-relaxed text-white/80">Students asked about <strong className="text-white">{topTopic}</strong> most this week.{d.flagged?.length > 0 && <> {d.flagged.length} question{d.flagged.length > 1 ? 's' : ''} couldn't be answered confidently.</>}{d.weekQuestions > 5 && d.peakHour !== '—' && <> Peak activity was at <strong className="text-white">{d.peakHour}</strong>.</>}</p>
-                </div>
-              </div>
-            </div>
-          )}
-        </>)}
-        {activeTab === 'questions' && (<>
-          <div className="bg-white rounded-2xl border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-5"><div><h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide">Recent Questions</h3><p className="text-[11px] text-gray-400 mt-0.5">What students asked in real time</p></div><div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><span className="text-[10px] text-gray-400">Live</span></div></div>
-            {d.recent.length > 0 ? (
-              <div className="divide-y divide-gray-50">{d.recent.slice(0, 10).map((q, i) => { const label = getTopicLabel(q.question); return (<div key={i} className="flex items-start gap-4 py-3"><div className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${q.confident !== false ? 'bg-emerald-400' : 'bg-amber-400'}`} /><div className="flex-1 min-w-0"><p className="text-sm text-gray-800 leading-snug">{q.question}</p><span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full mt-1 inline-block ${TOPIC_ACCENT[label] || 'bg-gray-100 text-gray-600'}`}>{label}</span></div><span className="text-[10px] text-gray-300 flex-shrink-0 mt-1">{formatRelativeDate(q.ts)}</span></div>); })}</div>
-            ) : (
-              <p className="text-xs text-gray-400 py-6 text-center">No questions yet</p>
-            )}
-          </div>
-        </>)}
-        {activeTab === 'gaps' && (<>
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6"><div className="flex items-start gap-4"><div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0 text-lg">⚠️</div><div><h3 className="text-sm font-semibold text-amber-900 mb-1">Knowledge Gap Analysis</h3><p className="text-xs text-amber-700 leading-relaxed">These questions couldn't be answered confidently from your uploaded materials.</p></div></div></div>
-          {d.flagged.length > 0 ? (
-            <div className="space-y-3">{d.flagged.map((q, i) => (<div key={i} className="bg-white rounded-2xl border border-gray-200 p-5"><div className="flex items-start gap-4"><div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center flex-shrink-0"><span className="text-amber-500 text-xs font-bold">#{i + 1}</span></div><div className="flex-1"><p className="text-sm text-gray-800 font-medium">{q.question}</p><div className="flex items-center gap-3 mt-2"><span className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium">Low confidence</span><span className="text-[10px] text-gray-400">{formatRelativeDate(q.ts)}</span></div></div></div></div>))}</div>
-          ) : (
-            <p className="text-xs text-gray-400 py-6 text-center">No flagged questions — every answer landed confidently.</p>
-          )}
-        </>)}
+        </div>
       </div>
     </div>
   );
