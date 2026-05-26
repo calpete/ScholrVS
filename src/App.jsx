@@ -170,63 +170,38 @@ const GoogleIcon = () => (
   </svg>
 );
 
-function SmartSignIn({ onProfLogin, onStudentLogin, onBack }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [shaking, setShaking] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true); setError('');
-    try {
-      const res = await fetch(`${API}/smart-login`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        if (data.role === 'professor') onProfLogin(data.token, data.user);
-        else onStudentLogin(data.token, data.user);
-        return;
-      }
-      setError(data.error || 'Login failed');
-      setShaking(true); setTimeout(() => setShaking(false), 400);
-    } catch { setError('Server unreachable'); }
-    setLoading(false);
-  };
-
-  const handleGoogle = () => { window.location.href = `${API}/student/auth/google`; };
-
+// Role chooser — replaces the old "smart" sign-in that auto-detected role.
+// Forces the user to pick the same role they signed up as so they always land
+// in the right portal.
+function SmartSignIn({ onPickStudent, onPickProfessor, onBack }) {
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center">
+    <div className="min-h-[100dvh] bg-[#FAFAFA] flex flex-col items-center justify-center px-6" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <style>{FONT}</style>
       <div className="mb-8 flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold">Scholr</span></div>
-      <div className={`w-full max-w-sm px-6 ${shaking ? 'shake' : ''}`}>
+      <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="serif text-3xl text-gray-900 mb-1.5">Sign in</h1>
-          <p className="text-gray-400 text-sm">We'll take you to the right place</p>
+          <h1 className="serif text-3xl text-gray-900 mb-1.5">Welcome back</h1>
+          <p className="text-gray-400 text-sm">Sign in to the portal you signed up for</p>
         </div>
-        <button onClick={handleGoogle}
-          className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm text-gray-700 text-sm font-medium transition-all mb-4">
-          <GoogleIcon />Continue with Google
-        </button>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 h-px bg-gray-200" /><span className="text-xs text-gray-400">or</span><div className="flex-1 h-px bg-gray-200" />
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <input id="signin-email" name="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
-            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          <input id="signin-password" name="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password"
-            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          {error && <p className="text-red-500 text-xs text-center">{error}</p>}
-          <button type="submit" disabled={!email || !password || loading}
-            className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">
-            {loading ? 'Signing in...' : 'Sign in'}
+        <div className="space-y-3">
+          <button onClick={onPickStudent}
+            className="w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl bg-white border border-gray-200 hover:border-gray-400 hover:shadow-sm transition-all text-left group">
+            <div>
+              <p className="text-gray-900 font-semibold text-sm">I'm a student</p>
+              <p className="text-gray-400 text-xs mt-0.5">Sign in to your courses</p>
+            </div>
+            <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-600 transition-colors" />
           </button>
-        </form>
-        <div className="mt-5 text-center">
+          <button onClick={onPickProfessor}
+            className="w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl bg-white border border-gray-200 hover:border-gray-400 hover:shadow-sm transition-all text-left group">
+            <div>
+              <p className="text-gray-900 font-semibold text-sm">I'm a teacher</p>
+              <p className="text-gray-400 text-xs mt-0.5">Sign in to your courses + analytics</p>
+            </div>
+            <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-600 transition-colors" />
+          </button>
+        </div>
+        <div className="mt-6 text-center">
           <button onClick={onBack} className="text-xs text-gray-400 hover:text-gray-700 transition-colors flex items-center gap-1 mx-auto"><ArrowLeft size={12} />Back</button>
         </div>
       </div>
@@ -2155,7 +2130,7 @@ export default function App() {
   const renderScreen = () => {
     switch (screen) {
       case 'landing': return <LandingPage onStudent={() => setScreen('student-login')} onInstructor={() => setScreen('prof-signup')} onSignIn={() => setScreen('smart-signin')} />;
-      case 'smart-signin': return <SmartSignIn onProfLogin={handleProfLogin} onStudentLogin={handleStudentLogin} onBack={() => setScreen('landing')} />;
+      case 'smart-signin': return <SmartSignIn onPickStudent={() => setScreen('student-login')} onPickProfessor={() => setScreen('prof-login')} onBack={() => setScreen('landing')} />;
       case 'student-login': return <StudentLogin onLogin={handleStudentLogin} onGoSignup={() => setScreen('student-signup')} onBack={() => setScreen('landing')} pendingJoinCode={pendingJoinCode} />;
       case 'student-signup': return <StudentSignup onLogin={handleStudentLogin} onGoLogin={() => setScreen('student-login')} onBack={() => setScreen('landing')} pendingJoinCode={pendingJoinCode} />;
       case 'student-dashboard': return <StudentDashboard token={studentToken} user={studentUser} onEnterCourse={handleEnterCourse} onLogout={handleStudentLogout} />;

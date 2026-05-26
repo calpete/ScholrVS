@@ -334,6 +334,10 @@ app.post('/professor/signup', async (req, res) => {
   const { email, password, name } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   try {
+    // Block emails already registered as a student so we never end up with a
+    // user in both tables (which is what caused the wrong-portal bug).
+    const { data: existingStudent } = await supabase.from('students').select('id').eq('email', email).maybeSingle();
+    if (existingStudent) return res.status(400).json({ error: 'This email is already registered as a student. Use a different email or sign in as a student.' });
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return res.status(400).json({ error: error.message });
     await supabase.from('professors').upsert({ id: data.user.id, email, name: name || email.split('@')[0] }, { onConflict: 'id' });
@@ -347,8 +351,11 @@ app.post('/professor/login', async (req, res) => {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return res.status(401).json({ error: error.message });
-    const { data: prof } = await supabase.from('professors').select('*').eq('id', data.user.id).single();
-    res.json({ success: true, token: data.session.access_token, user: { id: data.user.id, email: data.user.email, name: prof?.name || email.split('@')[0] } });
+    // Strict role enforcement — only allow if this user has a professor row.
+    // Prevents a student account from being silently logged into the teacher portal.
+    const { data: prof } = await supabase.from('professors').select('*').eq('id', data.user.id).maybeSingle();
+    if (!prof) return res.status(403).json({ error: 'This email is not registered as a teacher. Try the student sign-in instead.' });
+    res.json({ success: true, token: data.session.access_token, user: { id: data.user.id, email: data.user.email, name: prof.name || email.split('@')[0] } });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -370,6 +377,10 @@ app.post('/student/signup', async (req, res) => {
   const { email, password, name } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   try {
+    // Block emails already registered as a teacher so we never end up with a
+    // user in both tables (which is what caused the wrong-portal bug).
+    const { data: existingProf } = await supabase.from('professors').select('id').eq('email', email).maybeSingle();
+    if (existingProf) return res.status(400).json({ error: 'This email is already registered as a teacher. Use a different email or sign in as a teacher.' });
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return res.status(400).json({ error: error.message });
     await supabase.from('students').upsert({ id: data.user.id, email, name: name || email.split('@')[0] }, { onConflict: 'id' });
@@ -383,11 +394,15 @@ app.post('/student/login', async (req, res) => {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return res.status(401).json({ error: error.message });
-    const { data: student } = await supabase.from('students').select('*').eq('id', data.user.id).single();
+    // Strict role enforcement — only allow if this user has a student row.
+    // If they exist only as a professor, reject so they go to the teacher portal.
+    const { data: student } = await supabase.from('students').select('*').eq('id', data.user.id).maybeSingle();
     if (!student) {
-      await supabase.from('students').upsert({ id: data.user.id, email: data.user.email, name: data.user.email.split('@')[0] }, { onConflict: 'id' });
+      const { data: prof } = await supabase.from('professors').select('id').eq('id', data.user.id).maybeSingle();
+      if (prof) return res.status(403).json({ error: 'This email is registered as a teacher. Try the teacher sign-in instead.' });
+      return res.status(403).json({ error: 'This email is not registered as a student. Sign up first.' });
     }
-    res.json({ success: true, token: data.session.access_token, user: { id: data.user.id, email: data.user.email, name: student?.name || data.user.email.split('@')[0] } });
+    res.json({ success: true, token: data.session.access_token, user: { id: data.user.id, email: data.user.email, name: student.name || data.user.email.split('@')[0] } });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
