@@ -128,6 +128,45 @@ function ConfirmDialog({ open, title, body, confirmLabel = 'Confirm', cancelLabe
   );
 }
 
+// ─── Skeleton loaders ────────────────────────────────────────────────────
+// Use these instead of spinners. They show a grey placeholder shaped like the
+// real content with a subtle shimmer — modern apps (Stripe, Linear, Notion)
+// all do this and it reads as faster even when load time is identical.
+function Skeleton({ className = '' }) {
+  return <div className={`bg-gray-200 rounded animate-pulse ${className}`} />;
+}
+function SkeletonCourseCard() {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+      <Skeleton className="w-full h-[60px] rounded-none" />
+      <div className="p-5 space-y-3">
+        <Skeleton className="h-5 w-2/3" />
+        <div className="flex gap-2">
+          <Skeleton className="h-6 w-24 rounded-lg" />
+          <Skeleton className="h-6 w-20 rounded-lg" />
+        </div>
+      </div>
+    </div>
+  );
+}
+function SkeletonStatCard({ dark = false }) {
+  return (
+    <div className={`rounded-2xl p-5 flex flex-col gap-3 ${dark ? 'bg-gray-900' : 'bg-white border border-gray-200'}`}>
+      <Skeleton className={`h-3 w-24 ${dark ? 'bg-white/10' : ''}`} />
+      <Skeleton className={`h-8 w-20 ${dark ? 'bg-white/15' : ''}`} />
+      <Skeleton className={`h-3 w-32 ${dark ? 'bg-white/10' : ''}`} />
+    </div>
+  );
+}
+function SkeletonChatRow() {
+  return (
+    <div className="flex items-center gap-2 px-2.5 py-2">
+      <Skeleton className="w-3 h-3 rounded-full" />
+      <Skeleton className="flex-1 h-3" />
+    </div>
+  );
+}
+
 // ─── Toast banner — replaces native alert() ─────────────────────────────────
 function ToastBanner({ message, type = 'info', onClose }) {
   useEffect(() => {
@@ -582,7 +621,9 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
           </div>
         )}
         {loading ? (
-          <div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" /></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[0, 1].map(i => <SkeletonCourseCard key={i} />)}
+          </div>
         ) : enrolledCourses.length === 0 ? (
           <div className="text-center py-20">
             <BookOpen size={32} className="text-gray-200 mx-auto mb-4" />
@@ -751,7 +792,9 @@ function ProfessorDashboard({ token, user, onLogout }) {
           </div>
         )}
         {loading ? (
-          <div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" /></div>
+          <div className="space-y-4">
+            {[0, 1].map(i => <SkeletonCourseCard key={i} />)}
+          </div>
         ) : courses.length === 0 ? (
           <div className="text-center py-20"><BookOpen size={32} className="text-gray-200 mx-auto mb-4" /><p className="text-gray-500 font-medium mb-1">No courses yet</p><p className="text-gray-400 text-sm">Create your first course to get started</p></div>
         ) : (
@@ -1027,7 +1070,25 @@ function CourseInsights({ courseId, token, onStartClassMode }) {
   // Fetch the AI summary once on mount and again whenever total question count crosses a threshold
   useEffect(() => { if (insights?.totalQuestions > 0 && !summary) fetchSummary(); }, [insights?.totalQuestions]);
 
-  if (loading) return <div className="flex-1 flex items-center justify-center"><div className="w-6 h-6 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" /></div>;
+  if (loading) return (
+    <div className="flex-1 flex flex-col bg-[#F7F7F7]">
+      <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 md:py-5 flex-shrink-0">
+        <Skeleton className="h-4 w-32 mb-2" />
+        <Skeleton className="h-3 w-40" />
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 md:space-y-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+          <SkeletonStatCard dark />
+          <SkeletonStatCard />
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+          <Skeleton className="h-3 w-32 mb-2" />
+          <Skeleton className="h-3 w-44 mb-5" />
+          <Skeleton className="h-[180px] w-full" />
+        </div>
+      </div>
+    </div>
+  );
 
   const isEmpty = !insights || insights.totalQuestions === 0;
   if (isEmpty) {
