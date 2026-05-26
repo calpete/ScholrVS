@@ -527,7 +527,7 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
     <div className="min-h-[100dvh] bg-[#F7F7F7]" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <style>{FONT}</style>
       <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 md:gap-3 min-w-0"><Logo size={24} /><span className="text-gray-900 font-semibold text-sm">Scholr</span><span className="text-gray-300 hidden sm:inline">·</span><span className="text-gray-500 text-sm truncate hidden sm:inline">{user.name || user.email}</span></div>
+        <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-2 md:gap-3 min-w-0 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={24} /><span className="text-gray-900 font-semibold text-sm">Scholr</span><span className="text-gray-300 hidden sm:inline">·</span><span className="text-gray-500 text-sm truncate hidden sm:inline">{user.name || user.email}</span></button>
         <button onClick={onLogout} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs flex-shrink-0"><LogOut size={12} />Sign out</button>
       </div>
       <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 md:py-10">
@@ -701,7 +701,7 @@ function ProfessorDashboard({ token, user, onLogout }) {
     <div className="min-h-[100dvh] bg-[#F7F7F7]" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <style>{FONT}</style>
       <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 md:gap-3 min-w-0"><Logo size={24} /><span className="text-gray-900 font-semibold text-sm">Scholr</span><span className="text-gray-300 hidden sm:inline">·</span><span className="text-gray-500 text-sm truncate hidden sm:inline">{user.name || user.email}</span></div>
+        <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-2 md:gap-3 min-w-0 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={24} /><span className="text-gray-900 font-semibold text-sm">Scholr</span><span className="text-gray-300 hidden sm:inline">·</span><span className="text-gray-500 text-sm truncate hidden sm:inline">{user.name || user.email}</span></button>
         <button onClick={onLogout} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs flex-shrink-0"><LogOut size={12} />Sign out</button>
       </div>
       <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 md:py-10">
@@ -842,7 +842,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
         <button onClick={() => setMobileNavOpen(true)} aria-label="Open menu" className="p-2 -ml-2 text-gray-700">
           <Menu size={20} />
         </button>
-        <div className="flex items-center gap-2 flex-1 min-w-0"><Logo size={20} /><span className="text-gray-900 font-semibold text-sm truncate">{course.name}</span></div>
+        <button type="button" onClick={onBack} className="flex items-center gap-2 flex-1 min-w-0 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={20} /><span className="text-gray-900 font-semibold text-sm truncate">{course.name}</span></button>
       </div>
       {/* Backdrop when mobile nav is open */}
       {mobileNavOpen && <div onClick={closeMobileNav} className="md:hidden fixed inset-0 bg-black/40 z-30" />}
@@ -852,7 +852,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
             <button onClick={onBack} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 text-xs transition-colors"><ArrowLeft size={12} />All courses</button>
             <button onClick={closeMobileNav} aria-label="Close menu" className="md:hidden p-1 text-gray-400"><X size={16} /></button>
           </div>
-          <div className="flex items-center gap-2.5 mb-3"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></div>
+          <button type="button" onClick={onBack} className="flex items-center gap-2.5 mb-3 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></button>
           <div className="bg-gray-900 rounded-lg px-3 py-2.5">
             <p className="text-white text-xs font-medium truncate">{course.name}</p>
             <p className="text-gray-500 text-[10px] mt-0.5 font-mono">{course.join_code || course.code}</p>
@@ -1122,7 +1122,8 @@ function ClassroomMode({ courseId, token, onExit }) {
     <div className="fixed inset-0 bg-gray-950 flex flex-col z-50">
       <style>{FONT}</style>
       <div className="flex items-center justify-between px-10 py-5 border-b border-white/10">
-        <div className="flex items-center gap-4"><Logo size={28} /><span className="text-white font-semibold">Scholr</span>
+        <div className="flex items-center gap-4">
+          <button type="button" onClick={onExit} className="flex items-center gap-4 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={28} /><span className="text-white font-semibold">Scholr</span></button>
           <div className="flex items-center gap-2 ml-2 px-3 py-1 rounded-full bg-red-500/15 border border-red-500/25"><div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" /><span className="text-red-400 text-xs font-medium">LIVE</span></div>
         </div>
         <button onClick={onExit} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-gray-300 text-sm transition-colors"><X size={14} />End Session</button>
@@ -1628,7 +1629,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       <aside className={`fixed md:static inset-y-0 left-0 z-40 w-72 md:w-56 bg-[#F7F7F7] border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileChatsOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
         <div className="px-4 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2.5"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></div>
+            <button type="button" onClick={onExit} className="flex items-center gap-2.5 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></button>
             <button onClick={closeMobile} aria-label="Close menu" className="md:hidden p-1 text-gray-400"><X size={16} /></button>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 px-3 py-2.5">
@@ -1882,8 +1883,8 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
   return (
     <div className="min-h-screen bg-[#FAFAFA] flex flex-col">
       <style>{FONT}</style>
-      <nav className="flex items-center justify-between px-10 py-4 border-b border-gray-200 bg-white sticky top-0 z-10">
-        <div className="flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold text-base tracking-tight">Scholr</span></div>
+      <nav className="flex items-center justify-between px-4 md:px-10 py-3 md:py-4 border-b border-gray-200 bg-white sticky top-0 z-10" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
+        <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-3 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={28} /><span className="text-gray-900 font-semibold text-base tracking-tight">Scholr</span></button>
         <div className="flex items-center gap-3">
           <button onClick={onSignIn} className="px-4 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium transition-colors">Sign in</button>
           <button onClick={onInstructor} className="px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">Get started →</button>
@@ -2041,9 +2042,9 @@ function JoinCoursePage({ studentToken, studentUser, onStudentLogin, onEnterCour
   return (
     <div className="min-h-screen bg-[#FAFAFA] flex flex-col">
       <style>{FONT}</style>
-      <nav className="flex items-center justify-between px-8 py-4 border-b border-gray-200 bg-white">
-        <div className="flex items-center gap-3"><Logo size={24} /><span className="text-gray-900 font-semibold">Scholr</span></div>
-        {studentUser && <span className="text-gray-400 text-sm">{studentUser.name || studentUser.email}</span>}
+      <nav className="flex items-center justify-between px-4 md:px-8 py-3 md:py-4 border-b border-gray-200 bg-white" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
+        <button type="button" onClick={() => navigate('/')} className="flex items-center gap-3 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={24} /><span className="text-gray-900 font-semibold">Scholr</span></button>
+        {studentUser && <span className="text-gray-400 text-sm truncate ml-3">{studentUser.name || studentUser.email}</span>}
       </nav>
       <div className="flex-1 flex items-center justify-center px-4">
         <div className="w-full max-w-md">
