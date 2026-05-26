@@ -4,7 +4,7 @@ import {
   MessageSquare, Send, LogOut, Trash2, Plus, BookOpen, FileText,
   ChevronRight, Users, AlertCircle, UploadCloud, BarChart2, Clock,
   CheckCircle2, Copy, Check, ThumbsUp, ThumbsDown, X, Radio,
-  Lock, WifiOff, Paperclip, Square, ArrowLeft, ExternalLink, Hash
+  Lock, WifiOff, Paperclip, Square, ArrowLeft, ExternalLink, Hash, Menu
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -524,19 +524,19 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
   const firstName = (user.name || user.email).split(' ')[0];
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7]">
+    <div className="min-h-[100dvh] bg-[#F7F7F7]" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <style>{FONT}</style>
-      <div className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3"><Logo size={24} /><span className="text-gray-900 font-semibold text-sm">Scholr</span><span className="text-gray-300">·</span><span className="text-gray-500 text-sm">{user.name || user.email}</span></div>
-        <button onClick={onLogout} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs"><LogOut size={12} />Sign out</button>
+      <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 md:gap-3 min-w-0"><Logo size={24} /><span className="text-gray-900 font-semibold text-sm">Scholr</span><span className="text-gray-300 hidden sm:inline">·</span><span className="text-gray-500 text-sm truncate hidden sm:inline">{user.name || user.email}</span></div>
+        <button onClick={onLogout} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs flex-shrink-0"><LogOut size={12} />Sign out</button>
       </div>
-      <div className="max-w-4xl mx-auto px-8 py-10">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">{greeting}, {firstName}</h1>
-            <p className="text-gray-400 text-sm mt-1">{enrolledCourses.length} course{enrolledCourses.length !== 1 ? 's' : ''} · your AI tutor is ready</p>
+      <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 md:py-10">
+        <div className="flex items-start justify-between mb-6 md:mb-8 gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl md:text-2xl font-semibold text-gray-900">{greeting}, {firstName}</h1>
+            <p className="text-gray-400 text-xs md:text-sm mt-1">{enrolledCourses.length} course{enrolledCourses.length !== 1 ? 's' : ''} · your AI tutor is ready</p>
           </div>
-          <button onClick={() => setShowJoinInput(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors"><Plus size={14} />Join a course</button>
+          <button onClick={() => setShowJoinInput(true)} className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs md:text-sm font-medium transition-colors flex-shrink-0"><Plus size={14} />Join a course</button>
         </div>
         {showJoinInput && (
           <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-5">
@@ -698,19 +698,19 @@ function ProfessorDashboard({ token, user, onLogout }) {
   if (selectedCourse) return <CourseManager token={token} course={selectedCourse} onBack={() => setSelectedCourse(null)} authHeaders={authHeaders} />;
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7]">
+    <div className="min-h-[100dvh] bg-[#F7F7F7]" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <style>{FONT}</style>
-      <div className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3"><Logo size={24} /><span className="text-gray-900 font-semibold text-sm">Scholr</span><span className="text-gray-300">·</span><span className="text-gray-500 text-sm">{user.name || user.email}</span></div>
-        <button onClick={onLogout} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs"><LogOut size={12} />Sign out</button>
+      <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 md:gap-3 min-w-0"><Logo size={24} /><span className="text-gray-900 font-semibold text-sm">Scholr</span><span className="text-gray-300 hidden sm:inline">·</span><span className="text-gray-500 text-sm truncate hidden sm:inline">{user.name || user.email}</span></div>
+        <button onClick={onLogout} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs flex-shrink-0"><LogOut size={12} />Sign out</button>
       </div>
-      <div className="max-w-4xl mx-auto px-8 py-10">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Your Courses</h1>
-            <p className="text-gray-400 text-sm mt-1">{courses.length} course{courses.length !== 1 ? 's' : ''} · Each gets its own AI tutor and student portal</p>
+      <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 md:py-10">
+        <div className="flex items-start justify-between mb-6 md:mb-8 gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Your Courses</h1>
+            <p className="text-gray-400 text-xs md:text-sm mt-1">{courses.length} course{courses.length !== 1 ? 's' : ''} · Each gets its own AI tutor and student portal</p>
           </div>
-          <button onClick={() => setCreating(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors"><Plus size={14} />New course</button>
+          <button onClick={() => setCreating(true)} className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs md:text-sm font-medium transition-colors flex-shrink-0"><Plus size={14} />New course</button>
         </div>
         {creating && (
           <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-5">
@@ -740,9 +740,9 @@ function ProfessorDashboard({ token, user, onLogout }) {
                   </div>
                 </div>
                 <input ref={el => coverRefs.current[course.id] = el} type="file" className="hidden" accept=".jpg,.jpeg,.png,.webp" onChange={e => { uploadCover(course.id, e.target.files[0]); e.target.value = ''; }} />
-                <div className="p-5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
+                <div className="p-4 md:p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex-1 min-w-0">
                       <h3 className="text-gray-900 font-semibold text-base mb-2">{course.name}</h3>
                       <div className="flex items-center gap-2 flex-wrap">
                         <button onClick={() => copyCode(course)} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors text-xs font-mono text-gray-600">
@@ -754,7 +754,7 @@ function ProfessorDashboard({ token, user, onLogout }) {
                         <div className="flex items-center gap-1 text-[10px] text-gray-400"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />AI Active</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 ml-4">
+                    <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
                       <button onClick={() => setSelectedCourse(course)} className="px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors">Manage</button>
                       {confirmDelete === course.id ? (
                         <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2 py-1">
@@ -790,6 +790,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   const [activeTab, setActiveTab] = useState('materials');
   const [classroomMode, setClassroomMode] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const fileRef = useRef(null);
 
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
@@ -831,12 +832,26 @@ function CourseManager({ token, course, onBack, authHeaders }) {
 
   if (classroomMode) return <ClassroomMode courseId={course.id} token={token} onExit={() => setClassroomMode(false)} />;
 
+  const closeMobileNav = () => setMobileNavOpen(false);
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#F7F7F7] fixed inset-0">
+    <div className="flex h-[100dvh] w-screen overflow-hidden bg-[#F7F7F7] fixed inset-0">
       <style>{FONT}</style>
-      <aside className="w-56 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+      {/* Mobile top bar — hamburger + course name. Hidden on desktop. */}
+      <div className="md:hidden fixed top-0 inset-x-0 z-20 bg-white border-b border-gray-200 flex items-center gap-3 px-4 h-14 pt-[env(safe-area-inset-top)]" style={{ height: 'calc(3.5rem + env(safe-area-inset-top))' }}>
+        <button onClick={() => setMobileNavOpen(true)} aria-label="Open menu" className="p-2 -ml-2 text-gray-700">
+          <Menu size={20} />
+        </button>
+        <div className="flex items-center gap-2 flex-1 min-w-0"><Logo size={20} /><span className="text-gray-900 font-semibold text-sm truncate">{course.name}</span></div>
+      </div>
+      {/* Backdrop when mobile nav is open */}
+      {mobileNavOpen && <div onClick={closeMobileNav} className="md:hidden fixed inset-0 bg-black/40 z-30" />}
+      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-64 md:w-56 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
         <div className="px-5 py-5 border-b border-gray-100">
-          <button onClick={onBack} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 text-xs mb-4 transition-colors"><ArrowLeft size={12} />All courses</button>
+          <div className="flex items-center justify-between mb-4">
+            <button onClick={onBack} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 text-xs transition-colors"><ArrowLeft size={12} />All courses</button>
+            <button onClick={closeMobileNav} aria-label="Close menu" className="md:hidden p-1 text-gray-400"><X size={16} /></button>
+          </div>
           <div className="flex items-center gap-2.5 mb-3"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></div>
           <div className="bg-gray-900 rounded-lg px-3 py-2.5">
             <p className="text-white text-xs font-medium truncate">{course.name}</p>
@@ -845,7 +860,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
         </div>
         <nav className="p-3 flex-1">
           {[{ id: 'materials', label: 'Materials', icon: FileText }, { id: 'insights', label: 'Insights', icon: BarChart2 }].map(({ id, label, icon: Icon }) => (
-            <button key={id} onClick={() => setActiveTab(id)}
+            <button key={id} onClick={() => { setActiveTab(id); closeMobileNav(); }}
               className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors mb-0.5 ${activeTab === id ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}>
               <Icon size={13} />{label}
             </button>
@@ -858,7 +873,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
           <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div><span className="text-[10px] text-gray-400">Vertex AI connected</span></div>
         </div>
       </aside>
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden pt-14 md:pt-0" style={{ paddingTop: 'max(3.5rem + env(safe-area-inset-top), 0px)' }}>
         {activeTab === 'materials' ? (
           <>
             <header className="bg-white border-b border-gray-200 px-8 py-4 flex-shrink-0 flex items-center justify-between">
@@ -983,11 +998,11 @@ function CourseInsights({ courseId, token, onStartClassMode }) {
   if (isEmpty) {
     return (
       <div className="flex-1 flex flex-col bg-[#F7F7F7]">
-        <div className="bg-white border-b border-gray-200 px-8 py-5 flex-shrink-0">
+        <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 md:py-5 flex-shrink-0">
           <h2 className="text-gray-900 font-semibold text-sm">Student Insights</h2>
           <div className="flex items-center gap-2 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><p className="text-gray-400 text-xs">Live · updates every 10s</p></div>
         </div>
-        <div className="flex-1 flex items-center justify-center px-8">
+        <div className="flex-1 flex items-center justify-center px-4 md:px-8 py-6">
           <div className="text-center max-w-md">
             <div className="text-4xl mb-4">📊</div>
             <h3 className="serif text-2xl text-gray-900 mb-2">No questions yet</h3>
@@ -1032,18 +1047,18 @@ function CourseInsights({ courseId, token, onStartClassMode }) {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#F7F7F7]">
-      <div className="bg-white border-b border-gray-200 px-8 py-5 flex-shrink-0">
-        <div className="flex items-center justify-between">
+      <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 md:py-5 flex-shrink-0">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div><h2 className="text-gray-900 font-semibold text-sm">Student Insights</h2><div className="flex items-center gap-2 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><p className="text-gray-400 text-xs">Live · updates every 10s</p></div></div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             {newCount > 0 && <button onClick={() => { setNewCount(0); fetchInsights(); }} className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">↑ {newCount} new</button>}
             <button onClick={clearData} className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-red-300 hover:text-red-600 text-gray-500 text-xs font-medium transition-colors">Clear data</button>
-            <button onClick={onStartClassMode} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors"><span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />Live Mode</button>
+            <button onClick={onStartClassMode} className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors"><span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />Live Mode</button>
           </div>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-8 space-y-5">
-        <div className="grid grid-cols-2 gap-4">
+      <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 md:space-y-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
           <StatCard dark label="Total Questions" value={d.totalQuestions.toLocaleString()} sub={`${d.weekQuestions} this week`} icon="💬" />
           <StatCard label="Time Saved" value={timeSaved} sub="professor hours freed up" icon="⏱" />
         </div>
@@ -1137,6 +1152,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const [myNotes, setMyNotes] = useState([]);
   const [notesLoading, setNotesLoading] = useState(true);
   const [chatsLoading, setChatsLoading] = useState(true);
+  const [mobileChatsOpen, setMobileChatsOpen] = useState(false);
 
   const [quizOpen, setQuizOpen] = useState(false);
   const [quizLoading, setQuizLoading] = useState(false);
@@ -1599,27 +1615,35 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     </div>
   );
 
+  const closeMobile = () => setMobileChatsOpen(false);
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden fixed inset-0 bg-white">
+    <div className="flex h-[100dvh] w-screen overflow-hidden fixed inset-0 bg-white">
       <style>{FONT}</style>
 
-      {/* ── Left sidebar ── */}
-      <aside className="w-56 bg-[#F7F7F7] border-r border-gray-200 flex flex-col flex-shrink-0">
+      {/* Backdrop on mobile when drawer is open */}
+      {mobileChatsOpen && <div onClick={closeMobile} className="md:hidden fixed inset-0 bg-black/40 z-30" />}
+
+      {/* ── Left sidebar / mobile drawer ── */}
+      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-72 md:w-56 bg-[#F7F7F7] border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileChatsOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
         <div className="px-4 py-4 border-b border-gray-200">
-          <div className="flex items-center gap-2.5 mb-3"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2.5"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></div>
+            <button onClick={closeMobile} aria-label="Close menu" className="md:hidden p-1 text-gray-400"><X size={16} /></button>
+          </div>
           <div className="bg-white rounded-lg border border-gray-200 px-3 py-2.5">
             <p className="text-gray-900 text-xs font-medium truncate">{course.name}</p>
             <p className="text-gray-400 text-[10px] mt-0.5">{documents.length} doc{documents.length !== 1 ? 's' : ''} · {myNotes.length} note{myNotes.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
         <div className="px-3 pt-3">
-          <button onClick={createNewChat} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-medium hover:bg-gray-50 transition-colors"><Plus size={12} />New chat</button>
+          <button onClick={() => { createNewChat(); closeMobile(); }} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-medium hover:bg-gray-50 transition-colors"><Plus size={12} />New chat</button>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           <p className="text-[10px] text-gray-400 font-medium px-2 mb-2 uppercase tracking-widest">Chats</p>
           {chats.map(c => (
             <div key={c.id} className="group relative mb-0.5">
-              <button onClick={() => setChatId(c.id)} className={`flex items-center gap-2 w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors pr-7 ${c.id === chatId ? 'bg-white border border-gray-200 text-gray-900 font-medium shadow-sm' : 'text-gray-500 hover:bg-white hover:text-gray-700'}`}>
+              <button onClick={() => { setChatId(c.id); closeMobile(); }} className={`flex items-center gap-2 w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors pr-7 ${c.id === chatId ? 'bg-white border border-gray-200 text-gray-900 font-medium shadow-sm' : 'text-gray-500 hover:bg-white hover:text-gray-700'}`}>
                 <MessageSquare size={11} className="flex-shrink-0 opacity-40" /><span className="truncate">{c.title || 'New Chat'}</span>
               </button>
               <button onClick={e => { e.stopPropagation(); deleteChat(c.id); }} className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded text-gray-300 hover:text-red-400 transition-all"><Trash2 size={10} /></button>
@@ -1649,22 +1673,27 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       </aside>
 
       {/* ── Main chat ── */}
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-12 bg-white border-b border-gray-100 flex items-center justify-between px-8 flex-shrink-0">
-          <h2 className="text-gray-900 text-sm font-medium">{active?.title || 'New Chat'}</h2>
-          <div className="flex items-center gap-3">
+      <main className="flex-1 flex flex-col overflow-hidden min-w-0" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+        <header className="bg-white border-b border-gray-100 flex items-center justify-between px-4 md:px-8 py-2 md:h-12 flex-shrink-0 gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={() => setMobileChatsOpen(true)} aria-label="Open chats" className="md:hidden p-1 -ml-1 text-gray-600">
+              <Menu size={20} />
+            </button>
+            <h2 className="text-gray-900 text-sm font-medium truncate">{active?.title || 'New Chat'}</h2>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
             {quizOpen && (
-              <button onClick={() => setQuizOpen(false)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium transition-colors">
-                <X size={11} />Close quiz
+              <button onClick={() => setQuizOpen(false)} className="flex items-center gap-1.5 px-2 md:px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium transition-colors">
+                <X size={11} /><span className="hidden md:inline">Close quiz</span>
               </button>
             )}
-            <div className="flex items-center gap-1.5 text-[11px] text-emerald-600"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />AI Active</div>
+            <div className="flex items-center gap-1.5 text-[11px] text-emerald-600"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><span className="hidden sm:inline">AI Active</span></div>
           </div>
         </header>
         <div className="flex flex-1 overflow-hidden">
           {/* Chat messages */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-y-auto px-8 py-8 flex flex-col gap-5">
+          <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 md:py-8 flex flex-col gap-5">
               {(!active || active.messages.length === 0) && (
                 <div className="flex flex-col items-center justify-center flex-1 pb-10 fade-up">
                   {documents.length === 0 ? (
@@ -1712,7 +1741,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
               })}
               <div ref={bottomRef} />
             </div>
-            <div className="px-8 py-4 bg-white border-t border-gray-100 flex-shrink-0">
+            <div className="px-4 md:px-8 py-3 md:py-4 bg-white border-t border-gray-100 flex-shrink-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
               <div className="max-w-3xl mx-auto">
                 <div className="flex items-center bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2 focus-within:border-gray-400 focus-within:bg-white focus-within:shadow-sm transition-all gap-2">
                   <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Paperclip size={15} /></button>
@@ -1738,9 +1767,9 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             </div>
           </div>
 
-          {/* ── Quiz sidebar ── */}
+          {/* ── Quiz panel — full-screen overlay on mobile, sidebar on desktop ── */}
           {quizOpen && (
-            <div className="w-80 border-l border-gray-200 bg-white flex flex-col flex-shrink-0 overflow-hidden">
+            <div className="fixed md:static inset-0 md:inset-auto z-30 md:w-80 md:border-l border-gray-200 bg-white flex flex-col md:flex-shrink-0 overflow-hidden pt-[env(safe-area-inset-top)] md:pt-0">
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
                 <div>
                   <p className="text-gray-900 text-sm font-semibold">Practice Quiz</p>
