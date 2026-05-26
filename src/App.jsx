@@ -238,6 +238,13 @@ function ProfessorLogin({ onLogin, onGoSignup, onBack }) {
           <h1 className="serif text-3xl text-gray-900 mb-1.5">Instructor login</h1>
           <p className="text-gray-400 text-sm">Sign in to manage your courses</p>
         </div>
+        <button onClick={() => { window.location.href = `${API}/professor/auth/google`; }}
+          className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm text-gray-700 text-sm font-medium transition-all mb-4">
+          <GoogleIcon />Continue with Google
+        </button>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-1 h-px bg-gray-200" /><span className="text-xs text-gray-400">or</span><div className="flex-1 h-px bg-gray-200" />
+        </div>
         <form onSubmit={handleSubmit} className="space-y-3">
           <input id="prof-email" name="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
@@ -291,6 +298,13 @@ function ProfessorSignup({ onLogin, onGoLogin, onBack }) {
           <h1 className="serif text-3xl text-gray-900 mb-1.5">Create account</h1>
           <p className="text-gray-400 text-sm">Set up your instructor workspace</p>
         </div>
+        <button onClick={() => { window.location.href = `${API}/professor/auth/google`; }}
+          className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm text-gray-700 text-sm font-medium transition-all mb-4">
+          <GoogleIcon />Continue with Google
+        </button>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-1 h-px bg-gray-200" /><span className="text-xs text-gray-400">or</span><div className="flex-1 h-px bg-gray-200" />
+        </div>
         <form onSubmit={handleSubmit} className="space-y-3">
           <input id="prof-signup-name" name="name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
@@ -299,7 +313,7 @@ function ProfessorSignup({ onLogin, onGoLogin, onBack }) {
           <input id="prof-signup-password" name="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password (min 6 chars)"
             className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
           {error && <p className="text-red-500 text-xs text-center">{error}</p>}
-          <button type="submit" disabled={!email || !password || loading}
+          <button type="submit" disabled={!name || !email || !password || loading}
             className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">
             {loading ? 'Creating account...' : 'Create account'}
           </button>
@@ -2079,21 +2093,44 @@ export default function App() {
       const hashParams = new URLSearchParams(hash.replace('#', '?'));
       const accessToken = hashParams.get('access_token');
       if (accessToken) {
+        // Role comes from the redirect_to URL the backend set when kicking
+        // off OAuth (?role=professor for the teacher flow, ?role=student
+        // for the student flow). Defaults to student for backward compat.
+        const role = new URLSearchParams(window.location.search).get('role') === 'professor' ? 'professor' : 'student';
         import('@supabase/supabase-js').then(({ createClient }) => {
           const supabase = createClient('https://dtgukefqobgnreejlxyb.supabase.co', 'sb_publishable_bmvI67pGsWD52YYoIF3oDw_88izApLs');
-          supabase.auth.getUser(accessToken).then(({ data: { user } }) => {
-            if (user) {
-              supabase.from('students').upsert(
-                { id: user.id, email: user.email, name: user.user_metadata?.full_name || user.email.split('@')[0] },
-                { onConflict: 'id' }
-              ).then(() => {
-                const sUser = { id: user.id, email: user.email, name: user.user_metadata?.full_name || user.email.split('@')[0] };
-                localStorage.setItem('scholr_student_token', accessToken);
-                localStorage.setItem('scholr_student_user', JSON.stringify(sUser));
-                setStudentToken(accessToken); setStudentUser(sUser);
-                window.history.replaceState({}, '', '/');
-                setScreen('student-dashboard');
-              });
+          supabase.auth.getUser(accessToken).then(async ({ data: { user } }) => {
+            if (!user) return;
+            const name = user.user_metadata?.full_name || user.email.split('@')[0];
+            // Prevent cross-contamination: if user already exists in the OTHER
+            // table, bail with a helpful redirect rather than silently creating
+            // a duplicate role.
+            const otherTable = role === 'professor' ? 'students' : 'professors';
+            const { data: otherRow } = await supabase.from(otherTable).select('id').eq('id', user.id).maybeSingle();
+            if (otherRow) {
+              alert(`This Google account is already registered as a ${role === 'professor' ? 'student' : 'teacher'}. Sign in with that role instead.`);
+              window.history.replaceState({}, '', '/');
+              setScreen('landing');
+              return;
+            }
+            const targetTable = role === 'professor' ? 'professors' : 'students';
+            await supabase.from(targetTable).upsert(
+              { id: user.id, email: user.email, name },
+              { onConflict: 'id' }
+            );
+            const u = { id: user.id, email: user.email, name };
+            if (role === 'professor') {
+              localStorage.setItem('scholr_token', accessToken);
+              localStorage.setItem('scholr_user', JSON.stringify(u));
+              setProfToken(accessToken); setProfUser(u);
+              window.history.replaceState({}, '', '/');
+              setScreen('prof-dashboard');
+            } else {
+              localStorage.setItem('scholr_student_token', accessToken);
+              localStorage.setItem('scholr_student_user', JSON.stringify(u));
+              setStudentToken(accessToken); setStudentUser(u);
+              window.history.replaceState({}, '', '/');
+              setScreen('student-dashboard');
             }
           });
         });

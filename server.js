@@ -407,7 +407,12 @@ app.post('/student/login', async (req, res) => {
 });
 
 app.get('/student/auth/google', (req, res) => {
-  const redirectTo = encodeURIComponent(`${process.env.FRONTEND_URL || 'https://scholr.study'}/auth/callback`);
+  const redirectTo = encodeURIComponent(`${process.env.FRONTEND_URL || 'https://scholr.study'}/auth/callback?role=student`);
+  res.redirect(`${process.env.SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`);
+});
+
+app.get('/professor/auth/google', (req, res) => {
+  const redirectTo = encodeURIComponent(`${process.env.FRONTEND_URL || 'https://scholr.study'}/auth/callback?role=professor`);
   res.redirect(`${process.env.SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${redirectTo}`);
 });
 
