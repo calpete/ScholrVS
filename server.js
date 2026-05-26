@@ -659,7 +659,9 @@ Write the summary now in 2-3 sentences, no preamble, no headers.`;
     const result = await ai.models.generateContent({
       model: MODEL,
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: { temperature: 0.4, maxOutputTokens: 600 },
+      // gemini-2.5-flash spends tokens on internal reasoning before output;
+      // 600 was getting truncated mid-sentence. 2048 gives ample headroom.
+      config: { temperature: 0.4, maxOutputTokens: 2048 },
     });
     const summary = (result.text || '').trim();
     const generatedAt = new Date().toISOString();
