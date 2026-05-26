@@ -110,6 +110,44 @@ const PieTooltipCustom = ({ active, payload }) => !active || !payload?.length ? 
   <div className="bg-gray-900 text-white px-3 py-2 rounded-lg text-xs shadow-xl"><p className="font-medium">{payload[0].name}</p><p className="text-gray-300">{payload[0].value} ({Math.round(payload[0].payload.percent * 100)}%)</p></div>
 );
 
+// ─── Styled in-app confirmation modal (replaces native confirm()) ──────────
+function ConfirmDialog({ open, title, body, confirmLabel = 'Confirm', cancelLabel = 'Cancel', destructive = false, onConfirm, onCancel }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 fade-up" onClick={onCancel}>
+      <style>{FONT}</style>
+      <div onClick={e => e.stopPropagation()} className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6">
+        <h3 className="text-gray-900 font-semibold text-base mb-2">{title}</h3>
+        {body && <p className="text-gray-500 text-sm leading-relaxed whitespace-pre-line mb-5">{body}</p>}
+        <div className="flex items-center justify-end gap-2">
+          <button onClick={onCancel} className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium transition-colors">{cancelLabel}</button>
+          <button onClick={onConfirm} className={`px-4 py-2 rounded-lg text-white text-xs font-medium transition-colors ${destructive ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-900 hover:bg-gray-800'}`}>{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Toast banner — replaces native alert() ─────────────────────────────────
+function ToastBanner({ message, type = 'info', onClose }) {
+  useEffect(() => {
+    if (!message) return;
+    const t = setTimeout(onClose, 5000);
+    return () => clearTimeout(t);
+  }, [message, onClose]);
+  if (!message) return null;
+  const styles = {
+    info: 'bg-gray-900 text-white',
+    error: 'bg-red-500 text-white',
+    success: 'bg-emerald-500 text-white',
+  };
+  return (
+    <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[110] px-5 py-3 rounded-xl shadow-xl text-sm font-medium max-w-sm fade-up" style={{ background: type === 'error' ? '#EF4444' : type === 'success' ? '#10B981' : '#0F0F0F', color: 'white' }}>
+      {message}
+    </div>
+  );
+}
+
 function LoadingScreen({ label }) {
   return (
     <div className="fixed inset-0 bg-[#FAFAFA] flex flex-col items-center justify-center z-50">
@@ -931,6 +969,9 @@ function CourseInsights({ courseId, token, onStartClassMode }) {
   const [summary, setSummary] = useState(null);
   const [summaryGeneratedAt, setSummaryGeneratedAt] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [clearError, setClearError] = useState('');
 
   const fetchInsights = async () => {
     try {
@@ -957,13 +998,16 @@ function CourseInsights({ courseId, token, onStartClassMode }) {
     setSummaryLoading(false);
   };
 
-  const clearData = async () => {
-    if (!confirm('Delete all logged questions for this course?\n\nThis wipes the Total Questions count, Weekly Activity chart, and AI Summary. Student chat history and uploaded materials are NOT affected.\n\nThis cannot be undone.')) return;
+  const clearData = () => setConfirmingClear(true);
+
+  const performClear = async () => {
+    setClearing(true); setClearError('');
     try {
       const res = await fetch(`${API}/course/${courseId}/insights-data`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || 'Could not clear data');
+        setClearError(err.error || 'Could not clear data');
+        setClearing(false);
         return;
       }
       // Reset local state and refetch
@@ -972,9 +1016,11 @@ function CourseInsights({ courseId, token, onStartClassMode }) {
       setLastCount(0);
       setNewCount(0);
       fetchInsights();
+      setConfirmingClear(false);
     } catch {
-      alert('Server unreachable');
+      setClearError('Server unreachable');
     }
+    setClearing(false);
   };
 
   useEffect(() => { fetchInsights(); const i = setInterval(fetchInsights, 10000); return () => clearInterval(i); }, [courseId, lastCount]);
@@ -1086,6 +1132,17 @@ function CourseInsights({ courseId, token, onStartClassMode }) {
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmingClear}
+        title="Clear all insights data?"
+        body={"This wipes the Total Questions count, Weekly Activity chart, and AI Summary.\n\nStudent chat history and uploaded materials are not affected.\n\nThis cannot be undone."}
+        confirmLabel={clearing ? 'Clearing…' : 'Yes, clear data'}
+        cancelLabel="Cancel"
+        destructive
+        onConfirm={clearing ? undefined : performClear}
+        onCancel={clearing ? undefined : () => { setConfirmingClear(false); setClearError(''); }}
+      />
+      <ToastBanner message={clearError} type="error" onClose={() => setClearError('')} />
     </div>
   );
 }
@@ -2086,6 +2143,7 @@ export default function App() {
   const [studentDocs, setStudentDocs] = useState([]);
   const [studentQuestions, setStudentQuestions] = useState([]);
   const [pendingJoinCode, setPendingJoinCode] = useState(null);
+  const [globalToast, setGlobalToast] = useState(null);
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -2108,7 +2166,7 @@ export default function App() {
             const otherTable = role === 'professor' ? 'students' : 'professors';
             const { data: otherRow } = await supabase.from(otherTable).select('id').eq('id', user.id).maybeSingle();
             if (otherRow) {
-              alert(`This Google account is already registered as a ${role === 'professor' ? 'student' : 'teacher'}. Sign in with that role instead.`);
+              setGlobalToast({ message: `This Google account is already registered as a ${role === 'professor' ? 'student' : 'teacher'}. Sign in with that role instead.`, type: 'error' });
               window.history.replaceState({}, '', '/');
               setScreen('landing');
               return;
@@ -2180,18 +2238,21 @@ export default function App() {
   };
 
   return (
-    <Routes>
-      <Route path="/join/:code" element={<JoinCoursePage studentToken={studentToken} studentUser={studentUser} onStudentLogin={handleStudentLogin} onEnterCourse={handleEnterCourse} />} />
-      <Route path="/student/login" element={<StudentLogin onLogin={handleStudentLogin} onGoSignup={() => navigate('/student/signup')} onBack={() => navigate('/')} pendingJoinCode={pendingJoinCode} />} />
-      <Route path="/student/signup" element={<StudentSignup onLogin={handleStudentLogin} onGoLogin={() => navigate('/student/login')} onBack={() => navigate('/')} pendingJoinCode={pendingJoinCode} />} />
-      <Route path="/student" element={
-        studentToken
-          ? (screen === 'student-chat' && studentCourse
-              ? <StudentView course={studentCourse} documents={studentDocs} suggestedQuestions={studentQuestions} onExit={() => setScreen('student-dashboard')} studentToken={studentToken} />
-              : <StudentDashboard token={studentToken} user={studentUser} onEnterCourse={handleEnterCourse} onLogout={handleStudentLogout} />)
-          : <LandingPage onStudent={() => navigate('/student/login')} onInstructor={() => setScreen('prof-signup')} onSignIn={() => setScreen('smart-signin')} />
-      } />
-      <Route path="/*" element={renderScreen()} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/join/:code" element={<JoinCoursePage studentToken={studentToken} studentUser={studentUser} onStudentLogin={handleStudentLogin} onEnterCourse={handleEnterCourse} />} />
+        <Route path="/student/login" element={<StudentLogin onLogin={handleStudentLogin} onGoSignup={() => navigate('/student/signup')} onBack={() => navigate('/')} pendingJoinCode={pendingJoinCode} />} />
+        <Route path="/student/signup" element={<StudentSignup onLogin={handleStudentLogin} onGoLogin={() => navigate('/student/login')} onBack={() => navigate('/')} pendingJoinCode={pendingJoinCode} />} />
+        <Route path="/student" element={
+          studentToken
+            ? (screen === 'student-chat' && studentCourse
+                ? <StudentView course={studentCourse} documents={studentDocs} suggestedQuestions={studentQuestions} onExit={() => setScreen('student-dashboard')} studentToken={studentToken} />
+                : <StudentDashboard token={studentToken} user={studentUser} onEnterCourse={handleEnterCourse} onLogout={handleStudentLogout} />)
+            : <LandingPage onStudent={() => navigate('/student/login')} onInstructor={() => setScreen('prof-signup')} onSignIn={() => setScreen('smart-signin')} />
+        } />
+        <Route path="/*" element={renderScreen()} />
+      </Routes>
+      <ToastBanner message={globalToast?.message} type={globalToast?.type} onClose={() => setGlobalToast(null)} />
+    </>
   );
 }
