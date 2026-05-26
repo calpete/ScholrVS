@@ -167,6 +167,11 @@ function SkeletonChatRow() {
   );
 }
 
+// Inline spinner for use inside buttons during async actions
+function ButtonSpinner({ light = false }) {
+  return <span className={`inline-block w-3 h-3 border-2 ${light ? 'border-white/40 border-t-white' : 'border-gray-400 border-t-gray-900'} rounded-full animate-spin`} />;
+}
+
 // ─── Toast banner — replaces native alert() ─────────────────────────────────
 function ToastBanner({ message, type = 'info', onClose }) {
   useEffect(() => {
@@ -330,7 +335,7 @@ function ProfessorLogin({ onLogin, onGoSignup, onBack }) {
           {error && <p className="text-red-500 text-xs text-center">{error}</p>}
           <button type="submit" disabled={!email || !password || loading}
             className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">
-            {loading ? 'Signing in...' : 'Sign in'}
+            {loading ? <span className="flex items-center justify-center gap-2"><ButtonSpinner light />Signing in…</span> : 'Sign in'}
           </button>
         </form>
         <div className="flex items-center justify-between mt-5 text-xs text-gray-400">
@@ -392,7 +397,7 @@ function ProfessorSignup({ onLogin, onGoLogin, onBack }) {
           {error && <p className="text-red-500 text-xs text-center">{error}</p>}
           <button type="submit" disabled={!name || !email || !password || loading}
             className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">
-            {loading ? 'Creating account...' : 'Create account'}
+            {loading ? <span className="flex items-center justify-center gap-2"><ButtonSpinner light />Creating account…</span> : 'Create account'}
           </button>
         </form>
         <div className="flex items-center justify-between mt-5 text-xs text-gray-400">
@@ -453,7 +458,7 @@ function StudentLogin({ onLogin, onGoSignup, onBack, pendingJoinCode }) {
           {error && <p className="text-red-500 text-xs text-center">{error}</p>}
           <button type="submit" disabled={!email || !password || loading}
             className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">
-            {loading ? 'Signing in...' : 'Sign in'}
+            {loading ? <span className="flex items-center justify-center gap-2"><ButtonSpinner light />Signing in…</span> : 'Sign in'}
           </button>
         </form>
         <div className="flex items-center justify-between mt-5 text-xs text-gray-400">
@@ -520,7 +525,7 @@ function StudentSignup({ onLogin, onGoLogin, onBack, pendingJoinCode }) {
           {error && <p className="text-red-500 text-xs text-center">{error}</p>}
           <button type="submit" disabled={!name || !email || !password || loading}
             className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">
-            {loading ? 'Creating account...' : 'Create account'}
+            {loading ? <span className="flex items-center justify-center gap-2"><ButtonSpinner light />Creating account…</span> : 'Create account'}
           </button>
         </form>
         <div className="flex items-center justify-between mt-5 text-xs text-gray-400">
