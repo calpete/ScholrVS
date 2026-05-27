@@ -801,7 +801,12 @@ function ProfessorDashboard({ token, user, onLogout }) {
             {[0, 1].map(i => <SkeletonCourseCard key={i} />)}
           </div>
         ) : courses.length === 0 ? (
-          <div className="text-center py-20"><BookOpen size={32} className="text-gray-200 mx-auto mb-4" /><p className="text-gray-500 font-medium mb-1">No courses yet</p><p className="text-gray-400 text-sm">Create your first course to get started</p></div>
+          <div className="bg-white rounded-2xl border border-gray-200 px-6 py-12 text-center max-w-lg mx-auto">
+            <div className="w-12 h-12 rounded-2xl bg-gray-900 mx-auto mb-4 flex items-center justify-center"><BookOpen size={20} className="text-white" /></div>
+            <h2 className="serif text-2xl text-gray-900 mb-2">Set up your first course</h2>
+            <p className="text-gray-500 text-sm mb-1 max-w-sm mx-auto leading-relaxed">Create a course, upload your syllabus, and share the join code. Your students can start asking questions in minutes.</p>
+            <button onClick={() => setCreating(true)} className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors"><Plus size={14} />Create your first course</button>
+          </div>
         ) : (
           <div className="space-y-3">
             {courses.map(course => (
@@ -965,10 +970,11 @@ function CourseManager({ token, course, onBack, authHeaders }) {
               {mods.length === 0 ? (
                 <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
                   onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }} onClick={() => fileRef.current.click()}
-                  className={`flex flex-col items-center justify-center h-56 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${dragOver ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <UploadCloud size={24} className="text-gray-300 mb-3" />
-                  <p className="text-gray-500 text-sm font-medium mb-1">{dragOver ? 'Drop to upload' : 'Upload course materials'}</p>
-                  <p className="text-gray-400 text-xs">PDF, JPG, PNG — drag and drop or click</p>
+                  className={`flex flex-col items-center justify-center text-center px-6 py-14 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${dragOver ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
+                  <div className="w-12 h-12 rounded-2xl bg-gray-900 mb-4 flex items-center justify-center"><UploadCloud size={20} className="text-white" /></div>
+                  <h2 className="serif text-xl text-gray-900 mb-2">{dragOver ? 'Drop to upload' : 'Drop in your first material'}</h2>
+                  <p className="text-gray-500 text-sm max-w-sm leading-relaxed mb-1">Start with your syllabus — students will be able to ask about deadlines, late policy, and grading the moment you upload it.</p>
+                  <p className="text-gray-400 text-xs mt-3">Drag and drop or click · PDF, JPG, PNG</p>
                 </div>
               ) : (
                 <div>
@@ -998,7 +1004,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
               )}
             </div>
           </>
-        ) : <CourseInsights courseId={course.id} token={token} onStartClassMode={() => setClassroomMode(true)} />}
+        ) : <CourseInsights course={course} token={token} onStartClassMode={() => setClassroomMode(true)} onSwitchToMaterials={() => setActiveTab('materials')} />}
       </main>
       {toast && (
         <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-xl text-white text-xs font-medium shadow-xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
@@ -1009,7 +1015,9 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   );
 }
 
-function CourseInsights({ courseId, token, onStartClassMode }) {
+function CourseInsights({ course, token, onStartClassMode, onSwitchToMaterials }) {
+  const courseId = course.id;
+  const joinCode = course.join_code || course.code;
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
   const [newCount, setNewCount] = useState(0);
@@ -1020,6 +1028,7 @@ function CourseInsights({ courseId, token, onStartClassMode }) {
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [clearError, setClearError] = useState('');
+  const [copiedJoin, setCopiedJoin] = useState(false);
 
   const fetchInsights = async () => {
     try {
@@ -1104,10 +1113,29 @@ function CourseInsights({ courseId, token, onStartClassMode }) {
           <div className="flex items-center gap-2 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><p className="text-gray-400 text-xs">Live · updates every 10s</p></div>
         </div>
         <div className="flex-1 flex items-center justify-center px-4 md:px-8 py-6">
-          <div className="text-center max-w-md">
-            <div className="text-4xl mb-4">📊</div>
+          <div className="bg-white rounded-2xl border border-gray-200 px-6 py-10 text-center max-w-lg w-full">
+            <div className="text-4xl mb-3">📊</div>
             <h3 className="serif text-2xl text-gray-900 mb-2">No questions yet</h3>
-            <p className="text-gray-400 text-sm">Once your students start asking the AI questions, you'll see what topics they're confused about, when they're studying, and which answers need your review.</p>
+            <p className="text-gray-500 text-sm mb-6 max-w-sm mx-auto leading-relaxed">Share your join code with students — once they start asking the AI questions, you'll see what topics they're focused on right here.</p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+              <button
+                onClick={() => {
+                  const url = `${window.location.origin}/join/${joinCode}`;
+                  navigator.clipboard.writeText(url);
+                  setCopiedJoin(true);
+                  setTimeout(() => setCopiedJoin(false), 2000);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">
+                {copiedJoin ? <><Check size={14} />Copied!</> : <><Copy size={14} />Copy student link</>}
+              </button>
+              {(!insights || insights.totalQuestions === 0) && onSwitchToMaterials && (
+                <button onClick={onSwitchToMaterials}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-200 hover:border-gray-300 text-gray-700 text-sm font-medium transition-colors">
+                  Manage materials <ChevronRight size={14} />
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-4 font-mono">{joinCode}</p>
           </div>
         </div>
       </div>
