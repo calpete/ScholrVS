@@ -2011,6 +2011,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
 }
 
 function LandingPage({ onStudent, onInstructor, onSignIn }) {
+  const navigate = useNavigate();
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); }),
@@ -2128,18 +2129,153 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
         </div>
       </div>
       <footer className="bg-gray-900 border-t border-white/10 py-8">
-        <div className="max-w-3xl mx-auto px-6 flex items-center justify-between">
+        <div className="max-w-3xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-6 h-6 bg-white rounded-md flex items-center justify-center"><svg width="12" height="12" viewBox="0 0 28 28" fill="none"><path d="M8 10h8M8 14h12M8 18h6" stroke="#0F0F0F" strokeWidth="2" strokeLinecap="round"/></svg></div>
             <span className="text-white text-sm font-semibold">Scholr</span>
-            <span className="text-gray-600 text-xs">© 2025</span>
+            <span className="text-gray-600 text-xs">© 2026</span>
           </div>
-          <div className="flex items-center gap-6 text-xs text-gray-500">
-            <span>FERPA aligned</span><span>·</span><span>Powered by Google Vertex AI</span><span>·</span><span>Answers from your materials only</span>
+          <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap justify-center">
+            <span>FERPA aligned</span>
+            <span className="hidden sm:inline">·</span>
+            <span>Powered by Google Vertex AI</span>
+            <span className="hidden sm:inline">·</span>
+            <button onClick={() => navigate('/privacy')} className="hover:text-white transition-colors">Privacy</button>
+            <span className="hidden sm:inline">·</span>
+            <button onClick={() => navigate('/terms')} className="hover:text-white transition-colors">Terms</button>
           </div>
         </div>
       </footer>
     </div>
+  );
+}
+
+// ─── Legal pages ──────────────────────────────────────────────────────────
+function LegalPageLayout({ title, children }) {
+  const navigate = useNavigate();
+  return (
+    <div className="min-h-[100dvh] bg-[#FAFAFA] flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <style>{FONT}</style>
+      <nav className="flex items-center justify-between px-4 md:px-10 py-3 md:py-4 border-b border-gray-200 bg-white sticky top-0 z-10">
+        <button type="button" onClick={() => navigate('/')} className="flex items-center gap-3 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={24} /><span className="text-gray-900 font-semibold">Scholr</span></button>
+        <button onClick={() => navigate('/')} className="text-xs text-gray-500 hover:text-gray-900 transition-colors flex items-center gap-1"><ArrowLeft size={12} />Back</button>
+      </nav>
+      <main className="flex-1 max-w-3xl w-full mx-auto px-5 md:px-8 py-10 md:py-16">
+        <h1 className="serif text-4xl md:text-5xl text-gray-900 mb-2">{title}</h1>
+        <p className="text-gray-400 text-sm mb-10">Last updated May 26, 2026</p>
+        <div className="prose prose-gray max-w-none text-gray-700 text-[15px] leading-relaxed space-y-6">
+          {children}
+        </div>
+      </main>
+      <footer className="border-t border-gray-200 bg-white py-6">
+        <div className="max-w-3xl mx-auto px-5 md:px-8 flex items-center justify-between text-xs text-gray-400">
+          <span>© 2026 Scholr</span>
+          <div className="flex items-center gap-4">
+            <button onClick={() => navigate('/privacy')} className="hover:text-gray-700">Privacy</button>
+            <button onClick={() => navigate('/terms')} className="hover:text-gray-700">Terms</button>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+function PrivacyPage() {
+  return (
+    <LegalPageLayout title="Privacy Policy">
+      <p>Scholr ("we", "our") provides an AI tutoring service for university courses. We believe a student's relationship with their education is private, and the materials a professor uploads to their course are theirs. This policy explains what we collect, why, and how we protect it.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">1. Information we collect</h2>
+      <p><strong>Account information.</strong> When you sign up we collect your email address, a hashed password (we never see your plaintext password), and a display name you choose. If you sign in with Google we receive your email address and full name from Google.</p>
+      <p><strong>Course content.</strong> Professors upload PDFs, images, and other course materials. Students may upload their own personal study notes. We process these to power the AI tutor.</p>
+      <p><strong>Usage data.</strong> We log the questions students ask the AI tutor, the AI's responses, and basic metadata like timestamps. This is what makes the Insights view possible for professors.</p>
+      <p><strong>Technical data.</strong> Like any web service, our servers log IP addresses, browser types, and request timestamps for security and operational purposes. We do not use third-party analytics or advertising cookies.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">2. How we use it</h2>
+      <p>Course materials and student notes are sent to Google Cloud's Vertex AI (specifically the Gemini 2.5 Flash model) to generate grounded answers. We do not use your data to train AI models. Google's Vertex AI terms explicitly prohibit training on customer prompts and content.</p>
+      <p>Aggregated, non-identifying usage data may be used to improve Scholr (for example, to learn that students are asking many short questions versus long ones). We never share identifiable user data with anyone.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">3. Who can see what</h2>
+      <p><strong>Course materials:</strong> only enrolled students in that course and the professor who owns the course can access them through the AI.</p>
+      <p><strong>Personal student notes:</strong> only the student who uploaded them. Professors cannot see student notes.</p>
+      <p><strong>Chat history:</strong> only the student who had the conversation. Professors see aggregate question counts and topics in Insights but cannot read individual student chats.</p>
+      <p><strong>Questions log (Insights data):</strong> only the professor who owns the course. Question text is logged anonymized to the course (no student identifier).</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">4. FERPA alignment</h2>
+      <p>Scholr is designed with FERPA principles in mind. Educational records (chat history, uploaded notes, questions logs) are not shared with third parties for marketing or any non-educational purpose. Each professor's course is its own isolated environment. We act as a service provider to the educational institution or instructor using Scholr.</p>
+      <p>We are not a covered entity under FERPA ourselves; the educational institution is. If your institution has specific FERPA requirements (a Data Processing Agreement, for example), email us and we'll work with you.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">5. Data storage and security</h2>
+      <p>User accounts, courses, enrollments, chats, and metadata are stored in Supabase (a Postgres database hosted in the US). Uploaded PDFs and images are stored in Google Cloud Storage in the United States. All connections are encrypted in transit (HTTPS / TLS).</p>
+      <p>We follow standard security practices: passwords are hashed (bcrypt via Supabase Auth), API endpoints require authentication, and database access is restricted to the Scholr backend service.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">6. Data retention and deletion</h2>
+      <p>We keep your data as long as your account exists. You may delete your account at any time by contacting us; this removes your role record, your chat history, your notes, your enrollment records, and any courses you own (with all their materials and student data).</p>
+      <p>If you'd like a copy of your data before deletion, email us and we'll export it.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">7. Children's privacy</h2>
+      <p>Scholr is intended for users 13 years and older. We do not knowingly collect information from children under 13. If you are a K-12 educator who needs Scholr for younger students, contact us first.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">8. Cookies and local storage</h2>
+      <p>We use browser local storage to keep you logged in across sessions. We do not use tracking cookies, advertising cookies, or third-party analytics.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">9. Changes to this policy</h2>
+      <p>We may update this policy as Scholr evolves. Material changes will be highlighted at the top of this page and the "last updated" date above will change. Continued use of Scholr after a change constitutes acceptance.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">10. Contact</h2>
+      <p>Questions, data requests, or concerns: email <a href="mailto:hello@scholr.study" className="text-gray-900 underline hover:no-underline">hello@scholr.study</a>.</p>
+    </LegalPageLayout>
+  );
+}
+
+function TermsPage() {
+  return (
+    <LegalPageLayout title="Terms of Service">
+      <p>Welcome to Scholr. These terms govern your use of the Scholr service at scholr.study. Using Scholr means you agree to them.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">1. What Scholr is</h2>
+      <p>Scholr is an AI tutoring service that answers student questions about a specific course's materials. Professors upload course content; students ask questions about that content; the AI generates answers grounded in the uploaded materials.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">2. Your account</h2>
+      <p>You're responsible for keeping your password secure and for all activity on your account. Don't share your account. Don't impersonate someone else. If you suspect your account has been compromised, contact us.</p>
+      <p>You must be 13 or older to use Scholr.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">3. Your content</h2>
+      <p>You retain ownership of everything you upload — course materials, personal study notes, chat questions. By uploading, you grant Scholr a non-exclusive license to process that content through Google Cloud's Vertex AI for the sole purpose of generating answers in your course context. You may revoke this license by deleting the content.</p>
+      <p>Do not upload content you don't have the right to share. If a copyright holder believes their work has been uploaded without permission, they may contact us and we'll review the request.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">4. Acceptable use</h2>
+      <p>Don't use Scholr to:</p>
+      <ul className="list-disc pl-6 space-y-1">
+        <li>Cheat on exams or assignments where AI assistance is prohibited by your instructor or institution.</li>
+        <li>Upload content you don't have permission to share.</li>
+        <li>Attempt to reverse-engineer Scholr, attack our infrastructure, or extract our underlying AI models.</li>
+        <li>Harass, harm, or impersonate other users.</li>
+      </ul>
+      <p>Professors are responsible for setting their own course policies on AI use and communicating those to their students.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">5. AI accuracy and academic integrity</h2>
+      <p>Scholr's AI is designed to ground answers in the materials a professor uploaded. It will sometimes be wrong. It may misread a PDF, miss context, or generate an answer that sounds plausible but isn't accurate. Treat its responses the way you'd treat advice from a smart classmate: useful, but verify against the source material or with your instructor before relying on it for an exam or graded work.</p>
+      <p>Scholr is not a substitute for your professor, your TAs, or office hours.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">6. Service availability</h2>
+      <p>We work hard to keep Scholr available, but we make no guarantees of uptime. Scheduled maintenance and unscheduled outages happen. We are not liable for harm caused by Scholr being unavailable.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">7. Termination</h2>
+      <p>You may delete your account at any time. We may suspend or close accounts that violate these terms, abuse the service, or fail to pay (if you're on a paid plan in the future).</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">8. Limitation of liability</h2>
+      <p>To the maximum extent allowed by law, Scholr is provided "as is" without warranty. We are not liable for indirect, incidental, or consequential damages — including, for example, the consequences of an AI-generated answer being wrong on an exam.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">9. Changes to these terms</h2>
+      <p>We may update these terms as Scholr evolves. Material changes will be highlighted at the top of this page and the "last updated" date will change. If you continue using Scholr after a change, you accept the new terms.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">10. Governing law</h2>
+      <p>These terms are governed by the laws of the State of Indiana, United States, without regard to conflict-of-laws principles.</p>
+
+      <h2 className="serif text-2xl text-gray-900 mt-10 mb-3">11. Contact</h2>
+      <p>Questions about these terms: email <a href="mailto:hello@scholr.study" className="text-gray-900 underline hover:no-underline">hello@scholr.study</a>.</p>
+    </LegalPageLayout>
   );
 }
 
@@ -2334,6 +2470,8 @@ export default function App() {
   return (
     <>
       <Routes>
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
         <Route path="/join/:code" element={<JoinCoursePage studentToken={studentToken} studentUser={studentUser} onStudentLogin={handleStudentLogin} onEnterCourse={handleEnterCourse} />} />
         <Route path="/student/login" element={<StudentLogin onLogin={handleStudentLogin} onGoSignup={() => navigate('/student/signup')} onBack={() => navigate('/')} pendingJoinCode={pendingJoinCode} />} />
         <Route path="/student/signup" element={<StudentSignup onLogin={handleStudentLogin} onGoLogin={() => navigate('/student/login')} onBack={() => navigate('/')} pendingJoinCode={pendingJoinCode} />} />
