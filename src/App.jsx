@@ -2018,8 +2018,50 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   );
 }
 
+// Modal for entering a join code on the landing page (for students without
+// a direct invite link). Submitting navigates to /join/CODE which renders
+// the existing JoinCoursePage flow — no change to the link-arrival path.
+function JoinCodeModal({ open, onClose }) {
+  const navigate = useNavigate();
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  useEffect(() => { if (open) { setCode(''); setError(''); } }, [open]);
+  if (!open) return null;
+  const submit = (e) => {
+    e?.preventDefault();
+    const clean = code.trim().toUpperCase();
+    if (!clean) { setError('Enter a join code'); return; }
+    navigate(`/join/${encodeURIComponent(clean)}`);
+  };
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 fade-up" onClick={onClose}>
+      <style>{FONT}</style>
+      <div onClick={e => e.stopPropagation()} className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6">
+        <div className="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center mb-4"><BookOpen size={18} className="text-white" /></div>
+        <h3 className="text-gray-900 font-semibold text-base mb-1">Enter your join code</h3>
+        <p className="text-gray-500 text-sm mb-5">Your professor shared a join code with you. Paste it below — it usually looks like <span className="font-mono text-gray-700">BUS-A306-9X4F</span>.</p>
+        <form onSubmit={submit} className="space-y-3">
+          <input
+            autoFocus
+            value={code}
+            onChange={e => { setCode(e.target.value.toUpperCase()); setError(''); }}
+            placeholder="Paste your join code"
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300 font-mono uppercase tracking-wider"
+          />
+          {error && <p className="text-red-500 text-xs">{error}</p>}
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium transition-colors">Cancel</button>
+            <button type="submit" className="px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors">Continue →</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function LandingPage({ onStudent, onInstructor, onSignIn }) {
   const navigate = useNavigate();
+  const [joinModalOpen, setJoinModalOpen] = useState(false);
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); }),
@@ -2034,22 +2076,23 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
       <style>{FONT}</style>
       <nav className="flex items-center justify-between px-4 md:px-10 py-3 md:py-4 border-b border-gray-200 bg-white sticky top-0 z-10" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
         <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-3 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={28} /><span className="text-gray-900 font-semibold text-base tracking-tight">Scholr</span></button>
-        <div className="flex items-center gap-3">
-          <button onClick={onSignIn} className="px-4 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium transition-colors">Sign in</button>
-          <button onClick={onInstructor} className="px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">Get started →</button>
-        </div>
+        <button onClick={onSignIn} className="px-4 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium transition-colors">Sign in</button>
       </nav>
-      <div className="max-w-3xl mx-auto px-6 pt-20 pb-16 text-center">
+      <div className="max-w-3xl mx-auto px-6 pt-16 md:pt-20 pb-16 text-center">
         <div className="sr in inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-gray-200 text-gray-500 text-xs font-medium mb-8">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Course-grounded AI tutoring
         </div>
-        <h1 className="sr in sr-d1 serif text-[62px] leading-[1.08] text-gray-900 mb-6">Every answer from<br /><span className="italic">your course materials.</span></h1>
-        <p className="sr in sr-d2 text-gray-500 text-lg max-w-md mx-auto leading-relaxed mb-10">AI tutoring grounded in what your professor uploaded. Cited, accurate, and trustworthy.</p>
-        <div className="sr in sr-d3 flex items-center justify-center gap-3 flex-wrap">
-          <button onClick={onInstructor} className="px-7 py-3.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">Get started free →</button>
-          <button onClick={onStudent} className="px-7 py-3.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium transition-colors">Join a course</button>
+        <h1 className="sr in sr-d1 serif text-5xl md:text-[62px] leading-[1.08] text-gray-900 mb-6">Every answer from<br /><span className="italic">your course materials.</span></h1>
+        <p className="sr in sr-d2 text-gray-500 text-base md:text-lg max-w-md mx-auto leading-relaxed mb-10">AI tutoring grounded in what your professor uploaded. Cited, accurate, and trustworthy.</p>
+        <div className="sr in sr-d3 flex flex-col items-center gap-4">
+          <button onClick={onInstructor} className="px-8 py-3.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors shadow-sm">Start a course free →</button>
+          <div className="flex items-center gap-3 text-xs text-gray-400">
+            <span>Joining a class?</span>
+            <button onClick={() => setJoinModalOpen(true)} className="text-gray-700 hover:text-gray-900 font-medium underline-offset-4 hover:underline transition-colors">Enter your join code →</button>
+          </div>
         </div>
       </div>
+      <JoinCodeModal open={joinModalOpen} onClose={() => setJoinModalOpen(false)} />
       <div className="bg-gray-100 border-y border-gray-200 px-6 py-12">
         <div className="max-w-3xl mx-auto">
           <div className="sr bg-white rounded-2xl border border-gray-200 overflow-hidden" style={{boxShadow:'0 4px 24px rgba(0,0,0,0.06)'}}>
@@ -2130,9 +2173,12 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
         <div className="sr max-w-xl mx-auto px-6 text-center">
           <h2 className="serif text-4xl text-white mb-4 font-normal">Ready to get started?</h2>
           <p className="text-gray-400 text-sm mb-8 leading-relaxed">Set up your first course in minutes. Free to start.</p>
-          <div className="flex items-center justify-center gap-3">
-            <button onClick={onInstructor} className="px-7 py-3.5 rounded-xl bg-white hover:bg-gray-100 text-gray-900 text-sm font-medium transition-colors">Get started free →</button>
-            <button onClick={onStudent} className="px-7 py-3.5 rounded-xl border border-white/20 hover:border-white/40 text-white text-sm font-medium transition-colors">Join a course</button>
+          <div className="flex flex-col items-center gap-4">
+            <button onClick={onInstructor} className="px-8 py-3.5 rounded-xl bg-white hover:bg-gray-100 text-gray-900 text-sm font-medium transition-colors">Start a course free →</button>
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              <span>Joining a class?</span>
+              <button onClick={() => setJoinModalOpen(true)} className="text-gray-200 hover:text-white font-medium underline-offset-4 hover:underline transition-colors">Enter your join code →</button>
+            </div>
           </div>
         </div>
       </div>
@@ -2372,11 +2418,25 @@ function JoinCoursePage({ studentToken, studentUser, onStudentLogin, onEnterCour
 
 export default function App() {
   const navigate = useNavigate();
-  const [screen, setScreen] = useState('landing');
-  const [profToken, setProfToken] = useState(null);
-  const [profUser, setProfUser] = useState(null);
-  const [studentToken, setStudentToken] = useState(null);
-  const [studentUser, setStudentUser] = useState(null);
+  // Initialize state lazily from localStorage so returning users skip the
+  // landing page entirely on first paint — no flash before redirect.
+  const initialAuth = (() => {
+    if (typeof window === 'undefined') return { screen: 'landing', profToken: null, profUser: null, studentToken: null, studentUser: null };
+    try {
+      const pt = localStorage.getItem('scholr_token');
+      const pu = localStorage.getItem('scholr_user');
+      if (pt && pu) return { screen: 'prof-dashboard', profToken: pt, profUser: JSON.parse(pu), studentToken: null, studentUser: null };
+      const st = localStorage.getItem('scholr_student_token');
+      const su = localStorage.getItem('scholr_student_user');
+      if (st && su) return { screen: 'student-dashboard', profToken: null, profUser: null, studentToken: st, studentUser: JSON.parse(su) };
+    } catch {}
+    return { screen: 'landing', profToken: null, profUser: null, studentToken: null, studentUser: null };
+  })();
+  const [screen, setScreen] = useState(initialAuth.screen);
+  const [profToken, setProfToken] = useState(initialAuth.profToken);
+  const [profUser, setProfUser] = useState(initialAuth.profUser);
+  const [studentToken, setStudentToken] = useState(initialAuth.studentToken);
+  const [studentUser, setStudentUser] = useState(initialAuth.studentUser);
   const [studentCourse, setStudentCourse] = useState(null);
   const [studentDocs, setStudentDocs] = useState([]);
   const [studentQuestions, setStudentQuestions] = useState([]);
