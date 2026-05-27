@@ -3,7 +3,7 @@ import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import {
   MessageSquare, Send, LogOut, Trash2, Plus, BookOpen, FileText,
   ChevronRight, Users, AlertCircle, UploadCloud, BarChart2, Clock,
-  CheckCircle2, Copy, Check, ThumbsUp, ThumbsDown, X, Radio,
+  CheckCircle2, Copy, Check, ThumbsUp, ThumbsDown, X,
   Lock, WifiOff, Paperclip, Square, ArrowLeft, ExternalLink, Hash, Menu
 } from 'lucide-react';
 import {
@@ -878,7 +878,6 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   const [toast, setToast] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [activeTab, setActiveTab] = useState('materials');
-  const [classroomMode, setClassroomMode] = useState(false);
   const [copied, setCopied] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const fileRef = useRef(null);
@@ -949,8 +948,6 @@ function CourseManager({ token, course, onBack, authHeaders }) {
     setCopied(true); setTimeout(() => setCopied(false), 2000);
     showToast('Student link copied!');
   };
-
-  if (classroomMode) return <ClassroomMode courseId={course.id} token={token} onExit={() => setClassroomMode(false)} />;
 
   const closeMobileNav = () => setMobileNavOpen(false);
 
@@ -1063,7 +1060,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
               )}
             </div>
           </>
-        ) : <CourseInsights course={course} token={token} onStartClassMode={() => setClassroomMode(true)} onSwitchToMaterials={() => setActiveTab('materials')} />}
+        ) : <CourseInsights course={course} token={token} onSwitchToMaterials={() => setActiveTab('materials')} />}
       </main>
       {toast && (
         <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-xl text-white text-xs font-medium shadow-xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
@@ -1074,7 +1071,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   );
 }
 
-function CourseInsights({ course, token, onStartClassMode, onSwitchToMaterials }) {
+function CourseInsights({ course, token, onSwitchToMaterials }) {
   const courseId = course.id;
   const joinCode = course.join_code || course.code;
   const [insights, setInsights] = useState(null);
@@ -1241,7 +1238,6 @@ function CourseInsights({ course, token, onStartClassMode, onSwitchToMaterials }
           <div className="flex items-center gap-2 flex-wrap">
             {newCount > 0 && <button onClick={() => { setNewCount(0); fetchInsights(); }} className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">↑ {newCount} new</button>}
             <button onClick={clearData} className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-red-300 hover:text-red-600 text-gray-500 text-xs font-medium transition-colors">Clear data</button>
-            <button onClick={onStartClassMode} className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors"><span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse inline-block" />Live Mode</button>
           </div>
         </div>
       </div>
@@ -1296,45 +1292,6 @@ function CourseInsights({ course, token, onStartClassMode, onSwitchToMaterials }
         onCancel={clearing ? undefined : () => { setConfirmingClear(false); setClearError(''); }}
       />
       <ToastBanner message={clearError} type="error" onClose={() => setClearError('')} />
-    </div>
-  );
-}
-
-function ClassroomMode({ courseId, token, onExit }) {
-  const [questions, setQuestions] = useState([]);
-  const [newCount, setNewCount] = useState(0);
-
-  useEffect(() => {
-    const poll = async () => {
-      try {
-        const res = await fetch(`${API}/course/${courseId}/insights`, { headers: { Authorization: `Bearer ${token}` } });
-        const data = await res.json();
-        const incoming = (data.recent || []).slice(0, 20);
-        if (incoming.length > questions.length) setNewCount(incoming.length - questions.length);
-        setQuestions(incoming);
-      } catch {}
-    };
-    poll(); const i = setInterval(poll, 8000); return () => clearInterval(i);
-  }, [courseId, questions.length]);
-
-  return (
-    <div className="fixed inset-0 bg-gray-950 flex flex-col z-50">
-      <style>{FONT}</style>
-      <div className="flex items-center justify-between px-10 py-5 border-b border-white/10">
-        <div className="flex items-center gap-4">
-          <button type="button" onClick={onExit} className="flex items-center gap-4 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={28} /><span className="text-white font-semibold">Scholr</span></button>
-          <div className="flex items-center gap-2 ml-2 px-3 py-1 rounded-full bg-red-500/15 border border-red-500/25"><div className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" /><span className="text-red-400 text-xs font-medium">LIVE</span></div>
-        </div>
-        <button onClick={onExit} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-gray-300 text-sm transition-colors"><X size={14} />End Session</button>
-      </div>
-      {newCount > 0 && <button onClick={() => setNewCount(0)} className="mx-8 mt-4 flex items-center justify-between px-5 py-3 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm hover:bg-white/10 transition-colors"><span>{newCount} new question{newCount > 1 ? 's' : ''}</span><span className="text-gray-500 text-xs">Dismiss</span></button>}
-      <div className="flex-1 overflow-y-auto px-8 py-6">
-        {questions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center"><Radio size={24} className="text-gray-600 mb-4" /><p className="text-gray-400 font-medium mb-1">Waiting for questions</p></div>
-        ) : (
-          <div className="space-y-3 max-w-2xl mx-auto">{questions.map((q, i) => (<div key={i} className="px-5 py-4 rounded-xl bg-white/5 border border-white/10"><p className="text-white text-sm leading-relaxed">{q.question}</p><div className="flex items-center gap-3 mt-2"><span className="text-gray-500 text-xs">{formatRelativeDate(q.ts)}</span>{!q.confident && <span className="text-amber-400 text-xs">Needs review</span>}</div></div>))}</div>
-        )}
-      </div>
     </div>
   );
 }
