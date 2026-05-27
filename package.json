@@ -22,6 +22,7 @@
     "dotenv": "^17.3.1",
     "express": "^4.21.2",
     "express-fileupload": "^1.5.2",
+    "katex": "^0.17.0",
     "lucide-react": "^0.475.0",
     "openai": "^4.85.1",
     "pdf-extraction": "^1.0.2",
@@ -32,7 +33,9 @@
     "react-markdown": "^9.1.0",
     "react-router-dom": "^7.15.1",
     "recharts": "^3.8.1",
-    "remark-gfm": "^4.0.1"
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.19.0",
