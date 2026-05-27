@@ -319,10 +319,10 @@ app.get('/join/:code', async (req, res) => {
   <title>Join ${courseName} on Scholr</title>
   <meta property="og:title" content="Join ${courseName} on Scholr" />
   <meta property="og:description" content="Your professor invited you. Click to join your AI-powered course." />
-  <meta property="og:image" content="https://scholr.study/preview.png" />
+  <meta property="og:image" content="https://scholr.study/preview.jpg" />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:image" content="https://scholr.study/preview.png" />
+  <meta name="twitter:image" content="https://scholr.study/preview.jpg" />
   <script>window.location.href = "https://scholr.study/join/${code}"</script>
   </head><body>Redirecting...</body></html>`);
 });

@@ -25,6 +25,11 @@ const FONT = `
   .shake { animation: shake 0.35s ease-in-out; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
   .fade-up { animation: fadeUp 0.4s ease forwards; }
+  @keyframes pageEnter { from { opacity:0; } to { opacity:1; } }
+  .page-enter { animation: pageEnter 0.22s ease-out both; }
+  @media (prefers-reduced-motion: reduce) {
+    .page-enter, .fade-up { animation: none; }
+  }
   @keyframes eq1 { 0%,100%{width:8px} 50%{width:18px} }
   @keyframes eq2 { 0%,100%{width:16px} 50%{width:6px} }
   @keyframes eq3 { 0%,100%{width:11px} 30%{width:18px} 70%{width:5px} }
@@ -257,7 +262,7 @@ const GoogleIcon = () => (
 // in the right portal.
 function SmartSignIn({ onPickStudent, onPickProfessor, onBack }) {
   return (
-    <div className="min-h-[100dvh] bg-[#FAFAFA] flex flex-col items-center justify-center px-6" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="min-h-[100dvh] bg-[#FAFAFA] flex flex-col items-center justify-center px-6 page-enter" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <style>{FONT}</style>
       <div className="mb-8 flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold">Scholr</span></div>
       <div className="w-full max-w-sm">
@@ -312,7 +317,7 @@ function ProfessorLogin({ onLogin, onGoSignup, onBack }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center">
+    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center page-enter">
       <style>{FONT}</style>
       <div className="mb-8 flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold">Scholr</span></div>
       <div className={`w-full max-w-sm px-6 ${shaking ? 'shake' : ''}`}>
@@ -372,7 +377,7 @@ function ProfessorSignup({ onLogin, onGoLogin, onBack }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center">
+    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center page-enter">
       <style>{FONT}</style>
       <div className="mb-8 flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold">Scholr</span></div>
       <div className="w-full max-w-sm px-6">
@@ -435,7 +440,7 @@ function StudentLogin({ onLogin, onGoSignup, onBack, pendingJoinCode }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center">
+    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center page-enter">
       <style>{FONT}</style>
       <div className="mb-8 flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold">Scholr</span></div>
       <div className={`w-full max-w-sm px-6 ${shaking ? 'shake' : ''}`}>
@@ -500,7 +505,7 @@ function StudentSignup({ onLogin, onGoLogin, onBack, pendingJoinCode }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center">
+    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center page-enter">
       <style>{FONT}</style>
       <div className="mb-8 flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold">Scholr</span></div>
       <div className="w-full max-w-sm px-6">
@@ -595,7 +600,7 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
   const firstName = (user.name || user.email).split(' ')[0];
 
   return (
-    <div className="min-h-[100dvh] bg-[#F7F7F7]" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="min-h-[100dvh] bg-[#F7F7F7] page-enter" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <style>{FONT}</style>
       <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between gap-3">
         <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-2 md:gap-3 min-w-0 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={24} /><span className="text-gray-900 font-semibold text-sm">Scholr</span><span className="text-gray-300 hidden sm:inline">·</span><span className="text-gray-500 text-sm truncate hidden sm:inline">{user.name || user.email}</span></button>
@@ -771,7 +776,7 @@ function ProfessorDashboard({ token, user, onLogout }) {
   if (selectedCourse) return <CourseManager token={token} course={selectedCourse} onBack={() => setSelectedCourse(null)} authHeaders={authHeaders} />;
 
   return (
-    <div className="min-h-[100dvh] bg-[#F7F7F7]" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="min-h-[100dvh] bg-[#F7F7F7] page-enter" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <style>{FONT}</style>
       <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between gap-3">
         <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-2 md:gap-3 min-w-0 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={24} /><span className="text-gray-900 font-semibold text-sm">Scholr</span><span className="text-gray-300 hidden sm:inline">·</span><span className="text-gray-500 text-sm truncate hidden sm:inline">{user.name || user.email}</span></button>
@@ -915,7 +920,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   const closeMobileNav = () => setMobileNavOpen(false);
 
   return (
-    <div className="flex h-[100dvh] w-screen overflow-hidden bg-[#F7F7F7] fixed inset-0">
+    <div className="flex h-[100dvh] w-screen overflow-hidden bg-[#F7F7F7] fixed inset-0 page-enter">
       <style>{FONT}</style>
       {/* Mobile top bar — hamburger + course name. Hidden on desktop. */}
       <div className="md:hidden fixed top-0 inset-x-0 z-20 bg-white border-b border-gray-200 flex items-center gap-3 px-4 h-14 pt-[env(safe-area-inset-top)]" style={{ height: 'calc(3.5rem + env(safe-area-inset-top))' }}>
@@ -1759,7 +1764,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const closeMobile = () => setMobileChatsOpen(false);
 
   return (
-    <div className="flex h-[100dvh] w-screen overflow-hidden fixed inset-0 bg-white">
+    <div className="flex h-[100dvh] w-screen overflow-hidden fixed inset-0 bg-white page-enter">
       <style>{FONT}</style>
 
       {/* Backdrop on mobile when drawer is open */}
@@ -2022,7 +2027,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col">
+    <div className="min-h-screen bg-[#FAFAFA] flex flex-col page-enter">
       <style>{FONT}</style>
       <nav className="flex items-center justify-between px-4 md:px-10 py-3 md:py-4 border-b border-gray-200 bg-white sticky top-0 z-10" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
         <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-3 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={28} /><span className="text-gray-900 font-semibold text-base tracking-tight">Scholr</span></button>
@@ -2154,7 +2159,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
 function LegalPageLayout({ title, children }) {
   const navigate = useNavigate();
   return (
-    <div className="min-h-[100dvh] bg-[#FAFAFA] flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="min-h-[100dvh] bg-[#FAFAFA] flex flex-col page-enter" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <style>{FONT}</style>
       <nav className="flex items-center justify-between px-4 md:px-10 py-3 md:py-4 border-b border-gray-200 bg-white sticky top-0 z-10">
         <button type="button" onClick={() => navigate('/')} className="flex items-center gap-3 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={24} /><span className="text-gray-900 font-semibold">Scholr</span></button>
@@ -2316,7 +2321,7 @@ function JoinCoursePage({ studentToken, studentUser, onStudentLogin, onEnterCour
   if (loading) return <LoadingScreen label="Loading your course..." />;
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col">
+    <div className="min-h-screen bg-[#FAFAFA] flex flex-col page-enter">
       <style>{FONT}</style>
       <nav className="flex items-center justify-between px-4 md:px-8 py-3 md:py-4 border-b border-gray-200 bg-white" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
         <button type="button" onClick={() => navigate('/')} className="flex items-center gap-3 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={24} /><span className="text-gray-900 font-semibold">Scholr</span></button>
