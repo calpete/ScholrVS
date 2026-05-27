@@ -36,7 +36,7 @@ const FONT = `
   @keyframes eq1 { 0%,100%{width:8px} 50%{width:18px} }
   @keyframes eq2 { 0%,100%{width:16px} 50%{width:6px} }
   @keyframes eq3 { 0%,100%{width:11px} 30%{width:18px} 70%{width:5px} }
-  .eq-bar { height:2px; border-radius:2px; background:#6b7280; display:block; }
+  .eq-bar { height:2.5px; border-radius:2px; background:#374151; display:block; }
   .eq1 { animation: eq1 0.8s ease-in-out infinite; }
   .eq2 { animation: eq2 0.95s ease-in-out infinite 0.15s; }
   .eq3 { animation: eq3 0.75s ease-in-out infinite 0.08s; }
@@ -873,6 +873,8 @@ function ProfessorDashboard({ token, user, onLogout }) {
 function CourseManager({ token, course, onBack, authHeaders }) {
   const [mods, setMods] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadingFile, setUploadingFile] = useState(null);  // { name, sizeKb }
   const [toast, setToast] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [activeTab, setActiveTab] = useState('materials');
@@ -890,20 +892,50 @@ function CourseManager({ token, course, onBack, authHeaders }) {
       }).catch(() => showToast('Could not load documents', 'error'));
   }, [course.id]);
 
-  const handleFile = async (file) => {
+  const handleFile = (file) => {
     const supported = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
     if (!file || !supported.some(ext => file.name.toLowerCase().endsWith(ext))) return;
     setUploading(true);
+    setUploadProgress(0);
+    setUploadingFile({ name: file.name, sizeKb: Math.round(file.size / 1024) });
     const fd = new FormData(); fd.append('file', file);
-    try {
-      const res = await fetch(`${API}/course/${course.id}/upload`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setMods(prev => [{ id: data.fileName, name: data.fileName, sizeKb: data.sizeKb, uploaded: new Date() }, ...prev]);
-        showToast(`${file.name} uploaded`);
-      } else showToast(data.error || 'Upload failed', 'error');
-    } catch { showToast('Server unreachable', 'error'); }
-    setUploading(false);
+    // Use XMLHttpRequest so we can subscribe to upload progress events
+    // (fetch does not expose upload progress yet).
+    const xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        setUploadProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+    xhr.addEventListener('load', () => {
+      setUploading(false);
+      setUploadProgress(0);
+      setUploadingFile(null);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (data.success) {
+            setMods(prev => [{ id: data.fileName, name: data.fileName, sizeKb: data.sizeKb, uploaded: new Date() }, ...prev]);
+            showToast(`${file.name} uploaded`);
+            return;
+          }
+          showToast(data.error || 'Upload failed', 'error');
+        } catch {
+          showToast('Upload failed', 'error');
+        }
+      } else {
+        showToast(`Upload failed (${xhr.status})`, 'error');
+      }
+    });
+    xhr.addEventListener('error', () => {
+      setUploading(false);
+      setUploadProgress(0);
+      setUploadingFile(null);
+      showToast('Server unreachable', 'error');
+    });
+    xhr.open('POST', `${API}/course/${course.id}/upload`);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.send(fd);
   };
 
   const onDelete = async (mod) => {
@@ -970,10 +1002,29 @@ function CourseManager({ token, course, onBack, authHeaders }) {
                 <input type="file" ref={fileRef} onChange={e => { handleFile(e.target.files[0]); e.target.value = ''; }} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" />
                 <button onClick={() => fileRef.current.click()} disabled={uploading}
                   className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-xs font-medium px-4 py-2 rounded-lg transition-colors">
-                  <UploadCloud size={13} />{uploading ? 'Uploading...' : 'Upload'}
+                  <UploadCloud size={13} />{uploading ? `Uploading ${uploadProgress}%` : 'Upload'}
                 </button>
               </div>
             </header>
+            {uploading && uploadingFile && (
+              <div className="bg-white border-b border-gray-200 px-8 py-3 flex-shrink-0">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-gray-900 flex items-center justify-center flex-shrink-0">
+                      <UploadCloud size={12} className="text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-gray-900 text-xs font-medium truncate">{cleanFileName(uploadingFile.name)}</p>
+                      <p className="text-gray-400 text-[11px]">{uploadingFile.sizeKb}kb · uploading</p>
+                    </div>
+                  </div>
+                  <span className="text-gray-700 text-xs font-medium tabular-nums ml-3 flex-shrink-0">{uploadProgress}%</span>
+                </div>
+                <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-gray-900 transition-all duration-150 ease-out rounded-full" style={{ width: `${uploadProgress}%` }} />
+                </div>
+              </div>
+            )}
             <div className="flex-1 overflow-y-auto p-8">
               {mods.length === 0 ? (
                 <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
@@ -1312,9 +1363,11 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const [quizTopic, setQuizTopic] = useState('');
 
   const bottomRef = useRef(null);
+  const scrollContainerRef = useRef(null);
   const inputRef = useRef(null);
   const paperclipRef = useRef(null);
   const abortRef = useRef(null);
+  const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false);
 
   const authHeaders = { Authorization: `Bearer ${studentToken}` };
   const jsonHeaders = { Authorization: `Bearer ${studentToken}`, 'Content-Type': 'application/json' };
@@ -1518,8 +1571,34 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const DEFAULT_QUESTIONS = ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
   const questions = suggestedQuestions?.length ? suggestedQuestions : DEFAULT_QUESTIONS;
   const active = chats.find(c => c.id === chatId) || chats[0];
-  const scrollToBottom = () => { setTimeout(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, 50); };
+  // Smart autoscroll: only scroll to bottom if the user is already within
+  // 150px of the bottom. If they've scrolled up to re-read something, leave
+  // them alone — and pop a "↓ New" pill so they can jump back when ready.
+  const isNearBottom = () => {
+    const c = scrollContainerRef.current;
+    if (!c) return true;
+    return c.scrollHeight - c.scrollTop - c.clientHeight < 150;
+  };
+  const scrollToBottom = (force = false) => {
+    setTimeout(() => {
+      if (force || isNearBottom()) {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        setShowNewMessageIndicator(false);
+      } else {
+        // user is reading scrollback while a new message arrived; show jump pill
+        setShowNewMessageIndicator(true);
+      }
+    }, 50);
+  };
   useEffect(() => { if (active) scrollToBottom(); }, [active?.messages, isTyping]);
+  // When the user manually scrolls back to the bottom, hide the pill
+  useEffect(() => {
+    const c = scrollContainerRef.current;
+    if (!c) return;
+    const onScroll = () => { if (isNearBottom()) setShowNewMessageIndicator(false); };
+    c.addEventListener('scroll', onScroll, { passive: true });
+    return () => c.removeEventListener('scroll', onScroll);
+  }, [active?.id]);
 
   const createNewChat = async () => {
     try {
@@ -1842,7 +1921,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         <div className="flex flex-1 overflow-hidden">
           {/* Chat messages */}
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4 md:py-8 flex flex-col gap-5">
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 md:px-8 py-4 md:py-8 flex flex-col gap-5 relative">
               {(!active || active.messages.length === 0) && (
                 <div className="flex flex-col items-center justify-center flex-1 pb-10 fade-up">
                   {documents.length === 0 ? (
@@ -1865,9 +1944,9 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                     <div className={`flex flex-col ${m.role === 'user' ? 'items-end max-w-xl' : 'items-start max-w-2xl w-full'}`}>
                       <div className={`rounded-2xl text-sm w-full ${m.role === 'user' ? 'bg-gray-900 text-white px-4 py-3 rounded-br-sm' : 'text-gray-800'}`}>
                         {m.role === 'assistant' && m.content === '' && m.streaming ? (
-                          <div className="flex items-center gap-3 py-2"><div className="flex flex-col justify-center gap-1" style={{ width: '22px' }}><div className="eq-bar eq1" /><div className="eq-bar eq2" /><div className="eq-bar eq3" /></div><span className="text-xs text-gray-400">Reading your materials...</span></div>
+                          <div className="flex items-center gap-3 py-2"><div className="flex flex-col justify-center gap-1" style={{ width: '22px' }}><div className="eq-bar eq1" /><div className="eq-bar eq2" /><div className="eq-bar eq3" /></div><span className="text-xs text-gray-500 font-medium">Reading your materials…</span></div>
                         ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user' ? <p className="leading-relaxed whitespace-pre-wrap text-white">{m.content}</p> : <MarkdownMessage content={m.content} />}
-                        {m.role === 'assistant' && m.streaming && m.content && <span className="inline-block w-0.5 h-4 bg-gray-400 animate-pulse ml-0.5 align-middle" />}
+                        {m.role === 'assistant' && m.streaming && m.content && <span className="inline-block w-[3px] h-[16px] bg-gray-800 animate-pulse ml-1 align-middle rounded-sm" />}
                         {m.role === 'assistant' && m.sources?.length > 0 && !m.streaming && !isError && (
                           <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-1.5 items-center">
                             <span className="text-[10px] text-gray-300 uppercase tracking-wide mr-0.5">From</span>
@@ -1890,6 +1969,15 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
               })}
               <div ref={bottomRef} />
             </div>
+            {showNewMessageIndicator && (
+              <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20 fade-up">
+                <button
+                  onClick={() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); setShowNewMessageIndicator(false); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium shadow-lg transition-colors">
+                  ↓ New message
+                </button>
+              </div>
+            )}
             <div className="px-4 md:px-8 py-3 md:py-4 bg-white border-t border-gray-100 flex-shrink-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
               <div className="max-w-3xl mx-auto">
                 <div className="flex items-center bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2 focus-within:border-gray-400 focus-within:bg-white focus-within:shadow-sm transition-all gap-2">
