@@ -640,6 +640,9 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
   const fetchCourses = async () => {
     try {
       const res = await fetch(`${API}/student/courses`, { headers: authHeaders });
+      // Expired/invalid session → don't show an empty "no courses" screen with a
+      // dead token; send them to sign in again for a fresh token.
+      if (res.status === 401) { onLogout(); return; }
       const data = await res.json();
       setEnrolledCourses(Array.isArray(data) ? data : []);
     } catch {}
@@ -2675,6 +2678,15 @@ function JoinCoursePage({ studentToken, studentUser, onStudentLogin, onEnterCour
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${studentToken}` },
         body: JSON.stringify({ course_id: course.id }),
       });
+      // Stale/expired session — re-authenticate, then the join completes
+      // automatically once they're back on the dashboard (pending_join).
+      if (res.status === 401) {
+        sessionStorage.setItem('scholr_pending_join', code);
+        localStorage.removeItem('scholr_student_token');
+        localStorage.removeItem('scholr_student_user');
+        navigate('/student/login');
+        return;
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok && !data.already_enrolled) {
         setError(data.error || "Couldn't join — please try again.");
