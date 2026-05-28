@@ -4,7 +4,8 @@ import {
   MessageSquare, Send, LogOut, Trash2, Plus, BookOpen, FileText,
   ChevronRight, Users, AlertCircle, UploadCloud, BarChart2, Clock,
   CheckCircle2, Copy, Check, ThumbsUp, ThumbsDown, X,
-  Lock, WifiOff, Paperclip, Square, ArrowLeft, ExternalLink, Hash, Menu
+  Lock, WifiOff, Paperclip, Square, ArrowLeft, ExternalLink, Hash, Menu,
+  ListChecks, RotateCcw, Sparkles, ChevronLeft
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -103,7 +104,7 @@ function StatCard({ label, value, sub, dark, icon }) {
     <div className={`rounded-2xl p-5 flex flex-col gap-2 ${dark ? 'bg-gray-900' : 'bg-white border border-gray-200'}`}>
       <div className="flex items-center justify-between">
         <p className={`text-[10px] font-semibold uppercase tracking-widest ${dark ? 'text-white/50' : 'text-gray-400'}`}>{label}</p>
-        {icon && <span className="text-base opacity-60">{icon}</span>}
+        {icon && <span className={dark ? 'text-white/40' : 'text-gray-300'}>{icon}</span>}
       </div>
       <p className={`text-3xl font-bold tracking-tight ${dark ? 'text-white' : 'text-gray-900'}`}>{value}</p>
       {sub && <p className={`text-xs ${dark ? 'text-white/40' : 'text-gray-400'}`}>{sub}</p>}
@@ -1185,7 +1186,7 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
         </div>
         <div className="flex-1 flex items-center justify-center px-4 md:px-8 py-6">
           <div className="bg-white rounded-2xl border border-gray-200 px-6 py-10 text-center max-w-lg w-full">
-            <div className="text-4xl mb-3">📊</div>
+            <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4"><BarChart2 size={20} className="text-gray-400" /></div>
             <h3 className="serif text-2xl text-gray-900 mb-2">No questions yet</h3>
             <p className="text-gray-500 text-sm mb-6 max-w-sm mx-auto leading-relaxed">Share your join code with students — once they start asking the AI questions, you'll see what topics they're focused on right here.</p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
@@ -1258,8 +1259,8 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
       </div>
       <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 md:space-y-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-          <StatCard dark label="Total Questions" value={d.totalQuestions.toLocaleString()} sub={`${d.weekQuestions} this week`} icon="💬" />
-          <StatCard label="Time Saved" value={timeSaved} sub="professor hours freed up" icon="⏱" />
+          <StatCard dark label="Total Questions" value={d.totalQuestions.toLocaleString()} sub={`${d.weekQuestions} this week`} icon={<MessageSquare size={15} />} />
+          <StatCard label="Time Saved" value={timeSaved} sub="professor hours freed up" icon={<Clock size={15} />} />
         </div>
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-0.5">Weekly Activity</h3>
@@ -1276,7 +1277,7 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
         </div>
         <div className="bg-gray-900 rounded-2xl p-6 text-white">
           <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 text-lg">💡</div>
+            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0"><Sparkles size={18} className="text-white/80" /></div>
             <div className="flex-1">
               <div className="flex items-center justify-between mb-1.5">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40">AI Summary</p>
@@ -1409,7 +1410,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     const total = quizQuestions.length;
     if (!total) return;
     const pct = Math.round((quizScore / total) * 100);
-    const content = `📊 Quiz complete — you scored **${quizScore}/${total}** (${pct}%)${quizTopic ? ` on ${quizTopic}` : ''}.`;
+    const content = `Quiz complete — you scored **${quizScore}/${total}** (${pct}%)${quizTopic ? ` on ${quizTopic}` : ''}.`;
     const { id: targetId, dbId } = quizChatRef.current || {};
     const chatLocalId = targetId || chatId;
     setChats(prev => prev.map(c => c.id === chatLocalId
@@ -1706,7 +1707,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         messages: [
           ...c.messages,
           { role: 'user', content: message, ts: Date.now() },
-          { id: streamingMsgId, role: 'assistant', content: `Generating your quiz${topic ? ` on **${topic}**` : ''} — check the panel on the right! 📝`, sources: [], ts: Date.now(), streaming: false },
+          { id: streamingMsgId, role: 'assistant', content: `Generating your quiz${topic ? ` on **${topic}**` : ''} — see the panel on the right.`, sources: [], ts: Date.now(), streaming: false },
         ],
       } : c));
       // Persist the request so the chat has context on reload — the result
@@ -2019,17 +2020,19 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
 
           {/* ── Quiz panel — full-screen overlay on mobile, sidebar on desktop ── */}
           {quizOpen && (
-            <div className="fixed md:static inset-0 md:inset-auto z-30 md:w-80 md:border-l border-gray-200 bg-white flex flex-col md:flex-shrink-0 overflow-hidden pt-[env(safe-area-inset-top)] md:pt-0">
+            <div className="fixed md:static inset-0 md:inset-auto z-30 md:w-[360px] md:border-l border-gray-200 bg-white flex flex-col md:flex-shrink-0 overflow-hidden pt-[env(safe-area-inset-top)] md:pt-0">
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-xl bg-gray-900 flex items-center justify-center flex-shrink-0 text-white text-sm">📝</div>
+                  <div className="w-8 h-8 rounded-xl bg-gray-900 flex items-center justify-center flex-shrink-0">
+                    <ListChecks size={15} className="text-white" />
+                  </div>
                   <div className="min-w-0">
                     <p className="text-gray-900 text-sm font-semibold leading-tight">Practice Quiz</p>
                     <p className="text-gray-400 text-[11px] truncate">{quizTopic || 'From your course materials'}</p>
                   </div>
                 </div>
                 {!quizLoading && quizQuestions.length > 0 && !quizDone && (
-                  <span className="text-[11px] font-medium text-gray-400 tabular-nums flex-shrink-0 ml-2">{quizIndex + 1}/{quizQuestions.length}</span>
+                  <span className="text-[11px] font-medium text-gray-400 tabular-nums flex-shrink-0 ml-2">{quizIndex + 1} / {quizQuestions.length}</span>
                 )}
               </div>
               {!quizLoading && quizQuestions.length > 0 && !quizDone && (
@@ -2037,11 +2040,11 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                   <div className="h-full bg-gray-900 transition-all duration-300 ease-out" style={{ width: `${((quizIndex + (quizAnswers[quizIndex] !== undefined ? 1 : 0)) / quizQuestions.length) * 100}%` }} />
                 </div>
               )}
-              <div className="flex-1 overflow-y-auto p-5">
+              <div className="flex-1 overflow-y-auto p-5 md:p-6">
                 {quizLoading && (
                   <div className="flex flex-col items-center justify-center h-full gap-4">
                     <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-gray-400 text-xs text-center">Generating your quiz from course materials...</p>
+                    <p className="text-gray-400 text-xs text-center">Generating your quiz from course materials…</p>
                   </div>
                 )}
                 {!quizLoading && quizQuestions.length === 0 && (
@@ -2053,48 +2056,40 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                 )}
                 {!quizLoading && quizDone && quizQuestions.length > 0 && (() => {
                   const total = quizQuestions.length;
-                  const pct = Math.round((quizScore / total) * 100);
-                  const msg = pct === 100 ? 'Perfect score!' : pct >= 70 ? 'Great job!' : pct >= 50 ? 'Nice effort!' : 'Keep studying!';
-                  const ring = pct >= 70 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
-                  const C = 2 * Math.PI * 44;
+                  const right = quizQuestions.filter((q, i) => quizAnswers[i] === q.correct).length;
+                  const wrong = quizQuestions.filter((q, i) => { const a = quizAnswers[i]; return a !== undefined && a !== -1 && a !== q.correct; }).length;
+                  const skipped = total - right - wrong;
+                  const pct = Math.round((right / total) * 100);
+                  const C = 2 * Math.PI * 42;
                   return (
                     <div className="flex flex-col gap-5">
-                      <div className="flex flex-col items-center gap-3 pt-1">
-                        <div className="relative w-28 h-28">
+                      {/* Score card */}
+                      <div className="rounded-2xl bg-gray-50 p-5 flex items-center gap-5">
+                        <div className="relative w-28 h-28 flex-shrink-0">
                           <svg className="w-28 h-28 -rotate-90" viewBox="0 0 100 100">
-                            <circle cx="50" cy="50" r="44" fill="none" stroke="#f3f4f6" strokeWidth="8" />
-                            <circle cx="50" cy="50" r="44" fill="none" stroke={ring} strokeWidth="8" strokeLinecap="round"
-                              strokeDasharray={C} strokeDashoffset={C * (1 - quizScore / total)} style={{ transition: 'stroke-dashoffset 0.7s ease' }} />
+                            <circle cx="50" cy="50" r="42" fill="none" stroke="#111827" strokeWidth="9" />
+                            <circle cx="50" cy="50" r="42" fill="none" stroke="#22c55e" strokeWidth="9" strokeLinecap="round"
+                              strokeDasharray={C} strokeDashoffset={C * (1 - right / total)} style={{ transition: 'stroke-dashoffset 0.7s ease' }} />
                           </svg>
                           <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-2xl font-bold text-gray-900 leading-none">{quizScore}/{total}</span>
-                            <span className="text-[11px] text-gray-400 mt-1">{pct}%</span>
+                            <span className="text-2xl font-bold text-gray-900 leading-none">{right}/{total}</span>
+                            <span className="text-xs text-gray-400 mt-1">{pct}%</span>
                           </div>
                         </div>
-                        <p className="text-gray-900 font-semibold text-base">{msg}</p>
+                        <div className="flex-1 flex flex-col gap-2.5 text-sm">
+                          <div className="flex items-center justify-between"><span className="text-gray-500">Right</span><span className="font-semibold text-emerald-600 tabular-nums">{right}</span></div>
+                          <div className="flex items-center justify-between"><span className="text-gray-500">Wrong</span><span className="font-semibold text-gray-900 tabular-nums">{wrong}</span></div>
+                          <div className="flex items-center justify-between"><span className="text-gray-500">Skipped</span><span className="font-semibold text-gray-400 tabular-nums">{skipped}</span></div>
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-2">
-                        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Review</p>
-                        {quizQuestions.map((q, i) => {
-                          const correct = quizAnswers[i] === q.correct;
-                          return (
-                            <div key={i} className={`rounded-xl border px-3 py-2.5 ${correct ? 'border-emerald-200 bg-emerald-50/40' : 'border-red-200 bg-red-50/40'}`}>
-                              <div className="flex items-start gap-2">
-                                {correct ? <CheckCircle2 size={13} className="text-emerald-500 mt-0.5 flex-shrink-0" /> : <X size={13} className="text-red-400 mt-0.5 flex-shrink-0" />}
-                                <p className="text-[12px] text-gray-700 leading-snug">{q.question}</p>
-                              </div>
-                              {!correct && (
-                                <p className="text-[11px] text-gray-500 mt-1.5 pl-5"><span className="text-gray-400">Answer:</span> {(q.options[q.correct] || '').replace(/^\s*[A-D][).:]\s*/, '')}</p>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
+                      {/* Actions */}
                       <div className="flex flex-col gap-2">
                         <button onClick={() => { setQuizIndex(0); setQuizAnswers({}); setQuizDone(false); }}
-                          className="w-full py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors">Retake this quiz</button>
+                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">
+                          <RotateCcw size={14} />Retake quiz
+                        </button>
                         <button onClick={() => generateQuiz(quizTopic)}
-                          className="w-full py-2.5 rounded-xl bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 text-xs font-medium transition-colors">Generate a new quiz</button>
+                          className="w-full py-2.5 rounded-xl bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 text-sm font-medium transition-colors">Generate a new quiz</button>
                       </div>
                     </div>
                   );
@@ -2102,47 +2097,60 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                 {!quizLoading && !quizDone && quizQuestions.length > 0 && (() => {
                   const q = quizQuestions[quizIndex];
                   const answered = quizAnswers[quizIndex];
-                  const isAnswered = answered !== undefined;
+                  const isAnswered = answered !== undefined && answered !== -1;
                   const isCorrect = answered === q.correct;
+                  const isLast = quizIndex === quizQuestions.length - 1;
+                  const advance = () => { if (isLast) setQuizDone(true); else setQuizIndex(i => i + 1); };
+                  const skip = () => { setQuizAnswers(prev => (prev[quizIndex] === undefined ? { ...prev, [quizIndex]: -1 } : prev)); advance(); };
                   return (
-                    <div className="flex flex-col gap-4">
-                      <p className="text-gray-900 text-sm font-medium leading-relaxed">{q.question}</p>
-                      <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-5">
+                      <p className="text-gray-900 text-[15px] md:text-base font-semibold leading-relaxed">{q.question}</p>
+                      <div className="flex flex-col gap-2.5">
                         {q.options.map((opt, oi) => {
                           const letter = String.fromCharCode(65 + oi);
                           const text = opt.replace(/^\s*[A-D][).:]\s*/, '');
-                          let card = 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50';
-                          let badge = 'bg-gray-100 text-gray-500';
+                          let card = 'bg-gray-50 border-transparent hover:bg-gray-100';
+                          let letterColor = 'text-gray-400';
                           if (isAnswered) {
-                            if (oi === q.correct) { card = 'border-emerald-300 bg-emerald-50'; badge = 'bg-emerald-500 text-white'; }
-                            else if (oi === answered) { card = 'border-red-300 bg-red-50'; badge = 'bg-red-400 text-white'; }
-                            else { card = 'border-gray-100 bg-white opacity-60'; badge = 'bg-gray-100 text-gray-400'; }
+                            if (oi === q.correct) { card = 'bg-emerald-50 border-emerald-200'; letterColor = 'text-emerald-600'; }
+                            else if (oi === answered) { card = 'bg-red-50 border-red-200'; letterColor = 'text-red-500'; }
+                            else { card = 'bg-gray-50 border-transparent opacity-50'; }
                           }
                           return (
                             <button key={oi} onClick={() => handleQuizAnswer(quizIndex, oi)} disabled={isAnswered}
-                              className={`w-full text-left px-3 py-3 rounded-xl border transition-all flex items-center gap-3 ${card} ${!isAnswered ? 'cursor-pointer' : 'cursor-default'}`}>
-                              <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-bold flex-shrink-0 transition-colors ${badge}`}>
-                                {isAnswered && oi === q.correct ? <CheckCircle2 size={13} /> : isAnswered && oi === answered ? <X size={13} /> : letter}
-                              </span>
-                              <span className="text-[13px] leading-snug text-gray-700">{text}</span>
+                              className={`w-full text-left px-4 py-3.5 rounded-2xl border transition-all flex items-start gap-3 ${card} ${!isAnswered ? 'cursor-pointer' : 'cursor-default'}`}>
+                              <span className={`text-sm font-semibold flex-shrink-0 w-4 ${letterColor}`}>{letter}.</span>
+                              <span className="text-[13px] md:text-sm leading-snug text-gray-700 flex-1">{text}</span>
+                              {isAnswered && oi === q.correct && <CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0 mt-0.5" />}
+                              {isAnswered && oi === answered && oi !== q.correct && <X size={16} className="text-red-400 flex-shrink-0 mt-0.5" />}
                             </button>
                           );
                         })}
                       </div>
                       {isAnswered && (
-                        <div className={`rounded-xl p-4 text-xs leading-relaxed ${isCorrect ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-amber-50 border border-amber-200 text-amber-800'}`}>
-                          <p className="font-semibold mb-1">{isCorrect ? '✓ Correct!' : '✗ Not quite'}</p>
-                          <p>{q.explanation}</p>
+                        <div className="rounded-2xl bg-gray-50 p-4">
+                          <p className={`text-xs font-semibold mb-1.5 flex items-center gap-1.5 ${isCorrect ? 'text-emerald-600' : 'text-gray-900'}`}>
+                            {isCorrect ? <CheckCircle2 size={13} /> : <X size={13} className="text-red-400" />}
+                            {isCorrect ? 'Correct' : 'Not quite'}
+                          </p>
+                          <p className="text-xs text-gray-600 leading-relaxed">{q.explanation}</p>
                         </div>
                       )}
-                      {isAnswered && (
-                        <button onClick={() => {
-                          if (quizIndex < quizQuestions.length - 1) setQuizIndex(i => i + 1);
-                          else setQuizDone(true);
-                        }} className="w-full py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors">
-                          {quizIndex < quizQuestions.length - 1 ? 'Next question →' : 'See results'}
+                      <div className="flex items-center justify-between gap-2 pt-1">
+                        <button onClick={() => setQuizIndex(i => Math.max(0, i - 1))} disabled={quizIndex === 0}
+                          className="flex items-center gap-1 px-3 py-2 rounded-xl text-gray-400 hover:text-gray-700 disabled:opacity-0 text-sm font-medium transition-colors">
+                          <ChevronLeft size={15} />Back
                         </button>
-                      )}
+                        {isAnswered ? (
+                          <button onClick={advance} className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">
+                            {isLast ? 'See results' : 'Next'}{!isLast && <ChevronRight size={15} />}
+                          </button>
+                        ) : (
+                          <button onClick={skip} className="px-4 py-2.5 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 text-gray-500 text-sm font-medium transition-colors">
+                            Skip
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })()}
@@ -2549,7 +2557,7 @@ function JoinCoursePage({ studentToken, studentUser, onStudentLogin, onEnterCour
                 )}
               </div>
               <div className="flex items-center justify-center gap-6 text-xs text-gray-400">
-                <span>🔒 FERPA aligned</span><span className="w-1 h-1 rounded-full bg-gray-300" /><span>Powered by Google Vertex AI</span>
+                <span className="flex items-center gap-1"><Lock size={11} />FERPA aligned</span><span className="w-1 h-1 rounded-full bg-gray-300" /><span>Powered by Google Vertex AI</span>
               </div>
             </div>
           )}
