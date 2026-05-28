@@ -1916,8 +1916,11 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             <button onClick={() => setRecentsOpen(o => !o)} className="flex items-center gap-1 text-[10px] text-gray-400 font-medium uppercase tracking-widest hover:text-gray-600 transition-colors">
               <ChevronRight size={10} className={`transition-transform ${recentsOpen ? 'rotate-90' : ''}`} />Recents
             </button>
-            {recentsOpen && chats.length > RECENT_LIMIT && (
-              <button onClick={() => setShowAllChats(s => !s)} className="text-[10px] text-gray-400 hover:text-gray-700 font-medium opacity-0 group-hover/recents:opacity-100 transition-opacity">
+            {recentsOpen && (
+              <button
+                onClick={() => setShowAllChats(s => !s)}
+                disabled={chats.length <= RECENT_LIMIT && !showAllChats}
+                className="text-[10px] text-gray-400 hover:text-gray-700 font-medium opacity-0 group-hover/recents:opacity-100 transition-opacity disabled:hover:text-gray-400">
                 {showAllChats ? 'Show less' : 'View all'}
               </button>
             )}
