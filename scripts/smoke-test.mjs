@@ -62,12 +62,33 @@ for (const t of TABLES) {
 }
 
 if (HEALTH_URL) {
+  const base = HEALTH_URL.replace(/\/$/, '');
+
   console.log(`\n5. Live /health/deep at ${HEALTH_URL}`);
   try {
-    const r = await fetch(`${HEALTH_URL.replace(/\/$/, '')}/health/deep`);
+    const r = await fetch(`${base}/health/deep`);
     const d = await r.json();
     r.ok && d.ok ? pass(`200 ok: ${JSON.stringify(d.checks)}`) : fail(`${r.status}: ${JSON.stringify(d)}`);
   } catch (e) { fail(`could not reach /health/deep: ${e.message}`); }
+
+  // Signup -> login round-trip for both roles. Catches RLS / shared-client
+  // regressions that break auth (a valid account failing to log in).
+  console.log('\n6. Auth round-trip (signup -> login, both roles)');
+  const ids = [];
+  const pw = 'Smoke-' + Math.random().toString(36).slice(2) + '!9';
+  const J = async (r) => { try { return [r.status, await r.json()]; } catch { return [r.status, {}]; } };
+  for (const role of ['professor', 'student']) {
+    const email = `smoke-${role}-${Date.now()}@scholrtest.dev`;
+    try {
+      await fetch(`${base}/${role}/signup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pw, name: 'Smoke' }) });
+      const [s, d] = await J(await fetch(`${base}/${role}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pw }) }));
+      s === 200 && d.success ? pass(`${role}: signup + login OK`) : fail(`${role}: login returned ${s} ${JSON.stringify(d).slice(0, 80)}`);
+      const u = (await svc.auth.admin.listUsers({ page: 1, perPage: 1000 })).data.users.find(x => x.email === email);
+      if (u) ids.push(u.id);
+    } catch (e) { fail(`${role}: ${e.message}`); }
+  }
+  for (const id of ids) { await svc.from('professors').delete().eq('id', id); await svc.from('students').delete().eq('id', id); await svc.auth.admin.deleteUser(id); }
+  if (ids.length) console.log(`  (cleaned up ${ids.length} smoke account${ids.length > 1 ? 's' : ''})`);
 }
 
 console.log(`\n${failures === 0 ? '✅ ALL CHECKS PASSED' : `❌ ${failures} CHECK(S) FAILED`}\n`);
