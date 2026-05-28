@@ -559,8 +559,12 @@ app.get('/professor/auth/google', (req, res) => {
 // After the Google redirect, the frontend has an access_token but the user's
 // role row may not exist yet. This runs server-side with the service key so it
 // can read/write across RLS — the frontend must NOT touch these tables directly
-// (that would require professors/students to be world-writable). Returns
-// { conflict: true } if the account is already registered under the other role.
+// (that would require professors/students to be world-writable).
+//
+// One Google account can be BOTH a student (of classes they join) and a teacher
+// (of courses they run). Login is role-explicit, so we never block sign-in based
+// on the other role — we just ensure the requested role's row exists and let
+// them into that portal. (No more "you're already a teacher" alert for students.)
 app.post('/auth/sync-oauth-user', async (req, res) => {
   const { access_token } = req.body;
   const role = req.body.role === 'professor' ? 'professor' : 'student';
@@ -569,11 +573,6 @@ app.post('/auth/sync-oauth-user', async (req, res) => {
     const { data: { user } = {}, error: userErr } = await supabase.auth.getUser(access_token);
     if (userErr || !user) return res.status(401).json({ error: 'Invalid session' });
     const name = user.user_metadata?.full_name || user.email.split('@')[0];
-    // Block cross-role contamination: if this account already exists in the
-    // other role's table, send them back to the correct sign-in.
-    const otherTable = role === 'professor' ? 'students' : 'professors';
-    const { data: otherRow } = await supabase.from(otherTable).select('id').eq('id', user.id).maybeSingle();
-    if (otherRow) return res.json({ conflict: true, role });
     const targetTable = role === 'professor' ? 'professors' : 'students';
     const { error: upsertErr } = await supabase.from(targetTable).upsert(
       { id: user.id, email: user.email, name }, { onConflict: 'id' }
