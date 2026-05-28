@@ -31,8 +31,31 @@ const MODEL = 'gemini-2.5-flash';
 const ai = new GoogleGenAI({ vertexai: true, project: PROJECT, location: LOCATION });
 console.log(`✅ Vertex AI ready — project: ${PROJECT}, model: ${MODEL}`);
 
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
+const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY;
+const supabase = createClient(process.env.SUPABASE_URL, SUPABASE_KEY);
 console.log('✅ Supabase connected');
+
+// Guard against the #1 deploy mistake: using the publishable/anon key instead
+// of the secret (service_role) key. The backend talks to Supabase as a trusted
+// service and MUST bypass RLS — with an anon key, writes like enrolling a
+// student fail at runtime with "new row violates row-level security policy".
+// Verify the key has admin powers at boot so we catch this before any user does.
+(async () => {
+  if (!SUPABASE_KEY) {
+    console.error('❌ SUPABASE_SECRET_KEY is missing. The server cannot write to the database.');
+    return;
+  }
+  if (SUPABASE_KEY.startsWith('sb_publishable_') || SUPABASE_KEY.includes('anon')) {
+    console.error('❌ SUPABASE_SECRET_KEY looks like a PUBLISHABLE/ANON key. Use the SECRET (service_role) key — student enrollment and other writes will fail with RLS errors.');
+  }
+  try {
+    const { error } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1 });
+    if (error) console.error('❌ Supabase key is NOT a service_role/secret key — admin API rejected it. Writes blocked by RLS will fail:', error.message);
+    else console.log('✅ Supabase key verified as service_role (RLS bypass active)');
+  } catch (e) {
+    console.error('❌ Could not verify Supabase service key:', e.message);
+  }
+})();
 
 // GCS — caches PDFs so Vertex AI can read them by gs:// URI instead of
 // receiving the full file inline base64 on every chat. Vertex AI doesn't
@@ -552,6 +575,13 @@ app.post('/student/enroll', requireAuth, async (req, res) => {
     const { error } = await supabase.from('enrollments').insert({ student_id: req.user.id, course_id });
     if (error) {
       if (error.code === '23505') return res.json({ success: true, already_enrolled: true });
+      // 42501 = RLS policy violation. This only happens when the backend is
+      // configured with a non-service key — surface a clean message to the
+      // student and a loud hint in the logs instead of leaking Postgres errors.
+      if (error.code === '42501') {
+        console.error('❌ Enrollment blocked by RLS — backend is not using the Supabase SECRET (service_role) key. Fix SUPABASE_SECRET_KEY.');
+        return res.status(500).json({ error: "Couldn't join the course — please try again in a moment." });
+      }
       return res.status(500).json({ error: error.message });
     }
     res.json({ success: true });
