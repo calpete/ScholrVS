@@ -1140,21 +1140,18 @@ app.post('/student/chats/:chatId/messages', requireAuth, async (req, res) => {
   res.json(data);
 });
 
+// Course cover is now a chosen pattern (0–8), not an uploaded photo. Stored in
+// cover_image as "pattern:N" so it flows through to the student side unchanged.
 app.post('/professor/courses/:courseId/cover', requireAuth, async (req, res) => {
   const { courseId } = req.params;
-  const { data: course } = await supabase.from('courses').select('*').eq('id', courseId).eq('professor_id', req.user.id).single();
+  const { data: course } = await supabase.from('courses').select('id').eq('id', courseId).eq('professor_id', req.user.id).single();
   if (!course) return res.status(403).json({ error: 'Not your course' });
-  const file = req.files?.file;
-  if (!file) return res.status(400).json({ error: 'No file uploaded' });
-  const mimeType = getMimeType(file.name);
-  if (!mimeType) return res.status(400).json({ error: 'Unsupported file type' });
-  const buffer = Buffer.from(file.data);
-  const storagePath = `covers/${courseId}/${file.name}`;
-  const { error: uploadError } = await supabase.storage.from('documents').upload(storagePath, buffer, { contentType: mimeType, upsert: true });
-  if (uploadError) return res.status(500).json({ error: 'Upload failed: ' + uploadError.message });
-  const { data: { publicUrl } } = supabase.storage.from('documents').getPublicUrl(storagePath);
-  await supabase.from('courses').update({ cover_image: publicUrl }).eq('id', courseId);
-  res.json({ success: true, coverImage: publicUrl });
+  const patternId = parseInt(req.body?.patternId, 10);
+  if (!(patternId >= 0 && patternId <= 8)) return res.status(400).json({ error: 'Invalid pattern (0–8)' });
+  const cover = `pattern:${patternId}`;
+  const { error } = await supabase.from('courses').update({ cover_image: cover }).eq('id', courseId);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true, coverImage: cover });
 });
 
 app.post('/course/:courseId/quiz', requireAuth, requireCourseAccess, async (req, res) => {

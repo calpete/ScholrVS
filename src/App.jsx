@@ -737,9 +737,9 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
               <button key={course.id} onClick={() => handleEnterCourse(course)}
                 className="group text-left bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-gray-300 hover:shadow-md transition-all">
                 <div className="w-full">
-                  {course.cover_image
+                  {course.cover_image?.startsWith('http')
                     ? <img src={course.cover_image} alt="" className="w-full object-cover" style={{height:80}} />
-                    : <CoursePattern courseId={course.id} height={80} />}
+                    : <CoursePattern courseId={course.id} patternId={coverPatternId(course)} height={80} />}
                 </div>
                 <div className="p-5">
                   <div className="flex items-start justify-between mb-1">
@@ -766,10 +766,24 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
   );
 }
 
-function CoursePattern({ courseId, height = 80 }) {
-  const hash = courseId.split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
-  const bg = ['#0F0F0F', '#1a1a2e', '#0d1b2a', '#1a0a2e', '#0a1a1a'][ Math.abs(hash) % 5];
-  const type = Math.abs(hash >> 3) % 3;
+const COURSE_PATTERN_BGS = ['#0F0F0F', '#1a1a2e', '#0d1b2a', '#1a0a2e', '#0a1a1a', '#1f1147', '#0b2545', '#13262f', '#2a1a0a'];
+// Parse a stored "pattern:N" cover into its index, else null.
+function coverPatternId(course) {
+  const m = /^pattern:(\d+)$/.exec(course?.cover_image || '');
+  return m ? parseInt(m[1], 10) : null;
+}
+// Renders a chosen pattern (patternId 0–8) or, if none, a deterministic one
+// derived from the courseId.
+function CoursePattern({ courseId = '', patternId = null, height = 80 }) {
+  let bg, type;
+  if (patternId != null && patternId >= 0) {
+    bg = COURSE_PATTERN_BGS[patternId % COURSE_PATTERN_BGS.length];
+    type = patternId % 3;
+  } else {
+    const hash = courseId.split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
+    bg = COURSE_PATTERN_BGS[Math.abs(hash) % COURSE_PATTERN_BGS.length];
+    type = Math.abs(hash >> 3) % 3;
+  }
   if (type === 0) return (
     <svg viewBox={`0 0 400 ${height}`} style={{width:'100%',height,display:'block'}} preserveAspectRatio="xMidYMid slice">
       <rect width="400" height={height} fill={bg}/>
@@ -808,7 +822,7 @@ function ProfessorDashboard({ token, user, onLogout }) {
   const [toast, setToast] = useState(null);
   const [copied, setCopied] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const coverRefs = useRef({});
+  const [patternPicker, setPatternPicker] = useState(null); // course whose cover is being chosen
 
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
   const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
@@ -850,11 +864,10 @@ function ProfessorDashboard({ token, user, onLogout }) {
     showToast('Code copied!');
   };
 
-  const uploadCover = async (courseId, file) => {
-    if (!file) return;
-    const fd = new FormData(); fd.append('file', file);
+  const savePattern = async (courseId, patternId) => {
+    setPatternPicker(null);
     try {
-      const res = await fetch(`${API}/professor/courses/${courseId}/cover`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+      const res = await fetch(`${API}/professor/courses/${courseId}/cover`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ patternId }) });
       const data = await res.json();
       if (data.coverImage) {
         setCourses(prev => prev.map(c => c.id === courseId ? { ...c, cover_image: data.coverImage } : c));
@@ -906,15 +919,14 @@ function ProfessorDashboard({ token, user, onLogout }) {
           <div className="space-y-3">
             {courses.map(course => (
               <div key={course.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-gray-300 hover:shadow-sm transition-all">
-                <div className="relative cursor-pointer" onClick={() => coverRefs.current[course.id]?.click()}>
-                  {course.cover_image
+                <div className="group/cover relative cursor-pointer" onClick={() => setPatternPicker(course)}>
+                  {course.cover_image?.startsWith('http')
                     ? <img src={course.cover_image} alt="" className="w-full object-cover" style={{height:60}} />
-                    : <CoursePattern courseId={course.id} height={60} />}
-                  <div className="absolute inset-0 bg-black opacity-0 hover:opacity-20 transition-opacity flex items-center justify-center">
-                    <span className="text-white text-xs font-medium opacity-0 hover:opacity-100">Change cover</span>
+                    : <CoursePattern courseId={course.id} patternId={coverPatternId(course)} height={60} />}
+                  <div className="absolute inset-0 bg-black/0 group-hover/cover:bg-black/20 transition-colors flex items-center justify-center">
+                    <span className="text-white text-xs font-medium opacity-0 group-hover/cover:opacity-100">Change cover</span>
                   </div>
                 </div>
-                <input ref={el => coverRefs.current[course.id] = el} type="file" className="hidden" accept=".jpg,.jpeg,.png,.webp" onChange={e => { uploadCover(course.id, e.target.files[0]); e.target.value = ''; }} />
                 <div className="p-4 md:p-5">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div className="flex-1 min-w-0">
@@ -951,6 +963,28 @@ function ProfessorDashboard({ token, user, onLogout }) {
       {toast && (
         <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-xl text-white text-xs font-medium shadow-xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
           {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle2 size={13} />}{toast.msg}
+        </div>
+      )}
+      {patternPicker && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 fade-up" onClick={() => setPatternPicker(null)}>
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-gray-900 font-semibold text-base">Choose a cover</h3>
+              <button onClick={() => setPatternPicker(null)} className="text-gray-400 hover:text-gray-700 transition-colors"><X size={18} /></button>
+            </div>
+            <p className="text-gray-400 text-xs mb-4">Students see this on their course card too.</p>
+            <div className="grid grid-cols-3 gap-3">
+              {[0,1,2,3,4,5,6,7,8].map(i => {
+                const selected = coverPatternId(patternPicker) === i;
+                return (
+                  <button key={i} onClick={() => savePattern(patternPicker.id, i)}
+                    className={`rounded-xl overflow-hidden border-2 transition-all hover:scale-[1.03] ${selected ? 'border-gray-900' : 'border-transparent hover:border-gray-300'}`}>
+                    <CoursePattern patternId={i} height={56} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
     </div>
