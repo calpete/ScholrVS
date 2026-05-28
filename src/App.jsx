@@ -78,6 +78,19 @@ function Logo({ size = 28 }) {
   );
 }
 
+// The AI identity: three black lines (no square). While `thinking`, the line
+// widths animate (the same motion as the typing indicator); at rest they settle
+// to middle-longest / top-second / bottom-shortest and stay as the avatar.
+function AiMark({ thinking = false }) {
+  return (
+    <div className="flex flex-col gap-[3px]" style={{ width: 20 }}>
+      <div className={`h-[2.5px] rounded-full bg-gray-900 ${thinking ? 'eq1' : ''}`} style={thinking ? undefined : { width: 13 }} />
+      <div className={`h-[2.5px] rounded-full bg-gray-900 ${thinking ? 'eq2' : ''}`} style={thinking ? undefined : { width: 19 }} />
+      <div className={`h-[2.5px] rounded-full bg-gray-900 ${thinking ? 'eq3' : ''}`} style={thinking ? undefined : { width: 9 }} />
+    </div>
+  );
+}
+
 const DEMO_DATA = {
   totalQuestions: 127, weekQuestions: 43, timeSavedHours: 3, timeSavedMinutes: 12,
   confidenceRate: 91, estimatedStudents: 28, peakHour: '11 PM',
@@ -1938,8 +1951,8 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         <div className="flex flex-1 overflow-hidden">
           {/* Chat messages */}
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 md:px-8 py-4 md:py-8 relative flex flex-col">
-              <div className="w-full max-w-3xl mx-auto flex-1 flex flex-col gap-6">
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto relative">
+              <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6 flex flex-col gap-6 min-h-full">
               {(!active || active.messages.length === 0) && (
                 <div className="flex flex-col items-center justify-center flex-1 pb-10 fade-up">
                   {documents.length === 0 ? (
@@ -1962,7 +1975,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                   : null;
                 return (
                   <div key={msgId} className={`group flex ${m.role === 'user' ? 'justify-end' : 'gap-3'}`}>
-                    {m.role === 'assistant' && <div className="flex-shrink-0 mt-0.5"><Logo size={28} /></div>}
+                    {m.role === 'assistant' && <div className="flex-shrink-0 mt-1.5"><AiMark thinking={m.streaming} /></div>}
                     <div className={`flex flex-col min-w-0 ${m.role === 'user' ? 'items-end max-w-[85%]' : 'items-start flex-1'}`}>
                       {quizMatch ? (
                         <div className="inline-flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
@@ -1975,7 +1988,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                       ) : (
                         <div className={`rounded-2xl text-sm w-full ${m.role === 'user' ? 'bg-gray-900 text-white px-4 py-3 rounded-br-sm' : 'text-gray-800'}`}>
                           {m.role === 'assistant' && m.content === '' && m.streaming ? (
-                            <div className="flex items-center gap-3 py-2"><div className="flex flex-col justify-center gap-1" style={{ width: '22px' }}><div className="eq-bar eq1" /><div className="eq-bar eq2" /><div className="eq-bar eq3" /></div><span className="text-xs text-gray-500 font-medium">Reading your materials…</span></div>
+                            <span className="text-sm text-gray-400 inline-block py-1">Reading your materials…</span>
                           ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user' ? <p className="leading-relaxed whitespace-pre-wrap text-white">{m.content}</p> : <MarkdownMessage content={m.content} />}
                           {m.role === 'assistant' && m.streaming && m.content && <span className="inline-block w-[3px] h-[16px] bg-gray-800 animate-pulse ml-1 align-middle rounded-sm" />}
                           {m.role === 'assistant' && m.sources?.length > 0 && !m.streaming && !isError && (
