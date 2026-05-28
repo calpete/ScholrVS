@@ -214,10 +214,18 @@ function LoadingScreen({ label }) {
 }
 
 function MarkdownMessage({ content }) {
-  const clean = content.replace(/\nSOURCES:.*$/m, '').trim();
+  const clean = content
+    .replace(/\nSOURCES:.*$/m, '')
+    // LLMs sometimes emit LaTeX text-styling commands outside math mode, where
+    // KaTeX renders them as broken red text. Convert the common ones to Markdown
+    // so e.g. \textbf{77.25%} becomes proper **bold** instead of a parse error.
+    .replace(/\\textbf\{([^{}]*)\}/g, '**$1**')
+    .replace(/\\textit\{([^{}]*)\}/g, '*$1*')
+    .trim();
   return (
     <div className="text-sm leading-relaxed text-gray-800">
-      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={{
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false, errorColor: '#6b7280' }]]} components={{
         p: ({ children }) => <p className="my-2 first:mt-0 last:mb-0 text-gray-800">{children}</p>,
         h1: ({ children }) => <h1 className="text-base font-semibold text-gray-900 mt-4 mb-2 first:mt-0">{children}</h1>,
         h2: ({ children }) => <h2 className="text-sm font-semibold text-gray-900 mt-4 mb-1.5 first:mt-0">{children}</h2>,
