@@ -36,6 +36,16 @@ const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY;
 const supabase = createClient(process.env.SUPABASE_URL, SUPABASE_KEY);
 console.log('✅ Supabase connected');
 
+// Dedicated client for sign-in / sign-up ONLY. signInWithPassword() and signUp()
+// mutate a client's auth state — calling them on the shared admin client above
+// would switch it off the service role and onto the just-logged-in user, so
+// every later query (on every request, since the client is a singleton) would
+// be subject to RLS and silently return nothing. Keep auth on an isolated,
+// stateless client and never run table queries through it.
+const supabaseAuth = createClient(process.env.SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+
 // Guard against the #1 deploy mistake: using the publishable/anon key instead
 // of the secret (service_role) key. The backend talks to Supabase as a trusted
 // service and MUST bypass RLS — with an anon key, writes like enrolling a
@@ -442,7 +452,7 @@ app.post('/professor/signup', async (req, res) => {
     // user in both tables (which is what caused the wrong-portal bug).
     const { data: existingStudent } = await supabase.from('students').select('id').eq('email', email).maybeSingle();
     if (existingStudent) return res.status(400).json({ error: 'This email is already registered as a student. Use a different email or sign in as a student.' });
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabaseAuth.auth.signUp({ email, password });
     if (error) return res.status(400).json({ error: error.message });
     await supabase.from('professors').upsert({ id: data.user.id, email, name: name || email.split('@')[0] }, { onConflict: 'id' });
     res.json({ success: true, user: { id: data.user.id, email, name } });
@@ -453,7 +463,7 @@ app.post('/professor/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabaseAuth.auth.signInWithPassword({ email, password });
     if (error) return res.status(401).json({ error: error.message });
     // Strict role enforcement — only allow if this user has a professor row.
     // Prevents a student account from being silently logged into the teacher portal.
@@ -467,7 +477,7 @@ app.post('/smart-login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabaseAuth.auth.signInWithPassword({ email, password });
     if (error) return res.status(401).json({ error: error.message });
     const { data: prof } = await supabase.from('professors').select('*').eq('id', data.user.id).single();
     if (prof) return res.json({ success: true, role: 'professor', token: data.session.access_token, user: { id: data.user.id, email: data.user.email, name: prof.name || email.split('@')[0] } });
@@ -485,7 +495,7 @@ app.post('/student/signup', async (req, res) => {
     // user in both tables (which is what caused the wrong-portal bug).
     const { data: existingProf } = await supabase.from('professors').select('id').eq('email', email).maybeSingle();
     if (existingProf) return res.status(400).json({ error: 'This email is already registered as a teacher. Use a different email or sign in as a teacher.' });
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabaseAuth.auth.signUp({ email, password });
     if (error) return res.status(400).json({ error: error.message });
     await supabase.from('students').upsert({ id: data.user.id, email, name: name || email.split('@')[0] }, { onConflict: 'id' });
     res.json({ success: true, user: { id: data.user.id, email, name } });
@@ -496,7 +506,7 @@ app.post('/student/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabaseAuth.auth.signInWithPassword({ email, password });
     if (error) return res.status(401).json({ error: error.message });
     // Strict role enforcement — only allow if this user has a student row.
     // If they exist only as a professor, reject so they go to the teacher portal.
