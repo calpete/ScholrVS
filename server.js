@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Storage } from '@google-cloud/storage';
 import fs from 'fs';
 import os from 'os';
+import { randomUUID } from 'crypto';
 
 dotenv.config();
 
@@ -1185,6 +1186,38 @@ app.post('/generate-title', (req, res) => {
   if (!question) return res.json({ title: 'New Chat' });
   const title = question.trim().split(/\s+/).slice(0, 5).join(' ').replace(/[.!?,:]+$/, '');
   res.json({ title });
+});
+
+// ── Deep health check ─────────────────────────────────────────────────────────
+// Actively self-tests the exact failure that blocked a student from joining:
+// can the backend write an enrollment past RLS? Point an uptime monitor
+// (e.g. UptimeRobot) at /health/deep — it returns 503 the moment the write path
+// breaks, so you find out before a student does. (/health stays lightweight for
+// Render's own liveness probe.)
+app.get('/health/deep', async (req, res) => {
+  const checks = {};
+
+  // 1. Supabase key is the service_role/secret key (anon key = enrollment fails)
+  try {
+    const { error } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1 });
+    checks.service_key = error ? `FAIL: ${error.message}` : 'ok';
+  } catch (e) { checks.service_key = `FAIL: ${e.message}`; }
+
+  // 2. The actual enrollment write path bypasses RLS. Insert with random UUIDs:
+  //    a healthy service key gets past RLS and is stopped only by the foreign-key
+  //    check (23503). If RLS blocks it (42501), enrollment is broken. Never
+  //    writes a real row, so it's safe to call repeatedly.
+  try {
+    const { error } = await supabase.from('enrollments')
+      .insert({ student_id: randomUUID(), course_id: randomUUID() });
+    if (!error) checks.enrollment_write = 'ok';            // (would be cleaned up, but FK makes this unreachable)
+    else if (error.code === '23503') checks.enrollment_write = 'ok';  // past RLS, stopped by FK — healthy
+    else if (error.code === '42501') checks.enrollment_write = 'FAIL: blocked by RLS — backend is not using the service key';
+    else checks.enrollment_write = `FAIL: ${error.code} ${error.message}`;
+  } catch (e) { checks.enrollment_write = `FAIL: ${e.message}`; }
+
+  const ok = Object.values(checks).every(v => v === 'ok');
+  res.status(ok ? 200 : 503).json({ ok, checks, ts: new Date().toISOString() });
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
