@@ -246,6 +246,9 @@ function MarkdownMessage({ content }) {
     // so e.g. \textbf{77.25%} becomes proper **bold** instead of a parse error.
     .replace(/\\textbf\{([^{}]*)\}/g, '**$1**')
     .replace(/\\textit\{([^{}]*)\}/g, '*$1*')
+    // Strip inline page citations like "(p. 6)" / "(pp. 12-14)" / "(page 6)" —
+    // the source is shown below the answer instead. Cleans new and old messages.
+    .replace(/\s*\((?:pp?\.?|page)\s*\d[\d\s,&\-–]*\)/gi, '')
     .trim();
   return (
     <div className="text-sm leading-relaxed text-gray-800">
@@ -1963,7 +1966,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           {/* Chat messages */}
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
             <div ref={scrollContainerRef} className="flex-1 overflow-y-auto relative">
-              <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6 flex flex-col gap-6 min-h-full">
+              <div className="w-full max-w-4xl mx-auto px-4 md:px-6 py-6 flex flex-col gap-8 min-h-full">
               {(!active || active.messages.length === 0) && (
                 <div className="flex flex-col items-center justify-center flex-1 pb-10 fade-up">
                   {documents.length === 0 ? (
@@ -2036,7 +2039,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
               </div>
             )}
             <div className="px-4 md:px-8 py-3 md:py-4 bg-white border-t border-gray-100 flex-shrink-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
-              <div className="max-w-3xl mx-auto">
+              <div className="max-w-4xl mx-auto">
                 <div className="flex items-center bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2 focus-within:border-gray-400 focus-within:bg-white focus-within:shadow-sm transition-all gap-2">
                   <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Paperclip size={15} /></button>
                   <input
