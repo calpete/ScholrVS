@@ -620,6 +620,25 @@ async function requireCourseAccess(req, res, next) {
   next();
 }
 
+// Teacher actions (create a course, etc.) require an actual professors row, so a
+// student token can never reach the teacher side via the API.
+async function requireProfessor(req, res, next) {
+  const { data: prof } = await supabase.from('professors').select('id').eq('id', req.user.id).maybeSingle();
+  if (!prof) return res.status(403).json({ error: 'Teacher access required' });
+  next();
+}
+
+// The requester must OWN this course (be its professor). Used for teacher-only
+// course actions like insights/analytics — unlike requireCourseAccess, an
+// enrolled student is rejected.
+async function requireCourseOwner(req, res, next) {
+  const courseId = req.params.courseId || req.params.id;
+  if (!courseId) return res.status(400).json({ error: 'Missing courseId' });
+  const { data: course } = await supabase.from('courses').select('professor_id').eq('id', courseId).maybeSingle();
+  if (!course || course.professor_id !== req.user.id) return res.status(403).json({ error: 'Not your course' });
+  next();
+}
+
 // ── Student routes ────────────────────────────────────────────────────────────
 app.get('/student/courses', requireAuth, async (req, res) => {
   try {
@@ -672,12 +691,12 @@ app.get('/course/join/:code', async (req, res) => {
 });
 
 // ── Professor Courses ─────────────────────────────────────────────────────────
-app.get('/professor/courses', requireAuth, async (req, res) => {
+app.get('/professor/courses', requireAuth, requireProfessor, async (req, res) => {
   const { data } = await supabase.from('courses').select('*').eq('professor_id', req.user.id).order('created_at', { ascending: false });
   res.json(data || []);
 });
 
-app.post('/professor/courses', requireAuth, async (req, res) => {
+app.post('/professor/courses', requireAuth, requireProfessor, async (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Course name required' });
   const code = generateJoinCode(name);
@@ -787,7 +806,7 @@ app.delete('/course/:courseId/document/:name', requireAuth, async (req, res) => 
   res.json({ success: true });
 });
 
-app.get('/course/:courseId/insights', requireAuth, requireCourseAccess, async (req, res) => {
+app.get('/course/:courseId/insights', requireAuth, requireCourseOwner, async (req, res) => {
   res.json(await getCourseInsights(req.params.courseId));
 });
 
@@ -817,7 +836,7 @@ app.delete('/course/:courseId/insights-data', requireAuth, async (req, res) => {
 // Gemini if a professor sits on the page.
 const aiSummaryCache = {};  // { courseId: { summary, generatedAt, totalAtGeneration } }
 
-app.get('/course/:courseId/ai-summary', requireAuth, requireCourseAccess, async (req, res) => {
+app.get('/course/:courseId/ai-summary', requireAuth, requireCourseOwner, async (req, res) => {
   const { courseId } = req.params;
   const insights = await getCourseInsights(courseId);
   if (!insights.totalQuestions) {
