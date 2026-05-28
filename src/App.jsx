@@ -1952,7 +1952,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           {/* Chat messages */}
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
             <div ref={scrollContainerRef} className="flex-1 overflow-y-auto relative">
-              <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6 flex flex-col gap-6 min-h-full">
+              <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6 flex flex-col gap-4 min-h-full">
               {(!active || active.messages.length === 0) && (
                 <div className="flex flex-col items-center justify-center flex-1 pb-10 fade-up">
                   {documents.length === 0 ? (
@@ -1992,7 +1992,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                           ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user' ? <p className="leading-relaxed whitespace-pre-wrap text-white">{m.content}</p> : <MarkdownMessage content={m.content} />}
                           {m.role === 'assistant' && m.streaming && m.content && <span className="inline-block w-[3px] h-[16px] bg-gray-800 animate-pulse ml-1 align-middle rounded-sm" />}
                           {m.role === 'assistant' && m.sources?.length > 0 && !m.streaming && !isError && (
-                            <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-1.5 items-center">
+                            <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap gap-1.5 items-center">
                               <span className="text-[10px] text-gray-300 uppercase tracking-wide mr-0.5">From</span>
                               {m.sources.map((source, idx) => (<span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 border border-gray-200 text-gray-600 text-[11px] font-medium"><FileText size={9} /><span className="max-w-[200px] truncate">{cleanFileName(source)}</span></span>))}
                             </div>
@@ -2001,7 +2001,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                         </div>
                       )}
                       {m.role === 'assistant' && !m.streaming && m.content && !isError && !quizMatch && (
-                        <div className="flex items-center gap-0.5 mt-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-0.5 mt-1 overflow-hidden max-h-8 opacity-100 md:max-h-0 md:opacity-0 md:group-hover:max-h-8 md:group-hover:opacity-100 transition-all duration-200">
                           <button onClick={() => { navigator.clipboard.writeText(m.content.replace(/\nSOURCES:.*$/m, '').trim()); setCopiedId(msgId); setTimeout(() => setCopiedId(null), 2000); }} className={`p-1.5 rounded-lg transition-colors ${copiedId === msgId ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>{copiedId === msgId ? <Check size={12} /> : <Copy size={12} />}</button>
                           <button onClick={() => setFeedback(prev => ({ ...prev, [msgId]: prev[msgId] === 'up' ? null : 'up' }))} className={`p-1.5 rounded-lg transition-colors ${feedback[msgId] === 'up' ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}><ThumbsUp size={12} /></button>
                           <button onClick={() => setFeedback(prev => ({ ...prev, [msgId]: prev[msgId] === 'down' ? null : 'down' }))} className={`p-1.5 rounded-lg transition-colors ${feedback[msgId] === 'down' ? 'text-red-400' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}><ThumbsDown size={12} /></button>
