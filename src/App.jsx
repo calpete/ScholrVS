@@ -78,6 +78,17 @@ function Logo({ size = 28 }) {
   );
 }
 
+// Rotates through a few "thinking" phrases while the AI is generating.
+function ThinkingText() {
+  const phrases = ['Reading your materials…', 'Checking your course materials…', 'Thinking it through…', 'Pulling the details together…'];
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setI(p => (p + 1) % phrases.length), 1900);
+    return () => clearInterval(id);
+  }, []);
+  return <span className="text-sm text-gray-400 inline-block py-1 transition-opacity">{phrases[i]}</span>;
+}
+
 // The AI identity: three black lines (no square). While `thinking`, the line
 // widths animate (the same motion as the typing indicator); at rest they settle
 // to middle-longest / top-second / bottom-shortest and stay as the avatar.
@@ -1952,7 +1963,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           {/* Chat messages */}
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
             <div ref={scrollContainerRef} className="flex-1 overflow-y-auto relative">
-              <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6 flex flex-col gap-4 min-h-full">
+              <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6 flex flex-col gap-6 min-h-full">
               {(!active || active.messages.length === 0) && (
                 <div className="flex flex-col items-center justify-center flex-1 pb-10 fade-up">
                   {documents.length === 0 ? (
@@ -1988,7 +1999,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                       ) : (
                         <div className={`rounded-2xl text-sm w-full ${m.role === 'user' ? 'bg-gray-900 text-white px-4 py-3 rounded-br-sm' : 'text-gray-800'}`}>
                           {m.role === 'assistant' && m.content === '' && m.streaming ? (
-                            <span className="text-sm text-gray-400 inline-block py-1">Reading your materials…</span>
+                            <ThinkingText />
                           ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user' ? <p className="leading-relaxed whitespace-pre-wrap text-white">{m.content}</p> : <MarkdownMessage content={m.content} />}
                           {m.role === 'assistant' && m.streaming && m.content && <span className="inline-block w-[3px] h-[16px] bg-gray-800 animate-pulse ml-1 align-middle rounded-sm" />}
                           {m.role === 'assistant' && m.sources?.length > 0 && !m.streaming && !isError && (
