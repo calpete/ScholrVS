@@ -102,6 +102,50 @@ function AiMark({ thinking = false }) {
   );
 }
 
+// True on md+ viewports — resize only applies on desktop (mobile sidebars are
+// full-height drawers).
+function useIsDesktop() {
+  const [d, setD] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const h = e => setD(e.matches);
+    mq.addEventListener('change', h);
+    return () => mq.removeEventListener('change', h);
+  }, []);
+  return d;
+}
+
+// Draggable sidebar width, persisted to localStorage. Returns [width, startDrag].
+const SIDEBAR_MIN = 220, SIDEBAR_MAX = 480;
+function useSidebarWidth(storageKey, def = 288) {
+  const [width, setWidth] = useState(() => {
+    const saved = parseInt(localStorage.getItem(storageKey) || '', 10);
+    return saved >= SIDEBAR_MIN && saved <= SIDEBAR_MAX ? saved : def;
+  });
+  const startDrag = (e) => {
+    e.preventDefault();
+    const startX = e.clientX, startW = width;
+    const onMove = (ev) => setWidth(Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, startW + (ev.clientX - startX))));
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      setWidth(w => { localStorage.setItem(storageKey, String(w)); return w; });
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+  return [width, startDrag];
+}
+
+// The thin drag bar on a sidebar's right edge (desktop only).
+function ResizeHandle({ onMouseDown }) {
+  return <div onMouseDown={onMouseDown} title="Drag to resize" className="hidden md:block absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-gray-200 active:bg-gray-300 transition-colors z-50" />;
+}
+
 const DEMO_DATA = {
   totalQuestions: 127, weekQuestions: 43, timeSavedHours: 3, timeSavedMinutes: 12,
   confidenceRate: 91, estimatedStudents: 28, peakHour: '11 PM',
@@ -923,6 +967,8 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   const [activeTab, setActiveTab] = useState('materials');
   const [copied, setCopied] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const isDesktop = useIsDesktop();
+  const [sidebarW, startSidebarDrag] = useSidebarWidth('scholr_prof_sidebar_w');
   const fileRef = useRef(null);
 
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
@@ -1006,7 +1052,8 @@ function CourseManager({ token, course, onBack, authHeaders }) {
       </div>
       {/* Backdrop when mobile nav is open */}
       {mobileNavOpen && <div onClick={closeMobileNav} className="md:hidden fixed inset-0 bg-black/40 z-30" />}
-      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-72 md:w-72 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
+      <aside style={isDesktop ? { width: sidebarW } : undefined} className={`fixed md:relative inset-y-0 left-0 z-40 w-72 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
+        <ResizeHandle onMouseDown={startSidebarDrag} />
         <div className="px-5 py-5 border-b border-gray-100">
           <div className="flex items-center justify-between mb-4">
             <button onClick={onBack} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 text-xs transition-colors"><ArrowLeft size={12} />All courses</button>
@@ -1353,6 +1400,8 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const [notesLoading, setNotesLoading] = useState(true);
   const [chatsLoading, setChatsLoading] = useState(true);
   const [mobileChatsOpen, setMobileChatsOpen] = useState(false);
+  const isDesktop = useIsDesktop();
+  const [sidebarW, startSidebarDrag] = useSidebarWidth('scholr_student_sidebar_w');
   const [recentsOpen, setRecentsOpen] = useState(true);   // collapse the recents list
   const [allChatsOpen, setAllChatsOpen] = useState(false); // full "Chats" page overlay
   const RECENT_LIMIT = 8;
@@ -1897,7 +1946,8 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       {mobileChatsOpen && <div onClick={closeMobile} className="md:hidden fixed inset-0 bg-black/40 z-30" />}
 
       {/* ── Left sidebar / mobile drawer ── */}
-      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-72 md:w-72 bg-[#F7F7F7] border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileChatsOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
+      <aside style={isDesktop ? { width: sidebarW } : undefined} className={`fixed md:relative inset-y-0 left-0 z-40 w-72 bg-[#F7F7F7] border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileChatsOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
+        <ResizeHandle onMouseDown={startSidebarDrag} />
         <div className="px-4 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between mb-3">
             <button type="button" onClick={onExit} className="flex items-center gap-2.5 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></button>
