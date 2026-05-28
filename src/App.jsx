@@ -1006,7 +1006,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
       </div>
       {/* Backdrop when mobile nav is open */}
       {mobileNavOpen && <div onClick={closeMobileNav} className="md:hidden fixed inset-0 bg-black/40 z-30" />}
-      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-64 md:w-56 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
+      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-72 md:w-72 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
         <div className="px-5 py-5 border-b border-gray-100">
           <div className="flex items-center justify-between mb-4">
             <button onClick={onBack} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 text-xs transition-colors"><ArrowLeft size={12} />All courses</button>
@@ -1919,8 +1919,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             {recentsOpen && (
               <button
                 onClick={() => setShowAllChats(s => !s)}
-                disabled={chats.length <= RECENT_LIMIT && !showAllChats}
-                className="text-[10px] text-gray-400 hover:text-gray-700 font-medium opacity-0 group-hover/recents:opacity-100 transition-opacity disabled:hover:text-gray-400">
+                className="text-[10px] text-gray-400 hover:text-gray-700 font-medium opacity-0 group-hover/recents:opacity-100 transition-opacity">
                 {showAllChats ? 'Show less' : 'View all'}
               </button>
             )}
