@@ -1921,7 +1921,10 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             <button onClick={() => setMobileChatsOpen(true)} aria-label="Open chats" className="md:hidden p-1 -ml-1 text-gray-600">
               <Menu size={20} />
             </button>
-            <h2 className="text-gray-900 text-sm font-medium truncate">{active?.title || 'New Chat'}</h2>
+            <div className="flex flex-col min-w-0 leading-tight">
+              <h2 className="text-gray-900 text-sm font-medium truncate">{active?.title || 'New Chat'}</h2>
+              <p className="text-[11px] text-gray-400 truncate">{course.name}</p>
+            </div>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
             {quizOpen && (
@@ -1929,13 +1932,14 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                 <X size={11} /><span className="hidden md:inline">Close quiz</span>
               </button>
             )}
-            <div className="flex items-center gap-1.5 text-[11px] text-emerald-600"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><span className="hidden sm:inline">AI Active</span></div>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-[11px] font-medium text-emerald-600"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><span className="hidden sm:inline">AI Active</span></div>
           </div>
         </header>
         <div className="flex flex-1 overflow-hidden">
           {/* Chat messages */}
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 md:px-8 py-4 md:py-8 flex flex-col gap-5 relative">
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 md:px-8 py-4 md:py-8 relative flex flex-col">
+              <div className="w-full max-w-3xl mx-auto flex-1 flex flex-col gap-6">
               {(!active || active.messages.length === 0) && (
                 <div className="flex flex-col items-center justify-center flex-1 pb-10 fade-up">
                   {documents.length === 0 ? (
@@ -1953,24 +1957,38 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
               {active?.messages.map((m, i) => {
                 const msgId = m.id || i;
                 const isError = m.isError || m.content?.startsWith('error:');
+                const quizMatch = m.role === 'assistant' && !m.streaming && !isError
+                  ? /Quiz complete — you scored \*\*(\d+)\/(\d+)\*\* \((\d+)%\)(?: on (.+?))?\.?\s*$/.exec(m.content || '')
+                  : null;
                 return (
-                  <div key={msgId} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`flex flex-col ${m.role === 'user' ? 'items-end max-w-xl' : 'items-start max-w-2xl w-full'}`}>
-                      <div className={`rounded-2xl text-sm w-full ${m.role === 'user' ? 'bg-gray-900 text-white px-4 py-3 rounded-br-sm' : 'text-gray-800'}`}>
-                        {m.role === 'assistant' && m.content === '' && m.streaming ? (
-                          <div className="flex items-center gap-3 py-2"><div className="flex flex-col justify-center gap-1" style={{ width: '22px' }}><div className="eq-bar eq1" /><div className="eq-bar eq2" /><div className="eq-bar eq3" /></div><span className="text-xs text-gray-500 font-medium">Reading your materials…</span></div>
-                        ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user' ? <p className="leading-relaxed whitespace-pre-wrap text-white">{m.content}</p> : <MarkdownMessage content={m.content} />}
-                        {m.role === 'assistant' && m.streaming && m.content && <span className="inline-block w-[3px] h-[16px] bg-gray-800 animate-pulse ml-1 align-middle rounded-sm" />}
-                        {m.role === 'assistant' && m.sources?.length > 0 && !m.streaming && !isError && (
-                          <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-1.5 items-center">
-                            <span className="text-[10px] text-gray-300 uppercase tracking-wide mr-0.5">From</span>
-                            {m.sources.map((source, idx) => (<span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 border border-gray-200 text-gray-600 text-[11px] font-medium"><FileText size={9} /><span className="max-w-[200px] truncate">{cleanFileName(source)}</span></span>))}
+                  <div key={msgId} className={`group flex ${m.role === 'user' ? 'justify-end' : 'gap-3'}`}>
+                    {m.role === 'assistant' && <div className="flex-shrink-0 mt-0.5"><Logo size={28} /></div>}
+                    <div className={`flex flex-col min-w-0 ${m.role === 'user' ? 'items-end max-w-[85%]' : 'items-start flex-1'}`}>
+                      {quizMatch ? (
+                        <div className="inline-flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
+                          <div className="w-9 h-9 rounded-xl bg-gray-900 flex items-center justify-center flex-shrink-0"><ListChecks size={16} className="text-white" /></div>
+                          <div>
+                            <p className="text-[11px] text-gray-400">Practice quiz{quizMatch[4] ? ` · ${quizMatch[4]}` : ''}</p>
+                            <p className="text-sm font-semibold text-gray-900">Scored {quizMatch[1]}/{quizMatch[2]} <span className="text-gray-400 font-normal">({quizMatch[3]}%)</span></p>
                           </div>
-                        )}
-                        {m.role === 'user' && <span className="block text-[10px] mt-1.5 opacity-30">{formatTime(m.ts)}</span>}
-                      </div>
-                      {m.role === 'assistant' && !m.streaming && m.content && !isError && (
-                        <div className="flex items-center gap-0.5 mt-1.5">
+                        </div>
+                      ) : (
+                        <div className={`rounded-2xl text-sm w-full ${m.role === 'user' ? 'bg-gray-900 text-white px-4 py-3 rounded-br-sm' : 'text-gray-800'}`}>
+                          {m.role === 'assistant' && m.content === '' && m.streaming ? (
+                            <div className="flex items-center gap-3 py-2"><div className="flex flex-col justify-center gap-1" style={{ width: '22px' }}><div className="eq-bar eq1" /><div className="eq-bar eq2" /><div className="eq-bar eq3" /></div><span className="text-xs text-gray-500 font-medium">Reading your materials…</span></div>
+                          ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user' ? <p className="leading-relaxed whitespace-pre-wrap text-white">{m.content}</p> : <MarkdownMessage content={m.content} />}
+                          {m.role === 'assistant' && m.streaming && m.content && <span className="inline-block w-[3px] h-[16px] bg-gray-800 animate-pulse ml-1 align-middle rounded-sm" />}
+                          {m.role === 'assistant' && m.sources?.length > 0 && !m.streaming && !isError && (
+                            <div className="mt-3 pt-3 border-t border-gray-100 flex flex-wrap gap-1.5 items-center">
+                              <span className="text-[10px] text-gray-300 uppercase tracking-wide mr-0.5">From</span>
+                              {m.sources.map((source, idx) => (<span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 border border-gray-200 text-gray-600 text-[11px] font-medium"><FileText size={9} /><span className="max-w-[200px] truncate">{cleanFileName(source)}</span></span>))}
+                            </div>
+                          )}
+                          {m.role === 'user' && <span className="block text-[10px] mt-1.5 opacity-30">{formatTime(m.ts)}</span>}
+                        </div>
+                      )}
+                      {m.role === 'assistant' && !m.streaming && m.content && !isError && !quizMatch && (
+                        <div className="flex items-center gap-0.5 mt-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           <button onClick={() => { navigator.clipboard.writeText(m.content.replace(/\nSOURCES:.*$/m, '').trim()); setCopiedId(msgId); setTimeout(() => setCopiedId(null), 2000); }} className={`p-1.5 rounded-lg transition-colors ${copiedId === msgId ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>{copiedId === msgId ? <Check size={12} /> : <Copy size={12} />}</button>
                           <button onClick={() => setFeedback(prev => ({ ...prev, [msgId]: prev[msgId] === 'up' ? null : 'up' }))} className={`p-1.5 rounded-lg transition-colors ${feedback[msgId] === 'up' ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}><ThumbsUp size={12} /></button>
                           <button onClick={() => setFeedback(prev => ({ ...prev, [msgId]: prev[msgId] === 'down' ? null : 'down' }))} className={`p-1.5 rounded-lg transition-colors ${feedback[msgId] === 'down' ? 'text-red-400' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}><ThumbsDown size={12} /></button>
@@ -1982,6 +2000,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                 );
               })}
               <div ref={bottomRef} />
+              </div>
             </div>
             {showNewMessageIndicator && (
               <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20 fade-up">
