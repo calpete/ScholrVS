@@ -413,10 +413,28 @@ async function getCourseInsights(courseId) {
     (weekQ || []).forEach(q => { const h = new Date(q.ts).getHours(); hourCounts[h] = (hourCounts[h] || 0) + 1; });
     const peakHour = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0];
     const peakHourLabel = peakHour ? `${peakHour[0] % 12 || 12}${parseInt(peakHour[0]) < 12 ? 'am' : 'pm'}` : null;
-    return { totalQuestions: total, weekQuestions: weekCount, timeSavedHours: Math.floor(timeSavedMins / 60), timeSavedMinutes: timeSavedMins % 60, timeSavedMins, topTopics, peakHourLabel, flagged: flagged || [], recent: (allQ || []).slice(0, 50), lastQuestion: allQ?.[0] || null };
+
+    // Weekly Activity: one bucket per day for the last 7 days (oldest → today),
+    // counted from the persisted questions table so it's accurate and survives
+    // until the professor clears the data. UTC throughout for consistent buckets.
+    const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayKey = (dt) => dt.toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+    const buckets = {};
+    const dailyActivity = [];
+    const now = Date.now();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now - i * 24 * 60 * 60 * 1000);
+      const key = dayKey(d);
+      buckets[key] = 0;
+      dailyActivity.push({ day: DAY_NAMES[d.getUTCDay()], _key: key, questions: 0 });
+    }
+    (weekQ || []).forEach(q => { const key = dayKey(new Date(q.ts)); if (key in buckets) buckets[key]++; });
+    dailyActivity.forEach(b => { b.questions = buckets[b._key]; delete b._key; });
+
+    return { totalQuestions: total, weekQuestions: weekCount, timeSavedHours: Math.floor(timeSavedMins / 60), timeSavedMinutes: timeSavedMins % 60, timeSavedMins, topTopics, peakHourLabel, dailyActivity, flagged: flagged || [], recent: (allQ || []).slice(0, 50), lastQuestion: allQ?.[0] || null };
   } catch (err) {
     console.error('Insights error:', err.message);
-    return { totalQuestions: 0, weekQuestions: 0, timeSavedHours: 0, timeSavedMinutes: 0, timeSavedMins: 0, topTopics: [], peakHourLabel: null, flagged: [], recent: [], lastQuestion: null };
+    return { totalQuestions: 0, weekQuestions: 0, timeSavedHours: 0, timeSavedMinutes: 0, timeSavedMins: 0, topTopics: [], peakHourLabel: null, dailyActivity: [], flagged: [], recent: [], lastQuestion: null };
   }
 }
 

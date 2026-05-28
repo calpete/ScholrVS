@@ -1324,18 +1324,6 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
       </div>
     );
   }
-  // Build dailyActivity from real `recent` timestamps (the backend doesn't return this directly)
-  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const dailyCounts = dayLabels.map(d => ({ day: d, questions: 0 }));
-  (insights.recent || []).forEach(q => {
-    const t = new Date(q.ts).getTime();
-    if (t >= weekAgo) dailyCounts[new Date(t).getDay()].questions += 1;
-  });
-  // Rotate so the chart ends with today
-  const today = new Date().getDay();
-  const dailyActivity = [...dailyCounts.slice(today + 1), ...dailyCounts.slice(0, today + 1)];
-
   const totalAnswered = insights.totalQuestions || 0;
   const flaggedCount = insights.flagged?.length || 0;
   const d = {
@@ -1350,7 +1338,7 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
     topTopics: insights.topTopics || [],
     recent: insights.recent || [],
     flagged: insights.flagged || [],
-    dailyActivity,
+    dailyActivity: insights.dailyActivity || [],
   };
   const totalForPie = d.topTopics.reduce((s, t) => s + t.count, 0) || 1;
   const pieData = d.topTopics.map(t => ({ name: t.topic, value: t.count, percent: t.count / totalForPie }));
