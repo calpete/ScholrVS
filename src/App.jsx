@@ -1354,7 +1354,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const [chatsLoading, setChatsLoading] = useState(true);
   const [mobileChatsOpen, setMobileChatsOpen] = useState(false);
   const [recentsOpen, setRecentsOpen] = useState(true);   // collapse the recents list
-  const [showAllChats, setShowAllChats] = useState(false); // "View all" toggle
+  const [allChatsOpen, setAllChatsOpen] = useState(false); // full "Chats" page overlay
   const RECENT_LIMIT = 8;
 
   const [quizOpen, setQuizOpen] = useState(false);
@@ -1918,13 +1918,13 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             </button>
             {recentsOpen && (
               <button
-                onClick={() => setShowAllChats(s => !s)}
-                className="text-[10px] text-gray-400 hover:text-gray-700 font-medium opacity-0 group-hover/recents:opacity-100 transition-opacity">
-                {showAllChats ? 'Show less' : 'View all'}
+                onClick={() => { setAllChatsOpen(true); closeMobile(); }}
+                className="flex items-center gap-0.5 text-[10px] text-gray-400 hover:text-gray-700 font-medium opacity-0 group-hover/recents:opacity-100 transition-opacity">
+                View all<ChevronRight size={10} />
               </button>
             )}
           </div>
-          {recentsOpen && (showAllChats ? chats : chats.slice(0, RECENT_LIMIT)).map(c => (
+          {recentsOpen && chats.slice(0, RECENT_LIMIT).map(c => (
             <div key={c.id} className="group relative mb-0.5">
               <button onClick={() => { setChatId(c.id); closeMobile(); }} className={`flex items-center gap-2 w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors pr-7 ${c.id === chatId ? 'bg-white border border-gray-200 text-gray-900 font-medium shadow-sm' : 'text-gray-500 hover:bg-white hover:text-gray-700'}`}>
                 <MessageSquare size={11} className="flex-shrink-0 opacity-40" /><span className="truncate">{c.title || 'New Chat'}</span>
@@ -1956,7 +1956,31 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       </aside>
 
       {/* ── Main chat ── */}
-      <main className="flex-1 flex flex-col overflow-hidden min-w-0" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <main className="flex-1 flex flex-col overflow-hidden min-w-0 relative" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+        {allChatsOpen && (
+          <div className="absolute inset-0 z-40 bg-white flex flex-col">
+            <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-gray-100 flex-shrink-0" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
+              <h2 className="serif text-2xl text-gray-900">Chats</h2>
+              <div className="flex items-center gap-2">
+                <button onClick={() => { createNewChat(); setAllChatsOpen(false); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors"><Plus size={12} />New chat</button>
+                <button onClick={() => setAllChatsOpen(false)} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={16} /></button>
+              </div>
+            </header>
+            <div className="flex-1 overflow-y-auto">
+              <div className="max-w-3xl mx-auto w-full px-4 md:px-6 py-4">
+                {chats.length === 0 ? (
+                  <p className="text-gray-400 text-sm text-center py-16">No chats yet.</p>
+                ) : chats.map(c => (
+                  <div key={c.id} onClick={() => { setChatId(c.id); setAllChatsOpen(false); }} className="group flex items-center gap-3 px-4 py-3.5 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
+                    <MessageSquare size={14} className="text-gray-300 flex-shrink-0" />
+                    <span className="text-gray-800 text-sm truncate flex-1">{c.title || 'New Chat'}</span>
+                    <button onClick={e => { e.stopPropagation(); deleteChat(c.id); }} className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-300 hover:text-red-400 transition-all"><Trash2 size={12} /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         <header className="bg-white border-b border-gray-100 flex items-center justify-between px-4 md:px-8 py-2 md:h-12 flex-shrink-0 gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <button onClick={() => setMobileChatsOpen(true)} aria-label="Open chats" className="md:hidden p-1 -ml-1 text-gray-600">
