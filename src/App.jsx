@@ -575,10 +575,15 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
   };
 
   useEffect(() => {
+    // Wait until the auth token is actually available — on the OAuth path this
+    // component can render before the token lands, and enrolling without it
+    // would 401. We do NOT remove the pending code here; handleJoin clears it
+    // only after a successful enroll, so a too-early run can safely retry.
+    if (!token) return;
     fetchCourses();
     const pendingCode = sessionStorage.getItem('scholr_pending_join');
-    if (pendingCode) { sessionStorage.removeItem('scholr_pending_join'); handleJoin(pendingCode); }
-  }, []);
+    if (pendingCode) handleJoin(pendingCode);
+  }, [token]);
 
   const handleJoin = async (codeOverride) => {
     const code = (codeOverride || joiningCode).trim().toUpperCase();
@@ -591,6 +596,8 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
       const enrollRes = await fetch(`${API}/student/enroll`, { method: 'POST', headers: authHeaders, body: JSON.stringify({ course_id: course.id }) });
       const enrollData = await enrollRes.json();
       if (!enrollRes.ok && !enrollData.already_enrolled) { setJoinError(enrollData.error || 'Could not enroll'); setJoining(false); return; }
+      // Enroll succeeded (or already enrolled) — safe to clear the pending code now.
+      sessionStorage.removeItem('scholr_pending_join');
       setJoiningCode(''); setShowJoinInput(false);
       showToast(`Joined ${course.name}!`);
       fetchCourses();
@@ -2410,11 +2417,17 @@ function JoinCoursePage({ studentToken, studentUser, onStudentLogin, onEnterCour
     }
     setJoining(true);
     try {
-      await fetch(`${API}/student/enroll`, {
+      const res = await fetch(`${API}/student/enroll`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${studentToken}` },
         body: JSON.stringify({ course_id: course.id }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok && !data.already_enrolled) {
+        setError(data.error || "Couldn't join — please try again.");
+        setJoining(false);
+        return;
+      }
       navigate('/student');
     } catch { setError('Could not join course'); }
     setJoining(false);
