@@ -2498,42 +2498,44 @@ export default function App() {
         // off OAuth (?role=professor for the teacher flow, ?role=student
         // for the student flow). Defaults to student for backward compat.
         const role = new URLSearchParams(window.location.search).get('role') === 'professor' ? 'professor' : 'student';
-        import('@supabase/supabase-js').then(({ createClient }) => {
-          const supabase = createClient('https://dtgukefqobgnreejlxyb.supabase.co', 'sb_publishable_bmvI67pGsWD52YYoIF3oDw_88izApLs');
-          supabase.auth.getUser(accessToken).then(async ({ data: { user } }) => {
-            if (!user) return;
-            const name = user.user_metadata?.full_name || user.email.split('@')[0];
-            // Prevent cross-contamination: if user already exists in the OTHER
-            // table, bail with a helpful redirect rather than silently creating
-            // a duplicate role.
-            const otherTable = role === 'professor' ? 'students' : 'professors';
-            const { data: otherRow } = await supabase.from(otherTable).select('id').eq('id', user.id).maybeSingle();
-            if (otherRow) {
-              setGlobalToast({ message: `This Google account is already registered as a ${role === 'professor' ? 'student' : 'teacher'}. Sign in with that role instead.`, type: 'error' });
-              window.history.replaceState({}, '', '/');
-              setScreen('landing');
-              return;
-            }
-            const targetTable = role === 'professor' ? 'professors' : 'students';
-            await supabase.from(targetTable).upsert(
-              { id: user.id, email: user.email, name },
-              { onConflict: 'id' }
-            );
-            const u = { id: user.id, email: user.email, name };
-            if (role === 'professor') {
-              localStorage.setItem('scholr_token', accessToken);
-              localStorage.setItem('scholr_user', JSON.stringify(u));
-              setProfToken(accessToken); setProfUser(u);
-              window.history.replaceState({}, '', '/');
-              setScreen('prof-dashboard');
-            } else {
-              localStorage.setItem('scholr_student_token', accessToken);
-              localStorage.setItem('scholr_student_user', JSON.stringify(u));
-              setStudentToken(accessToken); setStudentUser(u);
-              window.history.replaceState({}, '', '/');
-              setScreen('student-dashboard');
-            }
-          });
+        // Sync the role row server-side (service key) — the frontend must not
+        // write to professors/students directly, so those tables stay locked
+        // by RLS against the public key.
+        fetch(`${API}/auth/sync-oauth-user`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ access_token: accessToken, role }),
+        }).then(r => r.json()).then(data => {
+          if (data.conflict) {
+            setGlobalToast({ message: `This Google account is already registered as a ${role === 'professor' ? 'student' : 'teacher'}. Sign in with that role instead.`, type: 'error' });
+            window.history.replaceState({}, '', '/');
+            setScreen('landing');
+            return;
+          }
+          if (!data.user) {
+            setGlobalToast({ message: 'Sign-in failed. Please try again.', type: 'error' });
+            window.history.replaceState({}, '', '/');
+            setScreen('landing');
+            return;
+          }
+          const u = data.user;
+          if (role === 'professor') {
+            localStorage.setItem('scholr_token', accessToken);
+            localStorage.setItem('scholr_user', JSON.stringify(u));
+            setProfToken(accessToken); setProfUser(u);
+            window.history.replaceState({}, '', '/');
+            setScreen('prof-dashboard');
+          } else {
+            localStorage.setItem('scholr_student_token', accessToken);
+            localStorage.setItem('scholr_student_user', JSON.stringify(u));
+            setStudentToken(accessToken); setStudentUser(u);
+            window.history.replaceState({}, '', '/');
+            setScreen('student-dashboard');
+          }
+        }).catch(() => {
+          setGlobalToast({ message: 'Sign-in failed. Please try again.', type: 'error' });
+          window.history.replaceState({}, '', '/');
+          setScreen('landing');
         });
         return;
       }
