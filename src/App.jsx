@@ -1980,14 +1980,22 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           {quizOpen && (
             <div className="fixed md:static inset-0 md:inset-auto z-30 md:w-80 md:border-l border-gray-200 bg-white flex flex-col md:flex-shrink-0 overflow-hidden pt-[env(safe-area-inset-top)] md:pt-0">
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-                <div>
-                  <p className="text-gray-900 text-sm font-semibold">Practice Quiz</p>
-                  {quizTopic && <p className="text-gray-400 text-[10px] mt-0.5 truncate">{quizTopic}</p>}
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-gray-900 flex items-center justify-center flex-shrink-0 text-white text-sm">📝</div>
+                  <div className="min-w-0">
+                    <p className="text-gray-900 text-sm font-semibold leading-tight">Practice Quiz</p>
+                    <p className="text-gray-400 text-[11px] truncate">{quizTopic || 'From your course materials'}</p>
+                  </div>
                 </div>
                 {!quizLoading && quizQuestions.length > 0 && !quizDone && (
-                  <span className="text-[11px] text-gray-400">{quizIndex + 1} / {quizQuestions.length}</span>
+                  <span className="text-[11px] font-medium text-gray-400 tabular-nums flex-shrink-0 ml-2">{quizIndex + 1}/{quizQuestions.length}</span>
                 )}
               </div>
+              {!quizLoading && quizQuestions.length > 0 && !quizDone && (
+                <div className="h-1 bg-gray-100 flex-shrink-0">
+                  <div className="h-full bg-gray-900 transition-all duration-300 ease-out" style={{ width: `${((quizIndex + (quizAnswers[quizIndex] !== undefined ? 1 : 0)) / quizQuestions.length) * 100}%` }} />
+                </div>
+              )}
               <div className="flex-1 overflow-y-auto p-5">
                 {quizLoading && (
                   <div className="flex flex-col items-center justify-center h-full gap-4">
@@ -2002,25 +2010,54 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                     <p className="text-gray-400 text-xs">Try asking again with a specific topic</p>
                   </div>
                 )}
-                {!quizLoading && quizDone && quizQuestions.length > 0 && (
-                  <div className="flex flex-col items-center justify-center h-full gap-5 text-center">
-                    <div className="w-20 h-20 rounded-full bg-gray-900 flex items-center justify-center">
-                      <span className="text-white text-2xl font-bold">{quizScore}/{quizQuestions.length}</span>
+                {!quizLoading && quizDone && quizQuestions.length > 0 && (() => {
+                  const total = quizQuestions.length;
+                  const pct = Math.round((quizScore / total) * 100);
+                  const msg = pct === 100 ? 'Perfect score!' : pct >= 70 ? 'Great job!' : pct >= 50 ? 'Nice effort!' : 'Keep studying!';
+                  const ring = pct >= 70 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
+                  const C = 2 * Math.PI * 44;
+                  return (
+                    <div className="flex flex-col gap-5">
+                      <div className="flex flex-col items-center gap-3 pt-1">
+                        <div className="relative w-28 h-28">
+                          <svg className="w-28 h-28 -rotate-90" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="44" fill="none" stroke="#f3f4f6" strokeWidth="8" />
+                            <circle cx="50" cy="50" r="44" fill="none" stroke={ring} strokeWidth="8" strokeLinecap="round"
+                              strokeDasharray={C} strokeDashoffset={C * (1 - quizScore / total)} style={{ transition: 'stroke-dashoffset 0.7s ease' }} />
+                          </svg>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className="text-2xl font-bold text-gray-900 leading-none">{quizScore}/{total}</span>
+                            <span className="text-[11px] text-gray-400 mt-1">{pct}%</span>
+                          </div>
+                        </div>
+                        <p className="text-gray-900 font-semibold text-base">{msg}</p>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Review</p>
+                        {quizQuestions.map((q, i) => {
+                          const correct = quizAnswers[i] === q.correct;
+                          return (
+                            <div key={i} className={`rounded-xl border px-3 py-2.5 ${correct ? 'border-emerald-200 bg-emerald-50/40' : 'border-red-200 bg-red-50/40'}`}>
+                              <div className="flex items-start gap-2">
+                                {correct ? <CheckCircle2 size={13} className="text-emerald-500 mt-0.5 flex-shrink-0" /> : <X size={13} className="text-red-400 mt-0.5 flex-shrink-0" />}
+                                <p className="text-[12px] text-gray-700 leading-snug">{q.question}</p>
+                              </div>
+                              {!correct && (
+                                <p className="text-[11px] text-gray-500 mt-1.5 pl-5"><span className="text-gray-400">Answer:</span> {(q.options[q.correct] || '').replace(/^\s*[A-D][).:]\s*/, '')}</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <button onClick={() => { setQuizIndex(0); setQuizAnswers({}); setQuizDone(false); }}
+                          className="w-full py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors">Retake this quiz</button>
+                        <button onClick={() => generateQuiz(quizTopic)}
+                          className="w-full py-2.5 rounded-xl bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 text-xs font-medium transition-colors">Generate a new quiz</button>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-gray-900 font-semibold text-base mb-1">
-                        {quizScore === quizQuestions.length ? '🎉 Perfect score!' : quizScore >= quizQuestions.length * 0.7 ? '👍 Great job!' : '📚 Keep studying!'}
-                      </p>
-                      <p className="text-gray-400 text-xs">You got {quizScore} out of {quizQuestions.length} correct</p>
-                    </div>
-                    <div className="flex flex-col gap-2 w-full">
-                      <button onClick={() => { setQuizIndex(0); setQuizAnswers({}); setQuizDone(false); }}
-                        className="w-full py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors">Retake quiz</button>
-                      <button onClick={() => generateQuiz(quizTopic)}
-                        className="w-full py-2.5 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 text-xs font-medium transition-colors">New quiz</button>
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
                 {!quizLoading && !quizDone && quizQuestions.length > 0 && (() => {
                   const q = quizQuestions[quizIndex];
                   const answered = quizAnswers[quizIndex];
@@ -2028,26 +2065,25 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                   const isCorrect = answered === q.correct;
                   return (
                     <div className="flex flex-col gap-4">
-                      <div className="w-full bg-gray-100 rounded-full h-1">
-                        <div className="bg-gray-900 h-1 rounded-full transition-all" style={{ width: `${((quizIndex) / quizQuestions.length) * 100}%` }} />
-                      </div>
                       <p className="text-gray-900 text-sm font-medium leading-relaxed">{q.question}</p>
                       <div className="flex flex-col gap-2">
                         {q.options.map((opt, oi) => {
-                          let style = 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100 hover:border-gray-300';
+                          const letter = String.fromCharCode(65 + oi);
+                          const text = opt.replace(/^\s*[A-D][).:]\s*/, '');
+                          let card = 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50';
+                          let badge = 'bg-gray-100 text-gray-500';
                           if (isAnswered) {
-                            if (oi === q.correct) style = 'bg-emerald-50 border-emerald-400 text-emerald-800';
-                            else if (oi === answered) style = 'bg-red-50 border-red-400 text-red-700';
-                            else style = 'bg-gray-50 border-gray-100 text-gray-400';
+                            if (oi === q.correct) { card = 'border-emerald-300 bg-emerald-50'; badge = 'bg-emerald-500 text-white'; }
+                            else if (oi === answered) { card = 'border-red-300 bg-red-50'; badge = 'bg-red-400 text-white'; }
+                            else { card = 'border-gray-100 bg-white opacity-60'; badge = 'bg-gray-100 text-gray-400'; }
                           }
                           return (
                             <button key={oi} onClick={() => handleQuizAnswer(quizIndex, oi)} disabled={isAnswered}
-                              className={`w-full text-left px-4 py-3 rounded-xl border text-xs font-medium transition-all ${style} ${!isAnswered ? 'cursor-pointer' : 'cursor-default'}`}>
-                              <span className="flex items-center gap-2">
-                                {isAnswered && oi === q.correct && <CheckCircle2 size={12} className="text-emerald-500 flex-shrink-0" />}
-                                {isAnswered && oi === answered && oi !== q.correct && <X size={12} className="text-red-400 flex-shrink-0" />}
-                                {opt}
+                              className={`w-full text-left px-3 py-3 rounded-xl border transition-all flex items-center gap-3 ${card} ${!isAnswered ? 'cursor-pointer' : 'cursor-default'}`}>
+                              <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[11px] font-bold flex-shrink-0 transition-colors ${badge}`}>
+                                {isAnswered && oi === q.correct ? <CheckCircle2 size={13} /> : isAnswered && oi === answered ? <X size={13} /> : letter}
                               </span>
+                              <span className="text-[13px] leading-snug text-gray-700">{text}</span>
                             </button>
                           );
                         })}
