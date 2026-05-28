@@ -1353,6 +1353,9 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const [notesLoading, setNotesLoading] = useState(true);
   const [chatsLoading, setChatsLoading] = useState(true);
   const [mobileChatsOpen, setMobileChatsOpen] = useState(false);
+  const [recentsOpen, setRecentsOpen] = useState(true);   // collapse the recents list
+  const [showAllChats, setShowAllChats] = useState(false); // "View all" toggle
+  const RECENT_LIMIT = 8;
 
   const [quizOpen, setQuizOpen] = useState(false);
   const [quizLoading, setQuizLoading] = useState(false);
@@ -1894,7 +1897,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       {mobileChatsOpen && <div onClick={closeMobile} className="md:hidden fixed inset-0 bg-black/40 z-30" />}
 
       {/* ── Left sidebar / mobile drawer ── */}
-      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-72 md:w-56 bg-[#F7F7F7] border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileChatsOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
+      <aside className={`fixed md:static inset-y-0 left-0 z-40 w-72 md:w-72 bg-[#F7F7F7] border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileChatsOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
         <div className="px-4 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between mb-3">
             <button type="button" onClick={onExit} className="flex items-center gap-2.5 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></button>
@@ -1909,8 +1912,17 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           <button onClick={() => { createNewChat(); closeMobile(); }} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-medium hover:bg-gray-50 transition-colors"><Plus size={12} />New chat</button>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-3">
-          <p className="text-[10px] text-gray-400 font-medium px-2 mb-2 uppercase tracking-widest">Chats</p>
-          {chats.map(c => (
+          <div className="group/recents flex items-center justify-between px-2 mb-2">
+            <button onClick={() => setRecentsOpen(o => !o)} className="flex items-center gap-1 text-[10px] text-gray-400 font-medium uppercase tracking-widest hover:text-gray-600 transition-colors">
+              <ChevronRight size={10} className={`transition-transform ${recentsOpen ? 'rotate-90' : ''}`} />Recents
+            </button>
+            {recentsOpen && chats.length > RECENT_LIMIT && (
+              <button onClick={() => setShowAllChats(s => !s)} className="text-[10px] text-gray-400 hover:text-gray-700 font-medium opacity-0 group-hover/recents:opacity-100 transition-opacity">
+                {showAllChats ? 'Show less' : 'View all'}
+              </button>
+            )}
+          </div>
+          {recentsOpen && (showAllChats ? chats : chats.slice(0, RECENT_LIMIT)).map(c => (
             <div key={c.id} className="group relative mb-0.5">
               <button onClick={() => { setChatId(c.id); closeMobile(); }} className={`flex items-center gap-2 w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors pr-7 ${c.id === chatId ? 'bg-white border border-gray-200 text-gray-900 font-medium shadow-sm' : 'text-gray-500 hover:bg-white hover:text-gray-700'}`}>
                 <MessageSquare size={11} className="flex-shrink-0 opacity-40" /><span className="truncate">{c.title || 'New Chat'}</span>
