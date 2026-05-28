@@ -1333,6 +1333,8 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizDone, setQuizDone] = useState(false);
   const [quizTopic, setQuizTopic] = useState('');
+  const quizChatRef = useRef({ id: null, dbId: null }); // chat the quiz was launched from
+  const quizRecordedRef = useRef(false);                // record the result once per generated quiz
 
   const bottomRef = useRef(null);
   const scrollContainerRef = useRef(null);
@@ -1375,6 +1377,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     setQuizAnswers({});
     setQuizDone(false);
     setQuizTopic(topic);
+    quizRecordedRef.current = false;
     try {
       const res = await fetch(`${API}/course/${course.id}/quiz`, {
         method: 'POST',
@@ -1398,6 +1401,36 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const quizScore = Object.entries(quizAnswers).filter(([qi, ai]) =>
     quizQuestions[parseInt(qi)]?.correct === ai
   ).length;
+
+  // When a quiz is finished, drop a result message into the chat it came from
+  // so it shows when scrolling back (and persists across sessions). No separate
+  // quiz-history store needed — it rides on the existing chat persistence.
+  const recordQuizResult = async () => {
+    const total = quizQuestions.length;
+    if (!total) return;
+    const pct = Math.round((quizScore / total) * 100);
+    const content = `📊 Quiz complete — you scored **${quizScore}/${total}** (${pct}%)${quizTopic ? ` on ${quizTopic}` : ''}.`;
+    const { id: targetId, dbId } = quizChatRef.current || {};
+    const chatLocalId = targetId || chatId;
+    setChats(prev => prev.map(c => c.id === chatLocalId
+      ? { ...c, messages: [...c.messages, { role: 'assistant', content, sources: [], ts: Date.now() }] }
+      : c));
+    if (dbId && !String(dbId).startsWith('local-')) {
+      try {
+        await fetch(`${API}/student/chats/${dbId}/messages`, {
+          method: 'POST', headers: jsonHeaders,
+          body: JSON.stringify({ role: 'assistant', content }),
+        });
+      } catch {}
+    }
+  };
+
+  useEffect(() => {
+    if (quizDone && quizQuestions.length > 0 && !quizRecordedRef.current) {
+      quizRecordedRef.current = true;
+      recordQuizResult();
+    }
+  }, [quizDone]);
 
   // Background: fetch docs + suggested-questions in parallel so the chat
   // view renders instantly without waiting for either. Suggested-questions
@@ -1664,6 +1697,9 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       const topic = extractQuizTopic(message);
       setInput('');
       const currentChatId = chatId;
+      const currentActive = chats.find(c => c.id === currentChatId) || chats[0];
+      const currentChatDbId = currentActive?.dbId || null;
+      quizChatRef.current = { id: currentChatId, dbId: currentChatDbId };
       const streamingMsgId = Date.now();
       setChats(prev => prev.map(c => c.id === currentChatId ? {
         ...c,
@@ -1673,6 +1709,11 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           { id: streamingMsgId, role: 'assistant', content: `Generating your quiz${topic ? ` on **${topic}**` : ''} — check the panel on the right! 📝`, sources: [], ts: Date.now(), streaming: false },
         ],
       } : c));
+      // Persist the request so the chat has context on reload — the result
+      // message is appended when the student finishes the quiz.
+      if (currentChatDbId && !String(currentChatDbId).startsWith('local-')) {
+        try { await fetch(`${API}/student/chats/${currentChatDbId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'user', content: message }) }); } catch {}
+      }
       generateQuiz(topic);
       return;
     }
