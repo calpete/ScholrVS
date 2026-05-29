@@ -345,35 +345,25 @@ const GoogleIcon = () => (
 // in the right portal.
 function SmartSignIn({ onPickStudent, onPickProfessor, onBack }) {
   return (
-    <div className="min-h-[100dvh] bg-[#FAFAFA] flex flex-col items-center justify-center px-6 page-enter" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      <style>{FONT}</style>
-      <div className="mb-8 flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold">Scholr</span></div>
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <h1 className="serif text-3xl text-gray-900 mb-1.5">Welcome back</h1>
-          <p className="text-gray-400 text-sm">Sign in to the portal you signed up for</p>
-        </div>
-        <div className="space-y-3">
-          <button onClick={onPickStudent}
-            className="w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl bg-white border border-gray-200 hover:border-gray-400 hover:shadow-sm transition-all text-left group">
-            <div>
-              <p className="text-gray-900 font-semibold text-sm">I'm a student</p>
-              <p className="text-gray-400 text-xs mt-0.5">Sign in to your courses</p>
-            </div>
-            <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-600 transition-colors" />
+    <div className="scholr-auth choose">
+      <style>{AUTH_CSS}</style>
+      <div className="choose-wrap">
+        <button type="button" className="auth-brand choose-brand" onClick={onBack} aria-label="Scholr home"><LandingLogo s={32} />Scholr</button>
+        <h1 className="choose-h">Welcome back.</h1>
+        <p className="choose-sub">Sign in to the portal you signed up for.</p>
+        <div className="choose-cards">
+          <button type="button" className="choose-card" onClick={onPickStudent}>
+            <span className="choose-ic"><BookOpen size={18} /></span>
+            <span className="choose-text"><b>I'm a student</b><span>Ask questions and get cited answers from your class.</span></span>
+            <Ic name="arrow-right" s={16} />
           </button>
-          <button onClick={onPickProfessor}
-            className="w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl bg-white border border-gray-200 hover:border-gray-400 hover:shadow-sm transition-all text-left group">
-            <div>
-              <p className="text-gray-900 font-semibold text-sm">I'm a teacher</p>
-              <p className="text-gray-400 text-xs mt-0.5">Sign in to your courses + analytics</p>
-            </div>
-            <ChevronRight size={16} className="text-gray-300 group-hover:text-gray-600 transition-colors" />
+          <button type="button" className="choose-card prof" onClick={onPickProfessor}>
+            <span className="choose-ic"><Lock size={17} /></span>
+            <span className="choose-text"><b>I'm a teacher</b><span>Manage your courses and see what your class is asking.</span></span>
+            <Ic name="arrow-right" s={16} />
           </button>
         </div>
-        <div className="mt-6 text-center">
-          <button onClick={onBack} className="text-xs text-gray-400 hover:text-gray-700 transition-colors flex items-center gap-1 mx-auto"><ArrowLeft size={12} />Back</button>
-        </div>
+        <button type="button" className="choose-back" onClick={onBack}><ArrowLeft size={13} />Back</button>
       </div>
     </div>
   );
@@ -472,6 +462,24 @@ const AUTH_CSS = `
 .scholr-auth .auth-mobile-brand{display:flex;}
 .scholr-auth .auth-card{padding:0;}
 }
+/* ---- role chooser ---- */
+.scholr-auth.choose{display:flex;grid-template-columns:none;align-items:center;justify-content:center;padding:32px 22px;background:var(--bg);}
+.scholr-auth.choose .choose-wrap{width:100%;max-width:440px;text-align:center;}
+.scholr-auth .choose-brand{justify-content:center;margin:0 auto 30px;}
+.scholr-auth .choose-h{font-family:var(--font-display);font-weight:500;font-size:34px;letter-spacing:-.02em;line-height:1.04;margin-bottom:9px;}
+.scholr-auth .choose-sub{font-size:15px;color:var(--muted);margin-bottom:30px;}
+.scholr-auth .choose-cards{display:flex;flex-direction:column;gap:12px;text-align:left;}
+.scholr-auth .choose-card{display:flex;align-items:center;gap:15px;padding:18px 20px;border-radius:16px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow-sm);cursor:pointer;transition:border-color .15s,box-shadow .2s,transform .15s;font-family:var(--font-body);color:var(--ink);text-align:left;}
+.scholr-auth .choose-card:hover{border-color:var(--ink);transform:translateY(-2px);box-shadow:0 14px 34px -18px rgba(21,22,27,.16);}
+.scholr-auth .choose-ic{flex:none;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--ink);}
+.scholr-auth .choose-card.prof .choose-ic{background:var(--ink);color:#fff;}
+.scholr-auth .choose-text{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0;}
+.scholr-auth .choose-text b{font-size:16px;font-weight:700;letter-spacing:-.01em;}
+.scholr-auth .choose-text span{font-size:13px;color:var(--muted);line-height:1.4;}
+.scholr-auth .choose-card svg:last-child{flex:none;color:var(--muted-2);transition:transform .2s,color .15s;}
+.scholr-auth .choose-card:hover svg:last-child{color:var(--ink);transform:translateX(3px);}
+.scholr-auth .choose-back{display:inline-flex;align-items:center;gap:6px;margin:24px auto 0;background:none;border:none;font-family:var(--font-body);font-size:13px;color:var(--muted-2);cursor:pointer;}
+.scholr-auth .choose-back:hover{color:var(--ink);}
 `;
 
 // Full-page split shell shared by all four auth screens. Left = branded
@@ -2969,16 +2977,24 @@ html { scroll-behavior: smooth; }
 .scholr-landing .lp-modal-done{text-align:center;padding:8px 0;}
 .scholr-landing .lp-done-ic{width:56px;height:56px;border-radius:999px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;margin:0 auto 18px;}
 .scholr-landing .lp-modal-done .btn{margin-top:8px;}
+.scholr-landing .lp-code{width:100%;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:20px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;text-align:center;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:13px;padding:15px 14px;outline:none;margin-bottom:12px;transition:border-color .15s;}
+.scholr-landing .lp-code:focus{border-color:var(--ink);}
+.scholr-landing .lp-code::placeholder{color:var(--muted-2);letter-spacing:.12em;}
+.scholr-landing .lp-join-alt{display:block;width:100%;text-align:center;margin-top:16px;background:none;border:none;font-family:var(--font-body);font-size:14px;color:var(--muted);cursor:pointer;}
+.scholr-landing .lp-join-alt:hover{color:var(--ink);}
 `;
 
-function LandingPage({ onStudent, onInstructor, onSignIn }) {
+function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode }) {
   const navigate = useNavigate();
   const rootRef = useRef(null);
   const [navScrolled, setNavScrolled] = useState(false);
   const [demo, setDemo] = useState({ idx: 0, phase: 'user' });
   const [talkOpen, setTalkOpen] = useState(false);
   const [talkSent, setTalkSent] = useState(false);
+  const [joinOpen, setJoinOpen] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
   const closeTalk = () => { setTalkOpen(false); setTalkSent(false); };
+  const submitJoin = (e) => { e.preventDefault(); const c = joinCode.trim(); if (!c) return; if (onJoinCode) onJoinCode(c); else onStudent(); };
 
   // Scroll-reveal, nav shadow, and the dashboard bar fills — scoped to this page.
   useEffect(() => {
@@ -3050,7 +3066,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
             <div className="hero-actions">
               <button type="button" className="btn btn-primary btn-lg" onClick={onInstructor}>Start a course free <span className="arr"><Ic name="arrow-right" s={17} /></span></button>
             </div>
-            <p className="hero-sub">Joining a class? <button type="button" onClick={onStudent}>Enter your join code <Ic name="arrow-right" s={15} /></button></p>
+            <p className="hero-sub">Joining a class? <button type="button" onClick={() => setJoinOpen(true)}>Enter your join code <Ic name="arrow-right" s={15} /></button></p>
           </div>
         </section>
 
@@ -3271,7 +3287,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
                   <li><span className="tick"><Ic name="check" s={13} /></span> Practice quizzes from your actual material</li>
                   <li><span className="tick"><Ic name="check" s={13} /></span> Available the night before the exam</li>
                 </ul>
-                <div className="aud-cta"><button type="button" className="btn btn-primary btn-pill" onClick={onStudent}>Enter your join code <Ic name="arrow-right" s={16} /></button></div>
+                <div className="aud-cta"><button type="button" className="btn btn-primary btn-pill" onClick={() => setJoinOpen(true)}>Enter your join code <Ic name="arrow-right" s={16} /></button></div>
               </div>
             </div>
           </div>
@@ -3391,6 +3407,23 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
                 <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }}>Send message</button>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Join-code capture — collects the code BEFORE sending to student login */}
+      {joinOpen && (
+        <div className="lp-modal" onClick={() => setJoinOpen(false)}>
+          <div className="lp-modal-card" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="lp-modal-x" aria-label="Close" onClick={() => setJoinOpen(false)}><Ic name="x-logo" s={15} /></button>
+            <div className="kicker"><span className="d" /> Join a class</div>
+            <h3>Enter your join code</h3>
+            <p>Your professor shared a code like <b>A306-UCB2</b>. Enter it and we'll take you straight into your class after you sign in.</p>
+            <form onSubmit={submitJoin}>
+              <input className="lp-code" value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} placeholder="A306-UCB2" autoFocus maxLength={24} aria-label="Join code" />
+              <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={!joinCode.trim()}>Continue <Ic name="arrow-right" s={16} /></button>
+            </form>
+            <button type="button" className="lp-join-alt" onClick={() => { setJoinOpen(false); onStudent(); }}>I already have an account — just sign in</button>
           </div>
         </div>
       )}
@@ -3728,12 +3761,15 @@ export default function App() {
   const handleProfLogin = (token, user) => { localStorage.setItem('scholr_token', token); localStorage.setItem('scholr_user', JSON.stringify(user)); setProfToken(token); setProfUser(user); setScreen('prof-dashboard'); };
   const handleProfLogout = () => { localStorage.removeItem('scholr_token'); localStorage.removeItem('scholr_user'); setProfToken(null); setProfUser(null); setScreen('landing'); };
   const handleStudentLogin = (token, user) => { localStorage.setItem('scholr_student_token', token); localStorage.setItem('scholr_student_user', JSON.stringify(user)); setStudentToken(token); setStudentUser(user); setScreen('student-dashboard'); navigate('/student'); };
+  // Landing "Enter your join code": capture the code BEFORE login so the student
+  // is auto-enrolled right after signing in (StudentDashboard reads this on mount).
+  const handleJoinCodeEntry = (code) => { const c = (code || '').trim().toUpperCase(); if (!c) return; sessionStorage.setItem('scholr_pending_join', c); setPendingJoinCode(c); setScreen('student-login'); navigate('/student/login'); };
   const handleStudentLogout = () => { localStorage.removeItem('scholr_student_token'); localStorage.removeItem('scholr_student_user'); setStudentToken(null); setStudentUser(null); setScreen('landing'); };
   const handleEnterCourse = (course, docs, questions) => { setStudentCourse(course); setStudentDocs(docs); setStudentQuestions(questions); setScreen('student-chat'); };
 
   const renderScreen = () => {
     switch (screen) {
-      case 'landing': return <LandingPage onStudent={() => setScreen('student-login')} onInstructor={() => setScreen('prof-signup')} onSignIn={() => setScreen('smart-signin')} />;
+      case 'landing': return <LandingPage onStudent={() => setScreen('student-login')} onInstructor={() => setScreen('prof-signup')} onSignIn={() => setScreen('smart-signin')} onJoinCode={handleJoinCodeEntry} />;
       case 'smart-signin': return <SmartSignIn onPickStudent={() => setScreen('student-login')} onPickProfessor={() => setScreen('prof-login')} onBack={() => setScreen('landing')} />;
       case 'student-login': return <StudentLogin onLogin={handleStudentLogin} onGoSignup={() => setScreen('student-signup')} onBack={() => setScreen('landing')} pendingJoinCode={pendingJoinCode} />;
       case 'student-signup': return <StudentSignup onLogin={handleStudentLogin} onGoLogin={() => setScreen('student-login')} onBack={() => setScreen('landing')} pendingJoinCode={pendingJoinCode} />;
@@ -3759,7 +3795,7 @@ export default function App() {
             ? (screen === 'student-chat' && studentCourse
                 ? <StudentView course={studentCourse} documents={studentDocs} suggestedQuestions={studentQuestions} onExit={() => setScreen('student-dashboard')} studentToken={studentToken} />
                 : <StudentDashboard token={studentToken} user={studentUser} onEnterCourse={handleEnterCourse} onLogout={handleStudentLogout} />)
-            : <LandingPage onStudent={() => navigate('/student/login')} onInstructor={() => setScreen('prof-signup')} onSignIn={() => setScreen('smart-signin')} />
+            : <LandingPage onStudent={() => navigate('/student/login')} onInstructor={() => setScreen('prof-signup')} onSignIn={() => setScreen('smart-signin')} onJoinCode={handleJoinCodeEntry} />
         } />
         <Route path="/*" element={renderScreen()} />
       </Routes>
