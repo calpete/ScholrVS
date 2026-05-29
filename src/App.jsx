@@ -2126,10 +2126,10 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                           </div>
                         </div>
                       ) : (
-                        <div className={`rounded-2xl text-sm w-full ${m.role === 'user' ? 'bg-gray-900 text-white px-4 py-3 rounded-br-sm' : 'text-gray-800'}`}>
+                        <div className={`rounded-2xl text-sm w-full ${m.role === 'user' ? 'bg-gray-100 text-gray-900 px-4 py-3 rounded-br-sm' : 'text-gray-800'}`}>
                           {m.role === 'assistant' && m.content === '' && m.streaming ? (
                             <ThinkingText />
-                          ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user' ? <p className="leading-relaxed whitespace-pre-wrap text-white">{m.content}</p> : <MarkdownMessage content={m.content} />}
+                          ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user' ? <p className="leading-relaxed whitespace-pre-wrap text-gray-900">{m.content}</p> : <MarkdownMessage content={m.content} />}
                           {m.role === 'assistant' && m.streaming && m.content && <span className="inline-block w-[3px] h-[16px] bg-gray-800 animate-pulse ml-1 align-middle rounded-sm" />}
                           {m.role === 'assistant' && m.sources?.length > 0 && !m.streaming && !isError && (
                             <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap gap-1.5 items-center">
@@ -2137,7 +2137,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                               {m.sources.map((source, idx) => (<span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 border border-gray-200 text-gray-600 text-[11px] font-medium"><FileText size={9} /><span className="max-w-[200px] truncate">{cleanFileName(source)}</span></span>))}
                             </div>
                           )}
-                          {m.role === 'user' && <span className="block text-[10px] mt-1.5 opacity-30">{formatTime(m.ts)}</span>}
+                          {m.role === 'user' && <span className="block text-[10px] mt-1.5 text-gray-400">{formatTime(m.ts)}</span>}
                         </div>
                       )}
                       {m.role === 'assistant' && !m.streaming && m.content && !isError && !quizMatch && (
