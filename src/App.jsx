@@ -430,8 +430,93 @@ const AUTH_CSS = `
 .scholr-auth .auth-foot .alt:hover svg{transform:translateX(3px);}
 .scholr-auth .spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:999px;animation:auth-spin .7s linear infinite;}
 @keyframes auth-spin{to{transform:rotate(360deg);}}
-@media (max-width:480px){.scholr-auth .auth-card{padding:28px 22px;}.scholr-auth h1{font-size:27px;}}
+@media (max-width:480px){.scholr-auth h1{font-size:27px;}}
+/* ---- modern full-page split layout ---- */
+.scholr-auth{display:grid;grid-template-columns:1.04fr .96fr;align-items:stretch;padding:0;}
+.scholr-auth.shake{animation:none;}
+.scholr-auth.shake .auth-card{animation:auth-shake .4s ease-in-out;}
+.scholr-auth .auth-aside{position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:44px 52px;overflow:hidden;}
+.scholr-auth.stud .auth-aside{background:var(--bg-2);}
+.scholr-auth.prof .auth-aside{background:var(--ink);color:#fff;}
+.scholr-auth.prof .auth-aside::after{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.05) 1.4px,transparent 1.4px);background-size:26px 26px;-webkit-mask-image:radial-gradient(85% 70% at 30% 28%,#000,transparent 75%);mask-image:radial-gradient(85% 70% at 30% 28%,#000,transparent 75%);pointer-events:none;}
+.scholr-auth .auth-aside>*{position:relative;z-index:1;}
+.scholr-auth .auth-brand{margin-bottom:0;color:inherit;}
+.scholr-auth .aside-body{max-width:430px;}
+.scholr-auth .aside-eyebrow{display:inline-flex;align-items:center;gap:9px;font-size:12px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;margin-bottom:22px;}
+.scholr-auth.stud .aside-eyebrow{color:var(--muted);}
+.scholr-auth.prof .aside-eyebrow{color:rgba(255,255,255,.6);}
+.scholr-auth .aside-eyebrow svg{width:13px;height:13px;}
+.scholr-auth .aside-h{font-family:var(--font-display);font-weight:500;font-size:clamp(30px,3vw,42px);line-height:1.06;letter-spacing:-.022em;margin-bottom:18px;}
+.scholr-auth .aside-h .ital{font-style:italic;}
+.scholr-auth .aside-p{font-size:16.5px;line-height:1.55;max-width:390px;}
+.scholr-auth.stud .aside-p{color:var(--muted);}
+.scholr-auth.prof .aside-p{color:rgba(255,255,255,.66);}
+.scholr-auth .aside-chips{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin-top:28px;}
+.scholr-auth .aside-qchip{display:inline-flex;align-items:center;gap:9px;padding:9px 15px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:13.5px;font-weight:500;color:var(--ink-2);box-shadow:var(--shadow-sm);}
+.scholr-auth .aside-qchip svg{width:14px;height:14px;color:var(--muted-2);flex:none;}
+.scholr-auth .aside-list{display:flex;flex-direction:column;gap:14px;margin-top:28px;}
+.scholr-auth .aside-list li{display:flex;gap:11px;align-items:flex-start;font-size:15.5px;line-height:1.4;list-style:none;color:rgba(255,255,255,.84);}
+.scholr-auth .aside-list .tick{flex:none;width:22px;height:22px;border-radius:999px;background:rgba(255,255,255,.13);color:#fff;display:grid;place-items:center;margin-top:1px;}
+.scholr-auth .aside-list .tick svg{width:13px;height:13px;}
+.scholr-auth .aside-foot{font-size:13px;}
+.scholr-auth.stud .aside-foot{color:var(--muted-2);}
+.scholr-auth.prof .aside-foot{color:rgba(255,255,255,.4);}
+.scholr-auth .auth-main{display:flex;align-items:center;justify-content:center;padding:48px 32px;background:var(--surface);overflow-y:auto;}
+.scholr-auth .auth-card{max-width:392px;border:none;box-shadow:none;padding:0;background:transparent;margin:auto;}
+.scholr-auth .auth-mobile-brand{display:none;align-items:center;gap:10px;justify-content:center;font-weight:700;font-size:20px;letter-spacing:-.02em;margin:0 auto 26px;background:none;border:none;cursor:pointer;color:var(--ink);font-family:var(--font-body);}
+.scholr-auth .auth-mobile-brand .mark{width:30px;height:30px;}
+@media (max-width:900px){
+.scholr-auth{grid-template-columns:1fr;}
+.scholr-auth .auth-aside{display:none;}
+.scholr-auth .auth-main{min-height:100dvh;padding:34px 22px;background:var(--bg);}
+.scholr-auth .auth-mobile-brand{display:flex;}
+.scholr-auth .auth-card{padding:0;}
+}
 `;
+
+// Full-page split shell shared by all four auth screens. Left = branded
+// marketing panel (warm for students, dark/authoritative for instructors);
+// right = the form. Collapses to a single column on mobile.
+function AuthLayout({ variant, onBack, shake, children }) {
+  const isProf = variant === 'prof';
+  return (
+    <div className={`scholr-auth ${variant}${shake ? ' shake' : ''}`}>
+      <style>{AUTH_CSS}</style>
+      <aside className="auth-aside">
+        <button type="button" className="auth-brand" onClick={onBack} aria-label="Scholr home"><LandingLogo s={32} light={isProf} />Scholr</button>
+        {isProf ? (
+          <div className="aside-body">
+            <span className="aside-eyebrow"><Lock size={13} /> For instructors</span>
+            <h2 className="aside-h">See what your class is stuck on, <span className="ital">before</span> the next lecture.</h2>
+            <p className="aside-p">Upload your course once. Scholr fields the repetitive questions and shows you exactly where students need help.</p>
+            <ul className="aside-list">
+              <li><span className="tick"><Ic name="check" s={13} /></span> Answers stay inside your materials</li>
+              <li><span className="tick"><Ic name="check" s={13} /></span> Live analytics on what's confusing the class</li>
+              <li><span className="tick"><Ic name="check" s={13} /></span> Set up in an afternoon — no IT required</li>
+            </ul>
+          </div>
+        ) : (
+          <div className="aside-body">
+            <h2 className="aside-h">An AI tutor that actually <span className="ital">knows your class.</span></h2>
+            <p className="aside-p">Cited answers from your professor's real materials — ready the night before the exam.</p>
+            <div className="aside-chips">
+              <span className="aside-qchip"><Ic name="message-square" s={14} /> Will this be on the final?</span>
+              <span className="aside-qchip"><Ic name="message-square" s={14} /> Explain contribution margin</span>
+              <span className="aside-qchip"><Ic name="message-square" s={14} /> What's the late policy?</span>
+            </div>
+          </div>
+        )}
+        <div className="aside-foot">{isProf ? 'FERPA-aligned · Powered by Vertex AI' : 'Grounded in your course materials'}</div>
+      </aside>
+      <main className="auth-main">
+        <div className="auth-card">
+          <button type="button" className="auth-mobile-brand" onClick={onBack} aria-label="Scholr home"><LandingLogo s={30} light={false} />Scholr</button>
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+}
 
 function ProfessorLogin({ onLogin, onGoSignup, onBack }) {
   const [email, setEmail] = useState('');
@@ -454,10 +539,7 @@ function ProfessorLogin({ onLogin, onGoSignup, onBack }) {
   };
 
   return (
-    <div className={`scholr-auth prof${shaking ? ' shake' : ''}`}>
-      <style>{AUTH_CSS}</style>
-      <button type="button" className="auth-brand" onClick={onBack} aria-label="Scholr home"><LandingLogo s={32} />Scholr</button>
-      <div className="auth-card">
+    <AuthLayout variant="prof" onBack={onBack} shake={shaking}>
         <span className="auth-eyebrow"><Lock size={13} /> Instructor portal</span>
         <h1>Instructor sign&#8209;in</h1>
         <p className="auth-sub">Manage your courses and see exactly what your class is asking.</p>
@@ -483,8 +565,7 @@ function ProfessorLogin({ onLogin, onGoSignup, onBack }) {
           <button type="button" className="back" onClick={onBack}><ArrowLeft size={13} />Back</button>
           <button type="button" className="alt" onClick={onGoSignup}>New to Scholr? Create your course <Ic name="arrow-right" s={14} /></button>
         </div>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }
 
@@ -513,40 +594,37 @@ function ProfessorSignup({ onLogin, onGoLogin, onBack }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center page-enter">
-      <style>{FONT}</style>
-      <div className="mb-8 flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold">Scholr</span></div>
-      <div className="w-full max-w-sm px-6">
-        <div className="text-center mb-8">
-          <h1 className="serif text-3xl text-gray-900 mb-1.5">Create account</h1>
-          <p className="text-gray-400 text-sm">Set up your instructor workspace</p>
+    <AuthLayout variant="prof" onBack={onBack}>
+      <span className="auth-eyebrow"><Lock size={13} /> Instructor portal</span>
+      <h1>Create your workspace</h1>
+      <p className="auth-sub">Set up your instructor account and bring Scholr to your course.</p>
+      <button type="button" className="gbtn" onClick={() => { window.location.href = `${API}/professor/auth/google`; }}>
+        <GoogleIcon />Continue with Google
+      </button>
+      <div className="divider"><i /><span>or</span><i /></div>
+      <form onSubmit={handleSubmit}>
+        <div className="auth-field">
+          <label htmlFor="prof-signup-name">Name</label>
+          <input id="prof-signup-name" name="name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Dr. Jane Smith" />
         </div>
-        <button onClick={() => { window.location.href = `${API}/professor/auth/google`; }}
-          className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm text-gray-700 text-sm font-medium transition-all mb-4">
-          <GoogleIcon />Continue with Google
+        <div className="auth-field">
+          <label htmlFor="prof-signup-email">Email</label>
+          <input id="prof-signup-email" name="email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@university.edu" />
+        </div>
+        <div className="auth-field">
+          <label htmlFor="prof-signup-password">Password</label>
+          <input id="prof-signup-password" name="password" type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 6 characters" />
+        </div>
+        {error && <p className="auth-error">{error}</p>}
+        <button type="submit" className="btn-primary" disabled={!name || !email || !password || loading}>
+          {loading ? <><span className="spin" />Creating account…</> : 'Create account'}
         </button>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 h-px bg-gray-200" /><span className="text-xs text-gray-400">or</span><div className="flex-1 h-px bg-gray-200" />
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <input id="prof-signup-name" name="name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
-            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          <input id="prof-signup-email" name="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
-            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          <input id="prof-signup-password" name="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password (min 6 chars)"
-            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          {error && <p className="text-red-500 text-xs text-center">{error}</p>}
-          <button type="submit" disabled={!name || !email || !password || loading}
-            className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">
-            {loading ? <span className="flex items-center justify-center gap-2"><ButtonSpinner light />Creating account…</span> : 'Create account'}
-          </button>
-        </form>
-        <div className="flex items-center justify-between mt-5 text-xs text-gray-400">
-          <button onClick={onBack} className="hover:text-gray-700 transition-colors flex items-center gap-1"><ArrowLeft size={12} />Back</button>
-          <button onClick={onGoLogin} className="hover:text-gray-700 transition-colors">Have an account? Sign in →</button>
-        </div>
+      </form>
+      <div className="auth-foot">
+        <button type="button" className="back" onClick={onBack}><ArrowLeft size={13} />Back</button>
+        <button type="button" className="alt" onClick={onGoLogin}>Have an account? Sign in <Ic name="arrow-right" s={14} /></button>
       </div>
-    </div>
+    </AuthLayout>
   );
 }
 
@@ -577,10 +655,7 @@ function StudentLogin({ onLogin, onGoSignup, onBack, pendingJoinCode }) {
   };
 
   return (
-    <div className={`scholr-auth stud${shaking ? ' shake' : ''}`}>
-      <style>{AUTH_CSS}</style>
-      <button type="button" className="auth-brand" onClick={onBack} aria-label="Scholr home"><LandingLogo s={32} />Scholr</button>
-      <div className="auth-card">
+    <AuthLayout variant="stud" onBack={onBack} shake={shaking}>
         <span className="auth-chip"><span className="live" /> AI Active</span>
         <h1>{pendingJoinCode ? 'Almost there.' : 'Welcome back.'}</h1>
         <p className="auth-sub">{pendingJoinCode ? 'Sign in to join your class — your AI tutor is ready and waiting.' : 'Sign in and pick up right where you left off.'}</p>
@@ -607,8 +682,7 @@ function StudentLogin({ onLogin, onGoSignup, onBack, pendingJoinCode }) {
           <button type="button" className="back" onClick={onBack}><ArrowLeft size={13} />Back</button>
           <button type="button" className="alt" onClick={onGoSignup}>Don't have an account? Join a class <Ic name="arrow-right" s={14} /></button>
         </div>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }
 
@@ -642,40 +716,37 @@ function StudentSignup({ onLogin, onGoLogin, onBack, pendingJoinCode }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center page-enter">
-      <style>{FONT}</style>
-      <div className="mb-8 flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold">Scholr</span></div>
-      <div className="w-full max-w-sm px-6">
-        <div className="text-center mb-8">
-          <h1 className="serif text-3xl text-gray-900 mb-1.5">Create account</h1>
-          <p className="text-gray-400 text-sm">{pendingJoinCode ? 'Sign up to join your course' : 'Join Scholr as a student'}</p>
+    <AuthLayout variant="stud" onBack={onBack}>
+      <span className="auth-chip"><span className="live" /> AI Active</span>
+      <h1>{pendingJoinCode ? "You're one step away." : 'Join your class.'}</h1>
+      <p className="auth-sub">{pendingJoinCode ? 'Create your account and you’ll drop straight into your course.' : 'Create your student account — it takes about a minute.'}</p>
+      <button type="button" className="gbtn" onClick={handleGoogle}>
+        <GoogleIcon />Continue with Google
+      </button>
+      <div className="divider"><i /><span>or</span><i /></div>
+      <form onSubmit={handleSubmit}>
+        <div className="auth-field">
+          <label htmlFor="student-signup-name">Name</label>
+          <input id="student-signup-name" name="name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Alex Rivera" />
         </div>
-        <button onClick={handleGoogle}
-          className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm text-gray-700 text-sm font-medium transition-all mb-4">
-          <GoogleIcon />Continue with Google
+        <div className="auth-field">
+          <label htmlFor="student-signup-email">Email</label>
+          <input id="student-signup-email" name="email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@school.edu" />
+        </div>
+        <div className="auth-field">
+          <label htmlFor="student-signup-password">Password</label>
+          <input id="student-signup-password" name="password" type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 6 characters" />
+        </div>
+        {error && <p className="auth-error">{error}</p>}
+        <button type="submit" className="btn-primary" disabled={!name || !email || !password || loading}>
+          {loading ? <><span className="spin" />Creating account…</> : 'Create account'}
         </button>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 h-px bg-gray-200" /><span className="text-xs text-gray-400">or</span><div className="flex-1 h-px bg-gray-200" />
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <input id="student-signup-name" name="name" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
-            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          <input id="student-signup-email" name="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
-            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          <input id="student-signup-password" name="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password (min 6 chars)"
-            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          {error && <p className="text-red-500 text-xs text-center">{error}</p>}
-          <button type="submit" disabled={!name || !email || !password || loading}
-            className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">
-            {loading ? <span className="flex items-center justify-center gap-2"><ButtonSpinner light />Creating account…</span> : 'Create account'}
-          </button>
-        </form>
-        <div className="flex items-center justify-between mt-5 text-xs text-gray-400">
-          <button onClick={onBack} className="hover:text-gray-700 transition-colors flex items-center gap-1"><ArrowLeft size={12} />Back</button>
-          <button onClick={onGoLogin} className="hover:text-gray-700 transition-colors">Have an account? Sign in →</button>
-        </div>
+      </form>
+      <div className="auth-foot">
+        <button type="button" className="back" onClick={onBack}><ArrowLeft size={13} />Back</button>
+        <button type="button" className="alt" onClick={onGoLogin}>Have an account? Sign in <Ic name="arrow-right" s={14} /></button>
       </div>
-    </div>
+    </AuthLayout>
   );
 }
 
@@ -2551,13 +2622,15 @@ const LANDING_ICONS = {
   'linkedin': '<path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/>',
   'github': '<path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/>',
 };
-function LandingLogo({ s = 36 }) {
+function LandingLogo({ s = 36, light = false }) {
+  const sq = light ? '#FBFBF9' : '#15161B';
+  const ln = light ? '#15161B' : '#FBFBF9';
   return (
     <svg className="mark" width={s} height={s} viewBox="0 0 36 36" fill="none" aria-hidden="true">
-      <rect width="36" height="36" rx="10.5" fill="#15161B" />
-      <rect x="9.5" y="11.7" width="14" height="2.9" rx="1.45" fill="#FBFBF9" />
-      <rect x="9.5" y="16.55" width="17" height="2.9" rx="1.45" fill="#FBFBF9" />
-      <rect x="9.5" y="21.4" width="9" height="2.9" rx="1.45" fill="#FBFBF9" />
+      <rect width="36" height="36" rx="10.5" fill={sq} />
+      <rect x="9.5" y="11.7" width="14" height="2.9" rx="1.45" fill={ln} />
+      <rect x="9.5" y="16.55" width="17" height="2.9" rx="1.45" fill={ln} />
+      <rect x="9.5" y="21.4" width="9" height="2.9" rx="1.45" fill={ln} />
     </svg>
   );
 }
