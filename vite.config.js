@@ -7,4 +7,8 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    // Single-bundle app by design — raise the threshold so the build log stays clean.
+    chunkSizeWarningLimit: 1500,
+  },
 })
