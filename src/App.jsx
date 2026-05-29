@@ -5,7 +5,7 @@ import {
   ChevronRight, Users, AlertCircle, UploadCloud, BarChart2, Clock,
   CheckCircle2, Copy, Check, ThumbsUp, ThumbsDown, X,
   Lock, WifiOff, Paperclip, Square, ArrowLeft, ExternalLink, Hash, Menu,
-  ListChecks, RotateCcw, Sparkles, ChevronLeft
+  ListChecks, RotateCcw, Sparkles, ChevronLeft, MoreHorizontal, Pencil
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -1442,6 +1442,9 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const [sidebarW, startSidebarDrag] = useSidebarWidth('scholr_student_sidebar_w');
   const [recentsOpen, setRecentsOpen] = useState(true);   // collapse the recents list
   const [allChatsOpen, setAllChatsOpen] = useState(false); // full "Chats" page overlay
+  const [chatMenuId, setChatMenuId] = useState(null);      // which chat's "..." menu is open
+  const [renamingId, setRenamingId] = useState(null);      // which chat is being renamed
+  const [renameVal, setRenameVal] = useState('');
   const RECENT_LIMIT = 8;
 
   const [quizOpen, setQuizOpen] = useState(false);
@@ -1744,6 +1747,17 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     return nc;
   };
 
+  const renameChat = async (id, title) => {
+    const t = (title || '').trim();
+    setRenamingId(null);
+    if (!t) return;
+    setChats(prev => prev.map(c => c.id === id ? { ...c, title: t } : c));
+    const chat = chats.find(c => c.id === id);
+    if (chat?.dbId && !String(chat.dbId).startsWith('local-')) {
+      try { await fetch(`${API}/student/chats/${chat.dbId}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ title: t }) }); } catch {}
+    }
+  };
+
   const deleteChat = async (id) => {
     const chat = chats.find(c => c.id === id);
     if (chat?.dbId && !String(chat.dbId).startsWith('local-')) {
@@ -2014,13 +2028,35 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           </div>
           {recentsOpen && chats.slice(0, RECENT_LIMIT).map(c => (
             <div key={c.id} className="group relative mb-0.5">
-              <button onClick={() => { setChatId(c.id); closeMobile(); }} className={`flex items-center gap-2 w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors pr-7 ${c.id === chatId ? 'bg-white border border-gray-200 text-gray-900 font-medium shadow-sm' : 'text-gray-500 hover:bg-white hover:text-gray-700'}`}>
-                <MessageSquare size={11} className="flex-shrink-0 opacity-40" /><span className="truncate">{c.title || 'New Chat'}</span>
-              </button>
-              <button onClick={e => { e.stopPropagation(); deleteChat(c.id); }} className="absolute right-1.5 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded text-gray-300 hover:text-red-400 transition-all"><Trash2 size={10} /></button>
+              {renamingId === c.id ? (
+                <input
+                  autoFocus value={renameVal}
+                  onChange={e => setRenameVal(e.target.value)}
+                  onBlur={() => renameChat(c.id, renameVal)}
+                  onKeyDown={e => { if (e.key === 'Enter') renameChat(c.id, renameVal); if (e.key === 'Escape') setRenamingId(null); }}
+                  className="w-full px-2.5 py-2 rounded-lg text-xs bg-white border border-gray-300 outline-none focus:border-gray-500"
+                />
+              ) : (
+                <>
+                  <button onClick={() => { setChatId(c.id); closeMobile(); }} className={`flex items-center gap-2 w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors pr-8 ${c.id === chatId ? 'bg-white border border-gray-200 text-gray-900 font-medium shadow-sm' : 'text-gray-500 hover:bg-white hover:text-gray-700'}`}>
+                    <MessageSquare size={11} className="flex-shrink-0 opacity-40" /><span className="truncate">{c.title || 'New Chat'}</span>
+                  </button>
+                  <button onClick={e => { e.stopPropagation(); setChatMenuId(chatMenuId === c.id ? null : c.id); }}
+                    className={`absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-all ${chatMenuId === c.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                    <MoreHorizontal size={14} />
+                  </button>
+                  {chatMenuId === c.id && (
+                    <div className="absolute right-1 top-9 z-50 w-36 bg-white border border-gray-200 rounded-xl shadow-lg py-1">
+                      <button onClick={() => { setRenameVal(c.title || ''); setRenamingId(c.id); setChatMenuId(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"><Pencil size={12} />Rename</button>
+                      <button onClick={() => { setChatMenuId(null); deleteChat(c.id); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={12} />Delete</button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           ))}
         </nav>
+        {chatMenuId && <div className="fixed inset-0 z-40" onClick={() => setChatMenuId(null)} />}
         <div className="px-3 py-3 border-t border-gray-100">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">My Notes</p>
