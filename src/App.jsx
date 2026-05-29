@@ -1696,6 +1696,17 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
 
   const DEFAULT_QUESTIONS = ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
   const questions = suggestedQuestions?.length ? suggestedQuestions : DEFAULT_QUESTIONS;
+  // Personalized greeting for the new-chat empty state.
+  const firstName = (() => { try { return (JSON.parse(localStorage.getItem('scholr_student_user') || '{}').name || '').split(' ')[0]; } catch { return ''; } })();
+  const greetHr = new Date().getHours();
+  const greeting = greetHr < 12 ? 'Good morning' : greetHr < 17 ? 'Good afternoon' : 'Good evening';
+  // Rotate the suggested questions through the input placeholder on an empty chat.
+  const [phIdx, setPhIdx] = useState(0);
+  useEffect(() => {
+    if (!questions.length) return;
+    const id = setInterval(() => setPhIdx(i => (i + 1) % questions.length), 3200);
+    return () => clearInterval(id);
+  }, [questions.length]);
   const active = chats.find(c => c.id === chatId) || chats[0];
   // Smart autoscroll: only scroll to bottom if the user is already within
   // 150px of the bottom. If they've scrolled up to re-read something, leave
@@ -2135,10 +2146,9 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                     <div className="text-center max-w-xs"><Clock size={20} className="text-gray-200 mx-auto mb-4" /><h3 className="text-gray-700 font-medium text-sm mb-1">Setting up your course</h3><p className="text-gray-400 text-xs">Your instructor is uploading materials.</p></div>
                   ) : (
                     <div className="text-center max-w-md w-full flex flex-col items-center">
-                      <Logo size={36} />
-                      <h3 className="text-gray-900 font-semibold text-lg mt-5 mb-1.5">Ask anything about your course</h3>
-                      <p className="text-gray-400 text-sm mb-8">Every answer is grounded in your professor's materials.</p>
-                      <div className="space-y-2 text-left w-full">{questions.map((q, i) => (<button key={i} onClick={() => onSend(q)} className="w-full text-left px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-700 text-sm hover:bg-gray-100 hover:border-gray-300 transition-all"><span className="text-gray-300 mr-2 text-xs font-mono">{i + 1}.</span>{q}</button>))}</div>
+                      <Logo size={40} />
+                      <h2 className="serif text-3xl text-gray-900 mt-5 mb-2">{greeting}{firstName ? `, ${firstName}` : ''}</h2>
+                      <p className="text-gray-400 text-sm">Ask anything about {course.name} — every answer is grounded in your professor's materials.</p>
                     </div>
                   )}
                 </div>
@@ -2212,7 +2222,9 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                     onChange={e => setInput(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!isTyping) onSend(); } }}
                     className="flex-1 bg-transparent text-gray-800 text-sm outline-none placeholder-gray-400 py-1.5"
-                    placeholder={myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course..."}
+                    placeholder={(!active || active.messages.length === 0) && questions.length
+                      ? questions[phIdx % questions.length]
+                      : (myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course...")}
                     autoComplete="off"
                   />
                   {isTyping ? (
