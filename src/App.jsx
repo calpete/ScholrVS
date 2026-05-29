@@ -1108,8 +1108,8 @@ function CourseManager({ token, course, onBack, authHeaders }) {
         <nav className="p-3 flex-1">
           {[{ id: 'materials', label: 'Materials', icon: FileText }, { id: 'insights', label: 'Insights', icon: BarChart2 }].map(({ id, label, icon: Icon }) => (
             <button key={id} onClick={() => { setActiveTab(id); closeMobileNav(); }}
-              className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-xs font-medium transition-colors mb-0.5 ${activeTab === id ? 'bg-gray-100 text-gray-900' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}>
-              <Icon size={13} />{label}
+              className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors mb-0.5 ${activeTab === id ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}>
+              <Icon size={15} className={activeTab === id ? 'text-gray-700' : 'text-gray-400'} />{label}
             </button>
           ))}
         </nav>
@@ -2011,12 +2011,12 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           </div>
         </div>
         <div className="px-3 pt-3">
-          <button onClick={() => { createNewChat(); closeMobile(); }} className="flex items-center justify-center gap-2 w-full py-2 rounded-lg border border-gray-200 bg-white text-gray-600 text-xs font-medium hover:bg-gray-50 transition-colors"><Plus size={12} />New chat</button>
+          <button onClick={() => { createNewChat(); closeMobile(); }} className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-gray-700 text-[13px] font-medium hover:bg-gray-200/60 transition-colors"><Plus size={15} className="text-gray-500" />New chat</button>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           <div className="group/recents flex items-center justify-between px-2 mb-2">
-            <button onClick={() => setRecentsOpen(o => !o)} className="flex items-center gap-1 text-[10px] text-gray-400 font-medium uppercase tracking-widest hover:text-gray-600 transition-colors">
-              <ChevronRight size={10} className={`transition-transform ${recentsOpen ? 'rotate-90' : ''}`} />Recents
+            <button onClick={() => setRecentsOpen(o => !o)} className="flex items-center gap-1 text-[11px] text-gray-500 font-semibold hover:text-gray-700 transition-colors">
+              <ChevronRight size={11} className={`transition-transform ${recentsOpen ? 'rotate-90' : ''}`} />Recents
             </button>
             {recentsOpen && (
               <button
@@ -2034,12 +2034,12 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                   onChange={e => setRenameVal(e.target.value)}
                   onBlur={() => renameChat(c.id, renameVal)}
                   onKeyDown={e => { if (e.key === 'Enter') renameChat(c.id, renameVal); if (e.key === 'Escape') setRenamingId(null); }}
-                  className="w-full px-2.5 py-2 rounded-lg text-xs bg-white border border-gray-300 outline-none focus:border-gray-500"
+                  className="w-full px-2.5 py-2 rounded-lg text-[13px] bg-white border border-gray-300 outline-none focus:border-gray-500"
                 />
               ) : (
                 <>
-                  <button onClick={() => { setChatId(c.id); closeMobile(); }} className={`flex items-center gap-2 w-full text-left px-2.5 py-2 rounded-lg text-xs transition-colors pr-8 ${c.id === chatId ? 'bg-white border border-gray-200 text-gray-900 font-medium shadow-sm' : 'text-gray-500 hover:bg-white hover:text-gray-700'}`}>
-                    <MessageSquare size={11} className="flex-shrink-0 opacity-40" /><span className="truncate">{c.title || 'New Chat'}</span>
+                  <button onClick={() => { setChatId(c.id); closeMobile(); }} className={`flex items-center w-full text-left px-2.5 py-2 rounded-lg text-[13px] transition-colors pr-8 ${c.id === chatId ? 'bg-gray-200 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-200/60'}`}>
+                    <span className="truncate">{c.title || 'New Chat'}</span>
                   </button>
                   <button onClick={e => { e.stopPropagation(); setChatMenuId(chatMenuId === c.id ? null : c.id); }}
                     className={`absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-all ${chatMenuId === c.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
