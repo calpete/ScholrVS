@@ -2038,14 +2038,18 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       {/* ── Left sidebar / mobile drawer ── */}
       <aside style={isDesktop ? { width: sidebarW } : undefined} className={`fixed md:relative inset-y-0 left-0 z-40 w-72 bg-[#F6F6F4] border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileChatsOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
         <ResizeHandle onMouseDown={startSidebarDrag} />
-        <div className="px-4 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-3">
-            <button type="button" onClick={onExit} className="flex items-center gap-2.5 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></button>
-            <button onClick={closeMobile} aria-label="Close menu" className="md:hidden p-1 text-gray-400"><X size={16} /></button>
+        <div className="px-3 py-3 border-b border-gray-200">
+          <div className="flex md:hidden items-center justify-end mb-1.5">
+            <button onClick={closeMobile} aria-label="Close menu" className="p-1 text-gray-400"><X size={16} /></button>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 px-3 py-2.5">
-            <p className="text-gray-900 text-xs font-medium truncate">{course.name}</p>
-            <p className="text-gray-400 text-[10px] mt-0.5">{documents.length} doc{documents.length !== 1 ? 's' : ''} · {myNotes.length} note{myNotes.length !== 1 ? 's' : ''}</p>
+          <div className="flex items-center gap-3 bg-white rounded-2xl border border-gray-200 px-3 py-3 shadow-sm">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm" style={{ background: COURSE_PATTERN_BGS[(coverPatternId(course) ?? 0) % COURSE_PATTERN_BGS.length] }}>
+              <BookOpen size={18} className="text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-gray-900 text-sm font-semibold truncate leading-tight">{course.name}</p>
+              <p className="text-gray-400 text-[11px] mt-0.5">{documents.length} doc{documents.length !== 1 ? 's' : ''} · {myNotes.length} note{myNotes.length !== 1 ? 's' : ''}</p>
+            </div>
           </div>
         </div>
         <div className="px-3 pt-3">
@@ -2159,7 +2163,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                 <X size={11} /><span className="hidden md:inline">Close quiz</span>
               </button>
             )}
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-[11px] font-medium text-emerald-600"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><span className="hidden sm:inline">AI Active</span></div>
+            <button type="button" onClick={onExit} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0" aria-label="Scholr home"><Logo size={20} /><span className="text-gray-900 font-semibold text-sm hidden sm:inline">Scholr</span></button>
           </div>
         </header>
         <div className="flex flex-1 overflow-hidden">
