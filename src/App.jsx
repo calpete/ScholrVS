@@ -379,6 +379,60 @@ function SmartSignIn({ onPickStudent, onPickProfessor, onBack }) {
   );
 }
 
+// Shared styling for the student/professor login pages — reuses the exact
+// design tokens from the landing (Newsreader + Hanken Grotesk, warm canvas,
+// ink buttons), scoped under .scholr-auth so nothing leaks into the app.
+const AUTH_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500;1,6..72,600&family=Hanken+Grotesk:wght@400;500;600;700&display=swap');
+.scholr-auth{--font-display:"Newsreader",Georgia,serif;--font-body:"Hanken Grotesk",system-ui,sans-serif;--bg:#FBFBF9;--bg-2:#F3F2EF;--surface:#FFFFFF;--ink:#15161B;--ink-2:#2A2C33;--muted:#6B6E76;--muted-2:#9A9CA3;--line:#E7E4DD;--accent:#15161B;--radius-lg:22px;--radius-pill:999px;--shadow-sm:0 1px 2px rgba(21,22,27,.04),0 1px 3px rgba(21,22,27,.05);--shadow-float:0 40px 90px -38px rgba(21,22,27,.28),0 8px 26px -16px rgba(21,22,27,.16);min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 20px;background:var(--bg);font-family:var(--font-body);color:var(--ink);-webkit-font-smoothing:antialiased;}
+.scholr-auth *{box-sizing:border-box;margin:0;padding:0;}
+.scholr-auth ::selection{background:var(--ink);color:var(--bg);}
+.scholr-auth.prof{background:var(--bg-2);}
+.scholr-auth .auth-brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:21px;letter-spacing:-.02em;color:var(--ink);background:none;border:none;cursor:pointer;font-family:var(--font-body);margin-bottom:24px;}
+.scholr-auth .auth-brand .mark{width:32px;height:32px;flex:none;}
+.scholr-auth .auth-card{position:relative;width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:36px 34px;box-shadow:var(--shadow-float);}
+.scholr-auth.shake{animation:auth-shake .4s ease-in-out;}
+@keyframes auth-shake{0%,100%{transform:translateX(0);}20%{transform:translateX(-7px);}40%{transform:translateX(7px);}60%{transform:translateX(-4px);}80%{transform:translateX(4px);}}
+.scholr-auth .auth-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-2);margin-bottom:16px;}
+.scholr-auth .auth-eyebrow svg{width:13px;height:13px;color:var(--muted);}
+.scholr-auth .auth-chip{display:inline-flex;align-items:center;gap:8px;padding:6px 13px;border-radius:var(--radius-pill);background:var(--surface);border:1px solid var(--line);font-size:12.5px;font-weight:600;color:var(--ink-2);box-shadow:var(--shadow-sm);margin-bottom:18px;}
+.scholr-auth .live{width:7px;height:7px;border-radius:999px;background:#22b07d;position:relative;flex:none;}
+.scholr-auth .live::after{content:"";position:absolute;inset:-4px;border-radius:999px;border:1.5px solid #22b07d;opacity:.4;animation:auth-ping 2.4s cubic-bezier(0,0,.2,1) infinite;}
+@keyframes auth-ping{0%{transform:scale(.55);opacity:.55;}80%,100%{transform:scale(1.7);opacity:0;}}
+.scholr-auth h1{font-family:var(--font-display);font-weight:500;font-size:31px;letter-spacing:-.02em;line-height:1.04;margin-bottom:9px;}
+.scholr-auth .auth-sub{font-size:15px;color:var(--muted);line-height:1.5;margin-bottom:26px;}
+.scholr-auth .gbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;border-radius:13px;background:var(--surface);border:1px solid var(--line);color:var(--ink);font-family:var(--font-body);font-size:15px;font-weight:600;cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .15s;}
+.scholr-auth .gbtn:hover{border-color:var(--muted-2);box-shadow:var(--shadow-sm);transform:translateY(-1px);}
+.scholr-auth .gbtn svg{width:18px;height:18px;}
+.scholr-auth .divider{display:flex;align-items:center;gap:12px;margin:18px 0;}
+.scholr-auth .divider span{font-size:12.5px;color:var(--muted-2);}
+.scholr-auth .divider i{flex:1;height:1px;background:var(--line);}
+.scholr-auth form{display:flex;flex-direction:column;gap:13px;}
+.scholr-auth .auth-field{display:flex;flex-direction:column;gap:6px;}
+.scholr-auth .auth-field>label,.scholr-auth .auth-label label{font-size:13px;font-weight:600;color:var(--ink-2);}
+.scholr-auth .auth-label{display:flex;align-items:center;justify-content:space-between;}
+.scholr-auth .auth-label .forgot{background:none;border:none;font-family:var(--font-body);font-size:12.5px;color:var(--muted);cursor:pointer;}
+.scholr-auth .auth-label .forgot:hover{color:var(--ink);}
+.scholr-auth input{width:100%;font-family:var(--font-body);font-size:15px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px;outline:none;transition:border-color .15s,background .15s;}
+.scholr-auth.prof input{background:#fff;}
+.scholr-auth input:focus{border-color:var(--ink);background:var(--surface);}
+.scholr-auth input::placeholder{color:var(--muted-2);}
+.scholr-auth .auth-hint{font-size:12.5px;color:var(--muted);background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;line-height:1.45;}
+.scholr-auth .auth-error{font-size:13px;color:#c0392b;text-align:center;}
+.scholr-auth .btn-primary{width:100%;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:13px;border-radius:13px;border:none;background:var(--ink);color:#fff;font-family:var(--font-body);font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 1px 2px rgba(21,22,27,.3);transition:background .2s,transform .15s,box-shadow .2s;margin-top:4px;}
+.scholr-auth .btn-primary:hover:not(:disabled){background:#000;transform:translateY(-1px);box-shadow:0 8px 22px -10px rgba(21,22,27,.5);}
+.scholr-auth .btn-primary:disabled{opacity:.4;cursor:default;}
+.scholr-auth .auth-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:22px;}
+.scholr-auth .auth-foot .back{display:inline-flex;align-items:center;gap:5px;color:var(--muted-2);background:none;border:none;cursor:pointer;font-family:var(--font-body);font-size:13px;}
+.scholr-auth .auth-foot .back:hover{color:var(--ink);}
+.scholr-auth .auth-foot .alt{display:inline-flex;align-items:center;gap:5px;color:var(--ink);font-weight:700;background:none;border:none;cursor:pointer;font-family:var(--font-body);font-size:13px;text-align:right;}
+.scholr-auth .auth-foot .alt svg{width:14px;height:14px;transition:transform .2s;flex:none;}
+.scholr-auth .auth-foot .alt:hover svg{transform:translateX(3px);}
+.scholr-auth .spin{width:15px;height:15px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:999px;animation:auth-spin .7s linear infinite;}
+@keyframes auth-spin{to{transform:rotate(360deg);}}
+@media (max-width:480px){.scholr-auth .auth-card{padding:28px 22px;}.scholr-auth h1{font-size:27px;}}
+`;
+
 function ProfessorLogin({ onLogin, onGoSignup, onBack }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -400,35 +454,34 @@ function ProfessorLogin({ onLogin, onGoSignup, onBack }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center page-enter">
-      <style>{FONT}</style>
-      <div className="mb-8 flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold">Scholr</span></div>
-      <div className={`w-full max-w-sm px-6 ${shaking ? 'shake' : ''}`}>
-        <div className="text-center mb-8">
-          <h1 className="serif text-3xl text-gray-900 mb-1.5">Instructor login</h1>
-          <p className="text-gray-400 text-sm">Sign in to manage your courses</p>
-        </div>
-        <button onClick={() => { window.location.href = `${API}/professor/auth/google`; }}
-          className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm text-gray-700 text-sm font-medium transition-all mb-4">
+    <div className={`scholr-auth prof${shaking ? ' shake' : ''}`}>
+      <style>{AUTH_CSS}</style>
+      <button type="button" className="auth-brand" onClick={onBack} aria-label="Scholr home"><LandingLogo s={32} />Scholr</button>
+      <div className="auth-card">
+        <span className="auth-eyebrow"><Lock size={13} /> Instructor portal</span>
+        <h1>Instructor sign&#8209;in</h1>
+        <p className="auth-sub">Manage your courses and see exactly what your class is asking.</p>
+        <button type="button" className="gbtn" onClick={() => { window.location.href = `${API}/professor/auth/google`; }}>
           <GoogleIcon />Continue with Google
         </button>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 h-px bg-gray-200" /><span className="text-xs text-gray-400">or</span><div className="flex-1 h-px bg-gray-200" />
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <input id="prof-email" name="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
-            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          <input id="prof-password" name="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password"
-            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          {error && <p className="text-red-500 text-xs text-center">{error}</p>}
-          <button type="submit" disabled={!email || !password || loading}
-            className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">
-            {loading ? <span className="flex items-center justify-center gap-2"><ButtonSpinner light />Signing in…</span> : 'Sign in'}
+        <div className="divider"><i /><span>or</span><i /></div>
+        <form onSubmit={handleSubmit}>
+          <div className="auth-field">
+            <label htmlFor="prof-email">Email</label>
+            <input id="prof-email" name="email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@university.edu" />
+          </div>
+          <div className="auth-field">
+            <label htmlFor="prof-password">Password</label>
+            <input id="prof-password" name="password" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
+          </div>
+          {error && <p className="auth-error">{error}</p>}
+          <button type="submit" className="btn-primary" disabled={!email || !password || loading}>
+            {loading ? <><span className="spin" />Signing in…</> : 'Sign in'}
           </button>
         </form>
-        <div className="flex items-center justify-between mt-5 text-xs text-gray-400">
-          <button onClick={onBack} className="hover:text-gray-700 transition-colors flex items-center gap-1"><ArrowLeft size={12} />Back</button>
-          <button onClick={onGoSignup} className="hover:text-gray-700 transition-colors">No account? Sign up →</button>
+        <div className="auth-foot">
+          <button type="button" className="back" onClick={onBack}><ArrowLeft size={13} />Back</button>
+          <button type="button" className="alt" onClick={onGoSignup}>New to Scholr? Create your course <Ic name="arrow-right" s={14} /></button>
         </div>
       </div>
     </div>
@@ -503,6 +556,7 @@ function StudentLogin({ onLogin, onGoSignup, onBack, pendingJoinCode }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [shaking, setShaking] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -523,35 +577,35 @@ function StudentLogin({ onLogin, onGoSignup, onBack, pendingJoinCode }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col items-center justify-center page-enter">
-      <style>{FONT}</style>
-      <div className="mb-8 flex items-center gap-3"><Logo size={28} /><span className="text-gray-900 font-semibold">Scholr</span></div>
-      <div className={`w-full max-w-sm px-6 ${shaking ? 'shake' : ''}`}>
-        <div className="text-center mb-8">
-          <h1 className="serif text-3xl text-gray-900 mb-1.5">Student login</h1>
-          <p className="text-gray-400 text-sm">{pendingJoinCode ? 'Sign in to join your course' : 'Sign in to your courses'}</p>
-        </div>
-        <button onClick={handleGoogle}
-          className="w-full flex items-center justify-center gap-3 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-sm text-gray-700 text-sm font-medium transition-all mb-4">
+    <div className={`scholr-auth stud${shaking ? ' shake' : ''}`}>
+      <style>{AUTH_CSS}</style>
+      <button type="button" className="auth-brand" onClick={onBack} aria-label="Scholr home"><LandingLogo s={32} />Scholr</button>
+      <div className="auth-card">
+        <span className="auth-chip"><span className="live" /> AI Active</span>
+        <h1>{pendingJoinCode ? 'Almost there.' : 'Welcome back.'}</h1>
+        <p className="auth-sub">{pendingJoinCode ? 'Sign in to join your class — your AI tutor is ready and waiting.' : 'Sign in and pick up right where you left off.'}</p>
+        <button type="button" className="gbtn" onClick={handleGoogle}>
           <GoogleIcon />Continue with Google
         </button>
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 h-px bg-gray-200" /><span className="text-xs text-gray-400">or</span><div className="flex-1 h-px bg-gray-200" />
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <input id="student-email" name="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address"
-            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          <input id="student-password" name="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password"
-            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-          {error && <p className="text-red-500 text-xs text-center">{error}</p>}
-          <button type="submit" disabled={!email || !password || loading}
-            className="w-full py-3 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">
-            {loading ? <span className="flex items-center justify-center gap-2"><ButtonSpinner light />Signing in…</span> : 'Sign in'}
+        <div className="divider"><i /><span>or</span><i /></div>
+        <form onSubmit={handleSubmit}>
+          <div className="auth-field">
+            <label htmlFor="student-email">Email</label>
+            <input id="student-email" name="email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@school.edu" />
+          </div>
+          <div className="auth-field">
+            <div className="auth-label"><label htmlFor="student-password">Password</label><button type="button" className="forgot" onClick={() => setShowForgot(s => !s)}>Forgot?</button></div>
+            <input id="student-password" name="password" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
+          </div>
+          {showForgot && <p className="auth-hint">Password resets aren't available yet — reach out to your instructor and they can re-share your class link so you can sign back in.</p>}
+          {error && <p className="auth-error">{error}</p>}
+          <button type="submit" className="btn-primary" disabled={!email || !password || loading}>
+            {loading ? <><span className="spin" />Signing in…</> : 'Sign in'}
           </button>
         </form>
-        <div className="flex items-center justify-between mt-5 text-xs text-gray-400">
-          <button onClick={onBack} className="hover:text-gray-700 transition-colors flex items-center gap-1"><ArrowLeft size={12} />Back</button>
-          <button onClick={onGoSignup} className="hover:text-gray-700 transition-colors">No account? Sign up →</button>
+        <div className="auth-foot">
+          <button type="button" className="back" onClick={onBack}><ArrowLeft size={13} />Back</button>
+          <button type="button" className="alt" onClick={onGoSignup}>Don't have an account? Join a class <Ic name="arrow-right" s={14} /></button>
         </div>
       </div>
     </div>
