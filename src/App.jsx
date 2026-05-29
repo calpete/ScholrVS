@@ -2820,6 +2820,28 @@ html { scroll-behavior: smooth; }
 .scholr-landing .cta-box{padding:52px 26px;}
 .scholr-landing .stat-row{gap:24px;flex-wrap:wrap;}
 }
+.scholr-landing .cta-box::after,.scholr-landing .manifesto::after{pointer-events:none;}
+.scholr-landing .hero-sub button{background:none;border:none;cursor:pointer;color:var(--ink);font-weight:700;font-family:var(--font-body);font-size:16px;margin-left:6px;padding:0;display:inline-flex;align-items:center;gap:5px;vertical-align:baseline;}
+.scholr-landing .hero-sub button svg{width:15px;height:15px;transition:transform .2s ease;}
+.scholr-landing .hero-sub button:hover svg{transform:translateX(3px);}
+.scholr-landing .lp-modal{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(21,22,27,.5);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);animation:lp-fade .2s ease;}
+@keyframes lp-fade{from{opacity:0;}to{opacity:1;}}
+.scholr-landing .lp-modal-card{position:relative;width:100%;max-width:440px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:34px 32px;box-shadow:var(--shadow-float);max-height:90vh;overflow-y:auto;}
+.scholr-landing .lp-modal-x{position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:999px;border:none;background:var(--bg-2);color:var(--muted);display:grid;place-items:center;cursor:pointer;transition:background .15s,color .15s;}
+.scholr-landing .lp-modal-x:hover{background:var(--bg-3);color:var(--ink);}
+.scholr-landing .lp-modal-card .kicker{display:inline-flex;align-items:center;gap:9px;font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted-2);margin-bottom:14px;}
+.scholr-landing .lp-modal-card .kicker .d{width:22px;height:1.5px;border-radius:2px;background:currentColor;opacity:.55;}
+.scholr-landing .lp-modal-card h3{font-family:var(--font-display);font-weight:500;font-size:26px;letter-spacing:-.02em;margin-bottom:8px;}
+.scholr-landing .lp-modal-card form p,.scholr-landing .lp-modal-done p{font-size:15px;color:var(--muted);line-height:1.55;margin-bottom:22px;}
+.scholr-landing .lp-field{margin-bottom:14px;display:flex;flex-direction:column;gap:6px;}
+.scholr-landing .lp-field label{font-size:13px;font-weight:600;color:var(--ink-2);}
+.scholr-landing .lp-field input,.scholr-landing .lp-field textarea{font-family:var(--font-body);font-size:15px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:11px 13px;outline:none;transition:border-color .15s;width:100%;resize:vertical;}
+.scholr-landing .lp-field input:focus,.scholr-landing .lp-field textarea:focus{border-color:var(--ink);}
+.scholr-landing .lp-field input::placeholder,.scholr-landing .lp-field textarea::placeholder{color:var(--muted-2);}
+.scholr-landing .lp-modal-card form>.btn{margin-top:6px;}
+.scholr-landing .lp-modal-done{text-align:center;padding:8px 0;}
+.scholr-landing .lp-done-ic{width:56px;height:56px;border-radius:999px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;margin:0 auto 18px;}
+.scholr-landing .lp-modal-done .btn{margin-top:8px;}
 `;
 
 function LandingPage({ onStudent, onInstructor, onSignIn }) {
@@ -2827,6 +2849,9 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
   const rootRef = useRef(null);
   const [navScrolled, setNavScrolled] = useState(false);
   const [demo, setDemo] = useState({ idx: 0, phase: 'user' });
+  const [talkOpen, setTalkOpen] = useState(false);
+  const [talkSent, setTalkSent] = useState(false);
+  const closeTalk = () => { setTalkOpen(false); setTalkSent(false); };
 
   // Scroll-reveal, nav shadow, and the dashboard bar fills — scoped to this page.
   useEffect(() => {
@@ -2898,7 +2923,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
             <div className="hero-actions">
               <button type="button" className="btn btn-primary btn-lg" onClick={onInstructor}>Start a course free <span className="arr"><Ic name="arrow-right" s={17} /></span></button>
             </div>
-            <p className="hero-sub">Joining a class? <a href="#" onClick={(e) => { e.preventDefault(); onStudent(); }}>Enter your join code <Ic name="arrow-right" s={15} /></a></p>
+            <p className="hero-sub">Joining a class? <button type="button" onClick={onStudent}>Enter your join code <Ic name="arrow-right" s={15} /></button></p>
           </div>
         </section>
 
@@ -3175,7 +3200,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
               <p>Set up your course in an afternoon. Every answer cited, straight from your materials.</p>
               <div className="cta-actions">
                 <button type="button" className="btn btn-primary btn-lg" onClick={onInstructor}>Start a course free <span className="arr"><Ic name="arrow-right" s={17} /></span></button>
-                <a className="btn btn-ghost btn-lg" href="mailto:hello@scholr.study">Talk to our team</a>
+                <button type="button" className="btn btn-ghost btn-lg" onClick={() => setTalkOpen(true)}>Talk to our team</button>
               </div>
               <p className="cta-note">Free to start · No credit card · Set up in minutes</p>
             </div>
@@ -3214,6 +3239,34 @@ function LandingPage({ onStudent, onInstructor, onSignIn }) {
           </div>
         </div>
       </footer>
+
+      {/* Talk-to-our-team contact form (demo only — does not submit anywhere) */}
+      {talkOpen && (
+        <div className="lp-modal" onClick={closeTalk}>
+          <div className="lp-modal-card" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="lp-modal-x" aria-label="Close" onClick={closeTalk}><Ic name="x-logo" s={15} /></button>
+            {talkSent ? (
+              <div className="lp-modal-done">
+                <div className="lp-done-ic"><Ic name="check" s={26} /></div>
+                <h3>Thanks — we'll be in touch.</h3>
+                <p>A member of the Scholr team will reach out shortly.</p>
+                <button type="button" className="btn btn-primary btn-pill" onClick={closeTalk}>Done</button>
+              </div>
+            ) : (
+              <form onSubmit={(e) => { e.preventDefault(); setTalkSent(true); }}>
+                <div className="kicker"><span className="d" /> Talk to our team</div>
+                <h3>Bring Scholr to your course</h3>
+                <p>Tell us about your class and we'll show you how Scholr fits.</p>
+                <div className="lp-field"><label>Name</label><input type="text" required placeholder="Dr. Jane Smith" /></div>
+                <div className="lp-field"><label>Work email</label><input type="email" required placeholder="jsmith@university.edu" /></div>
+                <div className="lp-field"><label>Institution</label><input type="text" placeholder="State University" /></div>
+                <div className="lp-field"><label>What would you like to know?</label><textarea rows={3} placeholder="I teach intro accounting to ~200 students…" /></div>
+                <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }}>Send message</button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
