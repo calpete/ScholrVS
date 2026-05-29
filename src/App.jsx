@@ -2005,8 +2005,8 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   // Shared composer — rendered centered with the greeting on an empty chat, or
   // pinned to the bottom once the conversation has messages (ChatGPT/Claude style).
   const inputBox = (
-    <div className="flex items-center bg-white border border-black/[0.07] rounded-2xl px-4 py-2.5 shadow-[0_2px_16px_rgba(0,0,0,0.05)] focus-within:shadow-[0_4px_24px_rgba(0,0,0,0.08)] focus-within:border-black/10 transition-all gap-2">
-      <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Paperclip size={16} /></button>
+    <div className="flex items-center bg-white border border-gray-200 rounded-2xl px-3.5 py-2.5 focus-within:border-gray-400 transition-colors gap-2">
+      <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100 transition-colors"><Plus size={18} /></button>
       <input
         ref={inputRef}
         id="chat-input"
@@ -2020,9 +2020,9 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       />
       {isTyping ? (
         <button onClick={onStop} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0"><Square size={11} fill="currentColor" /></button>
-      ) : (
-        <button onClick={() => onSend()} disabled={!input.trim()} className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${!input.trim() ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}><Send size={12} /></button>
-      )}
+      ) : input.trim() ? (
+        <button onClick={() => onSend()} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0 fade-up"><Send size={12} /></button>
+      ) : null}
     </div>
   );
 
@@ -2164,16 +2164,13 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           {/* Chat messages */}
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
             {isEmpty ? (
-              <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-4 py-6 fade-up bg-[#FAF9F5]">
+              <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-4 py-6 fade-up">
                 {documents.length === 0 ? (
                   <div className="text-center max-w-xs"><Clock size={20} className="text-gray-300 mx-auto mb-4" /><h3 className="text-gray-700 font-medium text-sm mb-1">Setting up your course</h3><p className="text-gray-400 text-xs">Your instructor is uploading materials.</p></div>
                 ) : (
                   <div className="w-full max-w-2xl flex flex-col items-center">
-                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm" style={{ background: '#C2683D' }}>
-                      <svg width="24" height="24" viewBox="0 0 28 28" fill="none"><path d="M8 10h8M8 14h12M8 18h6" stroke="white" strokeWidth="1.9" strokeLinecap="round" /></svg>
-                    </div>
-                    <h2 className="serif text-[34px] leading-tight text-[#2A2622] mt-6 mb-2.5 text-center tracking-tight">{greeting}{firstName ? `, ${firstName}` : ''}</h2>
-                    <p className="text-[15px] text-gray-500 text-center mb-8 max-w-md leading-relaxed">Ask anything about {course.name} — grounded in your professor's materials.</p>
+                    <h2 className="serif text-4xl md:text-5xl leading-tight text-gray-900 mb-4 text-center tracking-tight">{greeting}{firstName ? `, ${firstName}` : ''}</h2>
+                    <p className="text-[15px] text-gray-500 text-center mb-10 max-w-md leading-relaxed">Ask anything about {course.name} — grounded in your professor's materials.</p>
                     <div className="w-full">{inputBox}</div>
                   </div>
                 )}
