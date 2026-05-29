@@ -2005,8 +2005,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   // Shared composer — rendered centered with the greeting on an empty chat, or
   // pinned to the bottom once the conversation has messages (ChatGPT/Claude style).
   const inputBox = (
-    <div className="flex items-center bg-white border border-gray-200 rounded-2xl px-3.5 py-2.5 focus-within:border-gray-400 transition-colors gap-2">
-      <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100 transition-colors"><Plus size={18} /></button>
+    <div className="bg-white border border-gray-200 rounded-[26px] px-4 pt-4 pb-2.5 focus-within:border-gray-300 shadow-sm transition-colors">
       <input
         ref={inputRef}
         id="chat-input"
@@ -2014,15 +2013,18 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         value={input}
         onChange={e => setInput(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!isTyping) onSend(); } }}
-        className="flex-1 bg-transparent text-gray-800 text-[15px] outline-none placeholder-gray-400 py-1.5"
+        className="w-full bg-transparent text-gray-800 text-base outline-none placeholder-gray-400 px-1"
         placeholder={isEmpty && questions.length ? questions[phIdx % questions.length] : (myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course...")}
         autoComplete="off"
       />
-      {isTyping ? (
-        <button onClick={onStop} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0"><Square size={11} fill="currentColor" /></button>
-      ) : input.trim() ? (
-        <button onClick={() => onSend()} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0 fade-up"><Send size={12} /></button>
-      ) : null}
+      <div className="flex items-center justify-between mt-6">
+        <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Plus size={20} /></button>
+        {isTyping ? (
+          <button onClick={onStop} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0"><Square size={11} fill="currentColor" /></button>
+        ) : input.trim() ? (
+          <button onClick={() => onSend()} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0 fade-up"><Send size={12} /></button>
+        ) : null}
+      </div>
     </div>
   );
 
@@ -2168,7 +2170,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                 {documents.length === 0 ? (
                   <div className="text-center max-w-xs"><Clock size={20} className="text-gray-300 mx-auto mb-4" /><h3 className="text-gray-700 font-medium text-sm mb-1">Setting up your course</h3><p className="text-gray-400 text-xs">Your instructor is uploading materials.</p></div>
                 ) : (
-                  <div className="w-full max-w-2xl flex flex-col items-center">
+                  <div className="w-full max-w-3xl flex flex-col items-center">
                     <h2 className="serif text-4xl md:text-5xl leading-tight text-gray-900 mb-4 text-center tracking-tight">{greeting}{firstName ? `, ${firstName}` : ''}</h2>
                     <p className="text-[15px] text-gray-500 text-center mb-10 max-w-md leading-relaxed">Ask anything about {course.name} — grounded in your professor's materials.</p>
                     <div className="w-full">{inputBox}</div>
@@ -2237,7 +2239,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
               </div>
             )}
             <div className="px-4 md:px-8 py-3 md:py-4 bg-[#F6F6F4] border-t border-gray-200/70 flex-shrink-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
-              <div className="max-w-4xl mx-auto">{inputBox}</div>
+              <div className="max-w-3xl mx-auto">{inputBox}</div>
               <p className="text-center text-[10px] text-gray-300 mt-2">Grounded in your course materials · Vertex AI</p>
             </div>
             </>
