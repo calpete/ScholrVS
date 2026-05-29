@@ -2474,144 +2474,743 @@ function JoinCodeModal({ open, onClose }) {
   );
 }
 
+// ─── Landing page (ported from Claude Design "Scholr Landing") ───────────────
+// Visual design recreated 1:1 in React. CSS is scoped under `.scholr-landing`
+// so none of it leaks into the app. Buttons route into the EXISTING auth flow
+// via the same three callbacks the rest of the app already passes.
+const LANDING_ICONS = {
+  'arrow-right': '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  'plus': '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  'folder': '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  'chevron-down': '<path d="m6 9 6 6 6-6"/>',
+  'log-out': '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><path d="M21 12H9"/>',
+  'file-text': '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
+  'check': '<path d="M20 6 9 17l-5-5"/>',
+  'shield-check': '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1Z"/><path d="m9 12 2 2 4-4"/>',
+  'sparkles': '<path d="M9.94 14.06A2 2 0 0 0 8.5 12.6l-5.4-1.4a.5.5 0 0 1 0-.96l5.4-1.4A2 2 0 0 0 9.94 7.4l1.4-5.4a.5.5 0 0 1 .96 0l1.4 5.4a2 2 0 0 0 1.44 1.44l5.4 1.4a.5.5 0 0 1 0 .96l-5.4 1.4a2 2 0 0 0-1.44 1.44l-1.4 5.4a.5.5 0 0 1-.96 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/>',
+  'bar-chart': '<line x1="6" x2="6" y1="20" y2="14"/><line x1="12" x2="12" y1="20" y2="8"/><line x1="18" x2="18" y1="20" y2="4"/>',
+  'upload': '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
+  'clock': '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  'message-square': '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  'scan-text': '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h8"/><path d="M7 12h10"/><path d="M7 16h6"/>',
+  'x-logo': '<path d="M4 4l16 16M20 4 4 20" stroke-width="2.2"/>',
+  'linkedin': '<path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/>',
+  'github': '<path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/>',
+};
+function LandingLogo({ s = 36 }) {
+  return (
+    <svg className="mark" width={s} height={s} viewBox="0 0 36 36" fill="none" aria-hidden="true">
+      <rect width="36" height="36" rx="10.5" fill="#15161B" />
+      <rect x="9.5" y="11.7" width="14" height="2.9" rx="1.45" fill="#FBFBF9" />
+      <rect x="9.5" y="16.55" width="17" height="2.9" rx="1.45" fill="#FBFBF9" />
+      <rect x="9.5" y="21.4" width="9" height="2.9" rx="1.45" fill="#FBFBF9" />
+    </svg>
+  );
+}
+function AnsLines({ s = 22 }) {
+  return (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <rect x="3" y="5.7" width="13" height="2.5" rx="1.25" />
+      <rect x="3" y="10.75" width="16" height="2.5" rx="1.25" />
+      <rect x="3" y="15.8" width="8.5" height="2.5" rx="1.25" />
+    </svg>
+  );
+}
+function LoadLines({ s = 22 }) {
+  return (
+    <svg className="load-lines" width={s} height={s} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <rect className="ln ln1" x="3" y="5.7" width="13" height="2.5" rx="1.25" />
+      <rect className="ln ln2" x="3" y="10.75" width="16" height="2.5" rx="1.25" />
+      <rect className="ln ln3" x="3" y="15.8" width="8.5" height="2.5" rx="1.25" />
+    </svg>
+  );
+}
+function Ic({ name, s = 18, className }) {
+  if (name === 'logo') return <LandingLogo s={s} />;
+  if (name === 'answer-lines') return <AnsLines s={s} />;
+  const p = LANDING_ICONS[name];
+  if (!p) return null;
+  return <svg className={className} width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" dangerouslySetInnerHTML={{ __html: p }} />;
+}
+
+const LANDING_CONVOS = [
+  { chat: "Contribution margin vs gross margin", q: "What's the difference between contribution margin and gross margin?", time: "11:04 AM",
+    answer: 'Both measure profitability, but they subtract different costs. <b>Gross margin</b> is revenue minus the cost of goods sold (COGS). <b>Contribution margin</b> is revenue minus <i>all</i> variable costs — so it’s the figure used for break-even and CVP analysis.',
+    cites: ["Lecture 6 · Cost Behavior · slide 14", "Ch. 4 Reading · p. 132"] },
+  { chat: "What's on the midterm?", q: "What topics will be on the midterm, and how is it weighted?", time: "9:21 PM",
+    answer: 'The midterm covers <b>Chapters 1–4</b>, with emphasis on cost-volume-profit analysis and contribution margin. It’s worth <b>25%</b> of your final grade and is closed-book.',
+    cites: ["A306 Syllabus · Spring 2026 · §2", "Lecture 5 · slide 3"] },
+  { chat: "Late submission policy", q: "What happens if I turn in homework a day late?", time: "7:48 AM",
+    answer: 'Late homework loses <b>10% per day</b> for up to three days, after which it’s no longer accepted. Your <b>lowest two</b> homework grades are dropped at the end of term.',
+    cites: ["A306 Syllabus · Spring 2026 · §5", "Course Policies · p. 2"] },
+];
+const LANDING_RECENTS = [
+  "Contribution margin vs gross margin",
+  "What's on the midterm?",
+  "Late submission policy",
+  "Can I use a graphing calculator?",
+  "How many homework grades are dropped?",
+];
+const LANDING_MQ_1 = ["Will this be on the final?", "What's the late-submission policy?", "Explain contribution margin like I'm new", "How many homework grades are dropped?", "Is the midterm closed-book?", "Which chapters are on the exam?"];
+const LANDING_MQ_2 = ["Can I use a graphing calculator?", "When are office hours this week?", "What's the grading breakdown?", "Define cost-volume-profit analysis", "Is attendance required?", "How do I find break-even units?"];
+
+const LANDING_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500;1,6..72,600&family=Hanken+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+html { scroll-behavior: smooth; }
+.scholr-landing {
+  --font-display:"Newsreader",Georgia,serif; --font-body:"Hanken Grotesk",system-ui,sans-serif;
+  --bg:#FBFBF9; --bg-2:#F3F2EF; --bg-3:#EFEEEA; --surface:#FFFFFF;
+  --ink:#15161B; --ink-2:#2A2C33; --muted:#6B6E76; --muted-2:#9A9CA3;
+  --line:#E7E4DD; --line-2:#EEEBE4; --accent:#15161B; --accent-soft:rgba(21,22,27,.06);
+  --radius:16px; --radius-sm:11px; --radius-lg:22px; --radius-pill:999px; --btn-radius:13px;
+  --shadow-sm:0 1px 2px rgba(21,22,27,.04),0 1px 3px rgba(21,22,27,.05);
+  --shadow-card:0 1px 2px rgba(21,22,27,.04),0 14px 34px -18px rgba(21,22,27,.16);
+  --shadow-float:0 40px 90px -38px rgba(21,22,27,.34),0 8px 26px -16px rgba(21,22,27,.18);
+  --maxw:1120px;
+  font-family:var(--font-body); background:var(--bg); color:var(--ink); line-height:1.55; font-size:17px;
+  overflow-x:hidden; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+}
+.scholr-landing *{box-sizing:border-box;margin:0;padding:0;}
+.scholr-landing img{max-width:100%;display:block;}
+.scholr-landing a{color:inherit;text-decoration:none;}
+.scholr-landing button{font:inherit;color:inherit;}
+.scholr-landing svg{display:block;}
+.scholr-landing ::selection{background:var(--ink);color:var(--bg);}
+.scholr-landing [id]{scroll-margin-top:92px;}
+.scholr-landing .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px;}
+.scholr-landing .serif{font-family:var(--font-display);font-weight:500;letter-spacing:-.012em;}
+.scholr-landing .ital{font-style:italic;}
+.scholr-landing .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;font-family:var(--font-body);font-weight:600;font-size:16px;padding:14px 22px;border-radius:var(--btn-radius);border:1px solid transparent;cursor:pointer;transition:transform .15s ease,background .2s ease,box-shadow .2s ease,border-color .2s ease,color .2s ease;white-space:nowrap;}
+.scholr-landing .btn svg{width:17px;height:17px;}
+.scholr-landing .btn-primary{background:var(--ink);color:#fff;box-shadow:0 1px 2px rgba(21,22,27,.3);}
+.scholr-landing .btn-primary:hover{background:#000;transform:translateY(-1px);box-shadow:0 8px 22px -10px rgba(21,22,27,.5);}
+.scholr-landing .btn-primary:active{transform:translateY(0) scale(.99);}
+.scholr-landing .btn-primary .arr{transition:transform .2s ease;display:inline-flex;}
+.scholr-landing .btn-primary:hover .arr{transform:translateX(3px);}
+.scholr-landing .btn-ghost{background:var(--surface);color:var(--ink);border-color:var(--line);}
+.scholr-landing .btn-ghost:hover{border-color:var(--ink);transform:translateY(-1px);}
+.scholr-landing .btn-pill{border-radius:var(--radius-pill);}
+.scholr-landing .btn-lg{padding:16px 28px;font-size:17px;}
+.scholr-landing .eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);}
+.scholr-landing .dot{width:22px;height:1.5px;border-radius:2px;background:currentColor;opacity:.55;flex:none;}
+.scholr-landing .dot.live{width:8px;height:8px;border-radius:999px;opacity:.9;position:relative;}
+.scholr-landing .dot.live::after{content:"";position:absolute;inset:-4px;border-radius:999px;border:1.5px solid currentColor;opacity:.35;animation:lp-ping 2.4s cubic-bezier(0,0,.2,1) infinite;}
+@keyframes lp-ping{0%{transform:scale(.6);opacity:.6;}80%,100%{transform:scale(1.7);opacity:0;}}
+.scholr-landing .chip{display:inline-flex;align-items:center;gap:9px;padding:8px 16px;border-radius:var(--radius-pill);background:var(--surface);border:1px solid var(--line);font-size:14.5px;font-weight:600;color:var(--ink-2);box-shadow:var(--shadow-sm);white-space:nowrap;}
+.scholr-landing header.nav{position:sticky;top:0;z-index:60;background:color-mix(in srgb,var(--bg) 78%,transparent);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border-bottom:1px solid transparent;transition:border-color .25s ease,background .25s ease;}
+.scholr-landing header.nav.scrolled{border-bottom-color:var(--line);}
+.scholr-landing .nav-inner{display:flex;align-items:center;justify-content:space-between;height:76px;}
+.scholr-landing .brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:23px;letter-spacing:-.02em;color:var(--ink);background:none;border:none;cursor:pointer;font-family:var(--font-body);}
+.scholr-landing .brand .mark{width:36px;height:36px;flex:none;}
+.scholr-landing .nav-links{display:flex;align-items:center;gap:32px;}
+.scholr-landing .nav-links a{font-size:15.5px;font-weight:500;color:var(--muted);transition:color .15s ease;cursor:pointer;}
+.scholr-landing .nav-links a:hover{color:var(--ink);}
+.scholr-landing .nav-right{display:flex;align-items:center;gap:14px;}
+.scholr-landing .hero{text-align:center;padding:78px 0 86px;position:relative;}
+.scholr-landing .hero .chip{margin-bottom:34px;}
+.scholr-landing .hero h1{font-family:var(--font-display);font-weight:500;font-size:clamp(46px,7.4vw,96px);line-height:.98;letter-spacing:-.025em;color:var(--ink);}
+.scholr-landing .hero h1 .l2{display:block;font-style:italic;font-weight:500;}
+.scholr-landing .hero .lede{font-size:clamp(18px,2vw,22px);color:var(--muted);max-width:540px;margin:28px auto 0;line-height:1.5;}
+.scholr-landing .hero-actions{margin-top:40px;display:flex;justify-content:center;}
+.scholr-landing .hero-sub{margin-top:26px;font-size:16px;color:var(--muted-2);}
+.scholr-landing .hero-sub a{color:var(--ink);font-weight:700;margin-left:6px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;}
+.scholr-landing .hero-sub a svg{width:15px;height:15px;transition:transform .2s ease;}
+.scholr-landing .hero-sub a:hover svg{transform:translateX(3px);}
+.scholr-landing .showband{background:var(--bg-2);border-top:1px solid var(--line);padding:80px 0 96px;}
+.scholr-landing .showband .wrap{max-width:1080px;}
+.scholr-landing .window{background:var(--surface);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-float);border:1px solid var(--line);font-family:"Inter",-apple-system,"Segoe UI",system-ui,sans-serif;--m-ink:#18181B;--m-muted:#6B7280;--m-faint:#9CA3AF;--m-line:#ECECEC;--m-hover:#F4F4F5;--m-active:#F1F1F0;}
+.scholr-landing .win-bar{display:flex;align-items:center;gap:14px;padding:13px 18px;background:#F3F3F4;border-bottom:1px solid var(--m-line);}
+.scholr-landing .win-lights{display:flex;gap:8px;flex:none;}
+.scholr-landing .win-lights i{width:12px;height:12px;border-radius:999px;display:block;}
+.scholr-landing .win-lights i:nth-child(1){background:#FF5F57;}
+.scholr-landing .win-lights i:nth-child(2){background:#FEBC2E;}
+.scholr-landing .win-lights i:nth-child(3){background:#28C840;}
+.scholr-landing .win-url{flex:1;background:#fff;border:1px solid var(--m-line);border-radius:9px;padding:7px 14px;font-size:13.5px;color:var(--m-faint);text-align:left;}
+.scholr-landing .app{display:grid;grid-template-columns:232px 1fr;min-height:460px;color:var(--m-ink);}
+.scholr-landing .app-side{background:#fff;border-right:1px solid var(--m-line);padding:18px 14px;display:flex;flex-direction:column;gap:18px;}
+.scholr-landing .side-label{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--m-faint);padding:0 6px;}
+.scholr-landing .chat-list{display:flex;flex-direction:column;gap:3px;}
+.scholr-landing .chat-item{padding:9px 12px;border-radius:9px;font-size:14px;font-weight:500;color:var(--m-muted);cursor:pointer;transition:background .15s,color .15s;}
+.scholr-landing .chat-item:hover{background:var(--m-hover);color:var(--m-ink);}
+.scholr-landing .chat-item.active{background:var(--m-active);color:var(--m-ink);font-weight:600;}
+.scholr-landing .app-side .side-foot{margin-top:auto;display:flex;align-items:center;gap:10px;color:var(--m-muted);font-size:14px;font-weight:500;}
+.scholr-landing .app-main{display:flex;flex-direction:column;}
+.scholr-landing .main-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--m-line);}
+.scholr-landing .main-head .t{font-weight:600;font-size:16px;color:var(--m-ink);}
+.scholr-landing .main-body{padding:24px 22px;display:flex;flex-direction:column;gap:16px;flex:1;}
+.scholr-landing .from-row{display:flex;align-items:center;gap:9px;margin-top:4px;}
+.scholr-landing .from-row .lbl{font-size:12.5px;color:var(--m-faint);}
+.scholr-landing .src-chip{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:8px;background:#fff;border:1px solid var(--m-line);font-size:13px;font-weight:600;color:var(--m-ink);cursor:pointer;transition:border-color .15s,transform .15s;}
+.scholr-landing .src-chip:hover{border-color:var(--m-faint);transform:translateY(-1px);}
+.scholr-landing .src-chip svg{width:14px;height:14px;color:var(--m-faint);}
+.scholr-landing .main-input{margin:auto 22px 22px;display:flex;align-items:center;gap:10px;padding:11px 12px 11px 16px;border:1px solid var(--m-line);border-radius:var(--radius-pill);background:#fff;}
+.scholr-landing .main-input span{color:var(--m-faint);}
+.scholr-landing section.band{padding:104px 0;}
+.scholr-landing .sec-head{max-width:700px;margin:0 auto 60px;text-align:center;}
+.scholr-landing .sec-head .eyebrow{justify-content:center;margin-bottom:20px;}
+.scholr-landing .sec-head h2{font-family:var(--font-display);font-weight:500;font-size:clamp(32px,4.2vw,50px);line-height:1.04;letter-spacing:-.022em;}
+.scholr-landing .sec-head h2 .ital{font-style:italic;}
+.scholr-landing .sec-head p{font-size:18.5px;color:var(--muted);margin-top:18px;line-height:1.55;}
+.scholr-landing .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--surface);}
+.scholr-landing .step{padding:38px 32px;position:relative;border-right:1px solid var(--line);}
+.scholr-landing .step:last-child{border-right:none;}
+.scholr-landing .step .num{display:inline-flex;align-items:center;gap:9px;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-2);margin-bottom:22px;}
+.scholr-landing .step .num b{font-family:var(--font-display);font-style:italic;font-weight:500;font-size:17px;color:var(--ink);}
+.scholr-landing .step .ic-box{width:44px;height:44px;display:grid;place-items:center;margin:0 0 20px -2px;color:var(--ink);border:1px solid var(--line);border-radius:12px;}
+.scholr-landing .step .ic-box svg{width:22px;height:22px;stroke-width:1.75;}
+.scholr-landing .step h3{font-weight:700;font-size:19px;letter-spacing:-.01em;margin-bottom:8px;}
+.scholr-landing .step p{font-size:15px;color:var(--muted);line-height:1.55;}
+.scholr-landing .principles{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;}
+.scholr-landing .principle{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:36px 34px;box-shadow:var(--shadow-sm);transition:transform .2s ease,box-shadow .2s ease;}
+.scholr-landing .principle:hover{transform:translateY(-3px);box-shadow:var(--shadow-card);}
+.scholr-landing .principle .idx{display:flex;align-items:center;gap:13px;margin-bottom:20px;}
+.scholr-landing .principle .idx b{font-family:var(--font-display);font-style:italic;font-weight:500;font-size:21px;color:var(--ink);}
+.scholr-landing .principle .idx .ln{flex:1;height:1px;background:var(--line);}
+.scholr-landing .principle h3{font-family:var(--font-display);font-weight:500;font-size:25px;letter-spacing:-.02em;margin-bottom:11px;}
+.scholr-landing .principle p{font-size:16px;color:var(--muted);line-height:1.6;}
+.scholr-landing .bento{display:grid;grid-template-columns:repeat(6,1fr);gap:18px;}
+.scholr-landing .feat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:30px;display:flex;flex-direction:column;box-shadow:var(--shadow-sm);transition:transform .18s ease,box-shadow .18s ease,border-color .18s;}
+.scholr-landing .feat:hover{transform:translateY(-3px);box-shadow:var(--shadow-card);}
+.scholr-landing .feat .ic-box{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);color:var(--ink);display:grid;place-items:center;margin-bottom:22px;}
+.scholr-landing .feat .ic-box svg{width:22px;height:22px;stroke-width:1.75;}
+.scholr-landing .feat h3{font-weight:700;font-size:20px;letter-spacing:-.01em;margin-bottom:9px;}
+.scholr-landing .feat p{font-size:15px;color:var(--muted);line-height:1.55;}
+.scholr-landing .feat.span-3{grid-column:span 3;}
+.scholr-landing .feat.span-2{grid-column:span 2;}
+.scholr-landing .feat.dark{background:var(--ink);color:#fff;border-color:transparent;}
+.scholr-landing .feat.dark .ic-box{background:transparent;border-color:rgba(255,255,255,.18);color:#fff;}
+.scholr-landing .feat.dark p{color:rgba(255,255,255,.62);}
+.scholr-landing .feat.dark .mini-cites{display:flex;gap:7px;margin-top:18px;flex-wrap:wrap;}
+.scholr-landing .feat.dark .mini-cites>span{font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);display:inline-flex;align-items:center;gap:6px;}
+.scholr-landing .feat.dark .mini-cites>span .d{width:6px;height:6px;border-radius:999px;background:currentColor;opacity:.65;}
+.scholr-landing .split{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.scholr-landing .aud{border-radius:var(--radius);padding:42px;border:1px solid var(--line);box-shadow:var(--shadow-sm);}
+.scholr-landing .aud.prof{background:var(--ink);color:#fff;border-color:transparent;}
+.scholr-landing .aud.stud{background:var(--surface);}
+.scholr-landing .aud .kicker{display:inline-flex;align-items:center;gap:9px;font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:22px;}
+.scholr-landing .aud.prof .kicker{color:rgba(255,255,255,.7);}
+.scholr-landing .aud.stud .kicker{color:var(--muted-2);}
+.scholr-landing .aud .kicker .d{width:22px;height:1.5px;border-radius:2px;background:currentColor;opacity:.55;}
+.scholr-landing .aud h3{font-family:var(--font-display);font-weight:500;font-size:29px;letter-spacing:-.022em;margin-bottom:14px;line-height:1.08;}
+.scholr-landing .aud h3 .ital{font-style:italic;}
+.scholr-landing .aud>p{font-size:16.5px;line-height:1.6;margin-bottom:28px;}
+.scholr-landing .aud.prof>p{color:rgba(255,255,255,.66);}
+.scholr-landing .aud.stud>p{color:var(--muted);}
+.scholr-landing .aud ul{display:flex;flex-direction:column;gap:15px;list-style:none;}
+.scholr-landing .aud li{display:flex;gap:12px;align-items:flex-start;font-size:15.5px;list-style:none;line-height:1.45;}
+.scholr-landing .aud li .tick{flex:none;width:22px;height:22px;border-radius:999px;display:grid;place-items:center;margin-top:1px;}
+.scholr-landing .aud li .tick svg{width:13px;height:13px;}
+.scholr-landing .aud.prof li .tick{background:rgba(255,255,255,.12);color:#fff;}
+.scholr-landing .aud.stud li .tick{background:var(--accent-soft);color:var(--accent);}
+.scholr-landing .aud .aud-cta{margin-top:32px;}
+.scholr-landing .aud.prof .btn-ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.25);}
+.scholr-landing .aud.prof .btn-ghost:hover{border-color:#fff;}
+.scholr-landing .analytics-grid{display:grid;grid-template-columns:.95fr 1.05fr;gap:60px;align-items:center;}
+.scholr-landing .dash{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-card);overflow:hidden;}
+.scholr-landing .dash-top{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;}
+.scholr-landing .dash-top .t{font-weight:700;font-size:15.5px;}
+.scholr-landing .dash-top .wk{font-size:12.5px;color:var(--muted);border:1px solid var(--line);border-radius:var(--radius-pill);padding:4px 12px;}
+.scholr-landing .dash-body{padding:22px 20px;}
+.scholr-landing .dash-body>.lead{font-size:12.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted-2);margin-bottom:16px;}
+.scholr-landing .confuse{display:flex;flex-direction:column;gap:15px;}
+.scholr-landing .confuse .top{display:flex;justify-content:space-between;font-size:14px;margin-bottom:7px;}
+.scholr-landing .confuse .top b{font-weight:600;}
+.scholr-landing .confuse .top span{color:var(--muted);font-variant-numeric:tabular-nums;}
+.scholr-landing .confuse .bar{height:9px;border-radius:999px;background:var(--bg-2);overflow:hidden;}
+.scholr-landing .confuse .bar i{display:block;height:100%;border-radius:999px;background:var(--ink);width:0;transition:width 1s cubic-bezier(.2,.7,.2,1);}
+.scholr-landing .dash-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;align-items:center;gap:9px;font-size:13.5px;color:var(--muted);background:var(--bg);}
+.scholr-landing .dash-foot svg{width:16px;height:16px;color:var(--ink);flex:none;}
+.scholr-landing .stat-row{display:flex;gap:36px;margin-top:34px;}
+.scholr-landing .stat .n{font-family:var(--font-display);font-weight:500;font-size:40px;letter-spacing:-.02em;line-height:1;}
+.scholr-landing .stat .n .ital{font-style:italic;}
+.scholr-landing .stat .l{font-size:14px;color:var(--muted);margin-top:8px;}
+.scholr-landing .cta-band{padding:40px 0 110px;}
+.scholr-landing .cta-box{background:var(--ink);color:#fff;border-radius:var(--radius-lg);padding:76px 56px;text-align:center;position:relative;overflow:hidden;}
+.scholr-landing .cta-box::after{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.05) 1.4px,transparent 1.4px);background-size:26px 26px;-webkit-mask-image:radial-gradient(75% 75% at 50% 0%,#000,transparent 72%);mask-image:radial-gradient(75% 75% at 50% 0%,#000,transparent 72%);}
+.scholr-landing .cta-box>*{position:relative;}
+.scholr-landing .cta-box .chip{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:#fff;margin-bottom:26px;}
+.scholr-landing .cta-box h2{font-family:var(--font-display);font-weight:500;font-size:clamp(34px,4.6vw,58px);letter-spacing:-.026em;line-height:1.02;margin-bottom:18px;}
+.scholr-landing .cta-box h2 .ital{font-style:italic;}
+.scholr-landing .cta-box p{font-size:18.5px;color:rgba(255,255,255,.66);max-width:500px;margin:0 auto 34px;}
+.scholr-landing .cta-actions{display:flex;gap:13px;justify-content:center;flex-wrap:wrap;}
+.scholr-landing .cta-box .btn-primary{background:#fff;color:var(--ink);}
+.scholr-landing .cta-box .btn-primary:hover{background:#f0f0ee;}
+.scholr-landing .cta-box .btn-ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.25);}
+.scholr-landing .cta-box .btn-ghost:hover{border-color:#fff;}
+.scholr-landing .cta-note{margin-top:22px;font-size:13.5px;color:rgba(255,255,255,.5);}
+.scholr-landing footer.foot{border-top:1px solid var(--line);padding:64px 0 40px;background:var(--bg);}
+.scholr-landing .foot-grid{display:grid;grid-template-columns:2.2fr 1fr 1fr;gap:40px;}
+.scholr-landing .foot .brand{margin-bottom:18px;}
+.scholr-landing .foot .tag{font-size:15px;color:var(--muted);max-width:290px;line-height:1.6;}
+.scholr-landing .foot-col h4{font-size:12.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-2);margin-bottom:16px;}
+.scholr-landing .foot-col a{display:block;font-size:15px;color:var(--ink-2);margin-bottom:12px;transition:color .15s;cursor:pointer;}
+.scholr-landing .foot-col a:hover{color:var(--accent);}
+.scholr-landing .foot-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:52px;padding-top:26px;border-top:1px solid var(--line);font-size:13.5px;color:var(--muted);flex-wrap:wrap;gap:14px;}
+.scholr-landing .foot-bottom .social{display:flex;gap:18px;}
+.scholr-landing .foot-bottom .social a{color:var(--muted);transition:color .15s;cursor:pointer;}
+.scholr-landing .foot-bottom .social a:hover{color:var(--ink);}
+.scholr-landing .foot-bottom .social svg{width:19px;height:19px;}
+.scholr-landing #demoChat{display:flex;flex-direction:column;gap:16px;flex:1;padding:4px 2px 2px;}
+.scholr-landing .d-user{text-align:right;animation:lp-dIn .5s cubic-bezier(.2,.7,.2,1) both;}
+.scholr-landing .d-user .d-q{display:inline-block;max-width:78%;font-size:15px;font-weight:600;color:var(--m-ink);line-height:1.4;}
+.scholr-landing .d-user .d-time{font-size:12px;color:var(--m-faint);margin-top:4px;}
+.scholr-landing .d-ans{display:flex;gap:13px;align-items:flex-start;animation:lp-dIn .5s cubic-bezier(.2,.7,.2,1) both;}
+.scholr-landing .d-ans .d-ic{color:var(--m-faint);margin-top:2px;flex:none;}
+.scholr-landing .d-bubble p{font-size:15.5px;line-height:1.6;color:var(--m-ink);}
+.scholr-landing .d-bubble p b{color:var(--m-ink);font-weight:700;}
+.scholr-landing .d-bubble p i{font-style:italic;}
+.scholr-landing .d-bubble .from-row{margin-top:14px;flex-wrap:wrap;}
+.scholr-landing .d-cite{opacity:0;animation:lp-dCite .45s ease forwards;animation-delay:calc(var(--ci) * .14s + .12s);}
+.scholr-landing .d-loading{align-items:center;}
+.scholr-landing .d-loadtext{font-size:15.5px;color:var(--m-muted);}
+.scholr-landing .load-lines .ln{transform-box:fill-box;transform-origin:left center;animation:lp-lnscan 1.15s ease-in-out infinite;}
+.scholr-landing .load-lines .ln2{animation-delay:.16s;}
+.scholr-landing .load-lines .ln3{animation-delay:.32s;}
+@keyframes lp-lnscan{0%,100%{transform:scaleX(.42);}50%{transform:scaleX(1);}}
+@keyframes lp-dIn{from{opacity:0;transform:translateY(9px);}to{opacity:1;transform:none;}}
+@keyframes lp-dCite{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
+.scholr-landing .mq-band{padding:56px 0 8px;}
+.scholr-landing .mq-band .lead{text-align:center;font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted-2);margin-bottom:28px;}
+.scholr-landing .marquee{display:flex;flex-direction:column;gap:14px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);}
+.scholr-landing .mq-track{display:flex;gap:14px;width:max-content;animation:lp-mq 42s linear infinite;}
+.scholr-landing .mq-track.rev{animation-duration:52s;animation-direction:reverse;}
+.scholr-landing .mq-band:hover .mq-track{animation-play-state:paused;}
+@keyframes lp-mq{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+.scholr-landing .q-chip{display:inline-flex;align-items:center;gap:10px;padding:11px 19px;border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--surface);font-size:15px;font-weight:500;color:var(--ink-2);white-space:nowrap;box-shadow:var(--shadow-sm);}
+.scholr-landing .q-chip .qm{color:var(--muted-2);display:inline-flex;flex:none;}
+.scholr-landing .q-chip .qm svg{width:15px;height:15px;}
+.scholr-landing .manifesto{background:var(--ink);color:#fff;text-align:center;padding:124px 0;position:relative;overflow:hidden;}
+.scholr-landing .manifesto::after{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.045) 1.4px,transparent 1.4px);background-size:26px 26px;-webkit-mask-image:radial-gradient(70% 80% at 50% 40%,#000,transparent 72%);mask-image:radial-gradient(70% 80% at 50% 40%,#000,transparent 72%);}
+.scholr-landing .manifesto>.wrap{position:relative;}
+.scholr-landing .manifesto .eyebrow{color:rgba(255,255,255,.55);justify-content:center;margin-bottom:22px;}
+.scholr-landing .manifesto h2{font-family:var(--font-display);font-weight:500;font-size:clamp(34px,5.2vw,66px);line-height:1.04;letter-spacing:-.028em;max-width:940px;margin:0 auto;}
+.scholr-landing .manifesto h2 .ital{font-style:italic;}
+.scholr-landing .manifesto h2 .hl{position:relative;white-space:nowrap;}
+.scholr-landing .manifesto h2 .hl::after{content:"";position:absolute;left:0;right:0;bottom:-.04em;height:2.5px;background:rgba(255,255,255,.55);border-radius:2px;transform:scaleX(0);transform-origin:left;transition:transform .9s cubic-bezier(.2,.7,.2,1) .3s;}
+.scholr-landing .manifesto.in h2 .hl::after{transform:scaleX(1);}
+.scholr-landing .manifesto p{color:rgba(255,255,255,.6);font-size:18.5px;max-width:580px;margin:26px auto 0;line-height:1.55;}
+.scholr-landing .src-row{display:flex;gap:11px;justify-content:center;flex-wrap:wrap;margin-top:38px;}
+.scholr-landing .src-dark{display:inline-flex;align-items:center;gap:9px;padding:9px 16px;border-radius:var(--radius-pill);background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);font-size:14px;font-weight:600;color:#fff;}
+.scholr-landing .src-dark .d{width:7px;height:7px;border-radius:999px;background:currentColor;opacity:.7;flex:none;}
+.scholr-landing .reveal{opacity:0;transform:translateY(24px);transition:opacity .75s cubic-bezier(.2,.7,.2,1),transform .75s cubic-bezier(.2,.7,.2,1);}
+.scholr-landing .reveal.in{opacity:1;transform:none;}
+.scholr-landing .stagger>*{opacity:0;transform:translateY(26px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1);}
+.scholr-landing .stagger.in>*{opacity:1;transform:none;}
+.scholr-landing .win-rise{opacity:0;transform:translateY(40px) scale(.975);transition:opacity .9s cubic-bezier(.2,.7,.2,1),transform 1.05s cubic-bezier(.2,.7,.2,1);will-change:transform;}
+.scholr-landing .win-rise.in{opacity:1;transform:none;}
+@media (prefers-reduced-motion:reduce){.scholr-landing .reveal,.scholr-landing .stagger>*,.scholr-landing .win-rise{transition:none !important;opacity:1 !important;transform:none !important;}}
+@media (max-width:940px){
+.scholr-landing .nav-links{display:none;}
+.scholr-landing .analytics-grid{grid-template-columns:1fr;gap:40px;}
+.scholr-landing .bento{grid-template-columns:repeat(2,1fr);}
+.scholr-landing .feat.span-3,.scholr-landing .feat.span-2{grid-column:span 1;}
+.scholr-landing .app{grid-template-columns:1fr;}
+.scholr-landing .app-side{flex-direction:row;align-items:center;flex-wrap:wrap;gap:12px;}
+.scholr-landing .app-side .chat-list,.scholr-landing .app-side .side-label,.scholr-landing .app-side .side-foot{display:none;}
+}
+@media (max-width:680px){
+.scholr-landing{font-size:16px;}
+.scholr-landing section.band{padding:76px 0;}
+.scholr-landing .steps{grid-template-columns:1fr;}
+.scholr-landing .step{border-right:none;border-bottom:1px solid var(--line);}
+.scholr-landing .step:last-child{border-bottom:none;}
+.scholr-landing .bento{grid-template-columns:1fr;}
+.scholr-landing .split{grid-template-columns:1fr;}
+.scholr-landing .foot-grid{grid-template-columns:1fr 1fr;gap:30px;}
+.scholr-landing .cta-box{padding:52px 26px;}
+.scholr-landing .stat-row{gap:24px;flex-wrap:wrap;}
+}
+`;
+
 function LandingPage({ onStudent, onInstructor, onSignIn }) {
   const navigate = useNavigate();
-  const [joinModalOpen, setJoinModalOpen] = useState(false);
+  const rootRef = useRef(null);
+  const [navScrolled, setNavScrolled] = useState(false);
+  const [demo, setDemo] = useState({ idx: 0, phase: 'user' });
+
+  // Scroll-reveal, nav shadow, and the dashboard bar fills — scoped to this page.
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); }),
-      { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
-    );
-    document.querySelectorAll('.sr').forEach(el => observer.observe(el));
-    return () => observer.disconnect();
+    const root = rootRef.current;
+    if (!root) return;
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (!e.isIntersecting) return;
+        if (e.target.classList.contains('stagger')) {
+          Array.prototype.forEach.call(e.target.children, (ch, i) => { ch.style.transitionDelay = (i * 75) + 'ms'; });
+        }
+        e.target.classList.add('in');
+        e.target.querySelectorAll('.confuse .bar i').forEach((bar) => {
+          const w = bar.dataset.w;
+          if (w) requestAnimationFrame(() => { bar.style.width = w; });
+        });
+        io.unobserve(e.target);
+      });
+    }, { threshold: 0.14 });
+    root.querySelectorAll('.reveal, .stagger, .win-rise').forEach((el) => io.observe(el));
+    const onScroll = () => setNavScrolled(window.scrollY > 8);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => { io.disconnect(); window.removeEventListener('scroll', onScroll); };
   }, []);
 
+  // Animated product demo: user → thinking → cited answer, then cycle.
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setDemo({ idx: 0, phase: 'answer' });
+      return;
+    }
+    const t = [];
+    t.push(setTimeout(() => setDemo((d) => ({ ...d, phase: 'thinking' })), 850));
+    t.push(setTimeout(() => setDemo((d) => ({ ...d, phase: 'answer' })), 2100));
+    t.push(setTimeout(() => setDemo((d) => ({ idx: (d.idx + 1) % LANDING_CONVOS.length, phase: 'user' })), 6700));
+    return () => t.forEach(clearTimeout);
+  }, [demo.idx]);
+
+  const cur = LANDING_CONVOS[demo.idx];
+  const goHome = (e) => { if (e) e.preventDefault(); navigate('/'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col page-enter">
-      <style>{FONT}</style>
-      <nav className="flex items-center justify-between px-4 md:px-10 py-3 md:py-4 border-b border-gray-200 bg-white sticky top-0 z-10" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
-        <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-3 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={28} /><span className="text-gray-900 font-semibold text-base tracking-tight">Scholr</span></button>
-        <button onClick={onSignIn} className="px-4 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium transition-colors">Sign in</button>
-      </nav>
-      <div className="max-w-3xl mx-auto px-6 pt-16 md:pt-20 pb-16 text-center">
-        <div className="sr in inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-gray-200 text-gray-500 text-xs font-medium mb-8">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Course-grounded AI tutoring
-        </div>
-        <h1 className="sr in sr-d1 serif text-5xl md:text-[62px] leading-[1.08] text-gray-900 mb-6">Every answer from<br /><span className="italic">your course materials.</span></h1>
-        <p className="sr in sr-d2 text-gray-500 text-base md:text-lg max-w-md mx-auto leading-relaxed mb-10">AI tutoring grounded in what your professor uploaded. Cited, accurate, and trustworthy.</p>
-        <div className="sr in sr-d3 flex flex-col items-center gap-4">
-          <button onClick={onInstructor} className="px-8 py-3.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors shadow-sm">Start a course free →</button>
-          <div className="flex items-center gap-3 text-xs text-gray-400">
-            <span>Joining a class?</span>
-            <button onClick={() => setJoinModalOpen(true)} className="text-gray-700 hover:text-gray-900 font-medium underline-offset-4 hover:underline transition-colors">Enter your join code →</button>
+    <div className="scholr-landing" ref={rootRef}>
+      <style>{LANDING_CSS}</style>
+
+      <header className={`nav${navScrolled ? ' scrolled' : ''}`}>
+        <div className="wrap nav-inner">
+          <a className="brand" href="#top" onClick={goHome}><LandingLogo s={36} />Scholr</a>
+          <nav className="nav-links">
+            <a href="#how">How it works</a>
+            <a href="#professors">For professors</a>
+            <a href="#students">For students</a>
+            <a href="#features">Features</a>
+          </nav>
+          <div className="nav-right">
+            <button type="button" className="btn btn-ghost btn-pill" onClick={onSignIn}>Sign in</button>
           </div>
         </div>
-      </div>
-      <JoinCodeModal open={joinModalOpen} onClose={() => setJoinModalOpen(false)} />
-      <div className="bg-gray-100 border-y border-gray-200 px-6 py-12">
-        <div className="max-w-3xl mx-auto">
-          <div className="sr bg-white rounded-2xl border border-gray-200 overflow-hidden" style={{boxShadow:'0 4px 24px rgba(0,0,0,0.06)'}}>
-            <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center gap-3">
-              <div className="flex gap-1.5"><div className="w-3 h-3 rounded-full bg-red-400" /><div className="w-3 h-3 rounded-full bg-yellow-400" /><div className="w-3 h-3 rounded-full bg-green-400" /></div>
-              <div className="flex-1 bg-white border border-gray-200 rounded-md px-3 py-1 text-xs text-gray-400 font-mono">scholr.study</div>
+      </header>
+
+      <main id="top">
+        {/* HERO */}
+        <section className="hero">
+          <div className="wrap stagger">
+            <span className="chip"><span className="dot live" /> Course-grounded AI tutoring</span>
+            <h1>Every answer from<span className="l2">your course materials.</span></h1>
+            <p className="lede">AI tutoring grounded in what your professor uploaded. Cited, accurate, and trustworthy.</p>
+            <div className="hero-actions">
+              <button type="button" className="btn btn-primary btn-lg" onClick={onInstructor}>Start a course free <span className="arr"><Ic name="arrow-right" s={17} /></span></button>
             </div>
-            <div className="flex" style={{height:'340px'}}>
-              <div className="w-44 bg-gray-50 border-r border-gray-200 flex flex-col flex-shrink-0 p-3">
-                <div className="flex items-center gap-2 mb-3"><Logo size={18} /><span className="text-gray-900 text-xs font-semibold">Scholr</span></div>
-                <div className="bg-gray-900 rounded-lg px-2.5 py-2 mb-3"><p className="text-white text-[10px] font-medium">BUS-A 306</p><p className="text-gray-500 text-[9px]">Management Acct.</p></div>
-                <p className="text-[9px] text-gray-400 uppercase tracking-widest font-semibold mb-1.5 px-1">Chats</p>
-                <div className="bg-gray-900 rounded-lg px-2.5 py-1.5 mb-1"><p className="text-white text-[10px]">Midterm topics</p></div>
-                <div className="bg-white border border-gray-100 rounded-lg px-2.5 py-1.5 mb-1"><p className="text-gray-500 text-[10px]">Grading breakdown</p></div>
-                <div className="bg-white border border-gray-100 rounded-lg px-2.5 py-1.5"><p className="text-gray-500 text-[10px]">Late policy</p></div>
+            <p className="hero-sub">Joining a class? <a href="#" onClick={(e) => { e.preventDefault(); onStudent(); }}>Enter your join code <Ic name="arrow-right" s={15} /></a></p>
+          </div>
+        </section>
+
+        {/* PRODUCT MOCK */}
+        <section className="showband">
+          <div className="wrap">
+            <div className="window win-rise">
+              <div className="win-bar">
+                <div className="win-lights"><i /><i /><i /></div>
+                <div className="win-url">scholr.study/student</div>
               </div>
-              <div className="flex-1 flex flex-col">
-                <div className="border-b border-gray-100 px-5 py-2.5 flex items-center justify-between">
-                  <span className="text-gray-900 text-xs font-medium">Midterm topics</span>
-                  <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-[10px] text-emerald-600">AI Active</span></div>
+              <div className="app">
+                <aside className="app-side">
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '17px', letterSpacing: '-.01em' }}>Accounting</div>
+                    <div style={{ fontSize: '12.5px', color: 'var(--m-faint)', marginTop: '2px' }}>6 docs · 41 notes</div>
+                  </div>
+                  <div className="chat-list" style={{ gap: '2px' }}>
+                    <div className="chat-item" style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--m-ink)' }}><Ic name="plus" s={16} /> New chat</div>
+                    <div className="chat-item" style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--m-ink)' }}><Ic name="folder" s={16} /> My Notes</div>
+                  </div>
+                  <div>
+                    <div className="side-label" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}><Ic name="chevron-down" s={13} /> Recents</div>
+                    <div className="chat-list">
+                      {LANDING_RECENTS.map((label) => (
+                        <div key={label} className={`chat-item${label === cur.chat ? ' active' : ''}`}>{label}</div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="side-foot"><Ic name="log-out" s={16} /> Back to courses</div>
+                </aside>
+                <section className="app-main">
+                  <div className="main-head">
+                    <div>
+                      <div className="t">{cur.chat}</div>
+                      <div style={{ fontSize: '13px', color: 'var(--m-faint)', marginTop: '1px' }}>Accounting · BUS-A 306</div>
+                    </div>
+                    <span className="brand" style={{ fontSize: '17px', gap: '8px' }}><LandingLogo s={26} />Scholr</span>
+                  </div>
+                  <div className="main-body">
+                    <div id="demoChat" key={demo.idx}>
+                      <div className="d-user"><div className="d-q">{cur.q}</div><div className="d-time">{cur.time}</div></div>
+                      {demo.phase === 'thinking' && (
+                        <div className="d-ans d-loading"><span className="d-ic"><LoadLines s={22} /></span><div className="d-loadtext">Checking your course materials…</div></div>
+                      )}
+                      {demo.phase === 'answer' && (
+                        <div className="d-ans">
+                          <span className="d-ic"><AnsLines s={22} /></span>
+                          <div className="d-bubble">
+                            <p dangerouslySetInnerHTML={{ __html: cur.answer }} />
+                            <div className="from-row">
+                              <span className="lbl">FROM</span>
+                              {cur.cites.map((c, i) => (
+                                <span key={i} className="src-chip d-cite" style={{ '--ci': i }}><Ic name="file-text" s={14} /> {c}</span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="main-input" style={{ borderRadius: '16px', padding: '14px 14px 14px 18px', flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
+                    <span style={{ fontSize: '15px' }}>Ask about your course…</span>
+                    <span style={{ width: '30px', height: '30px', borderRadius: '999px', background: 'var(--m-hover)', color: 'var(--m-muted)', display: 'grid', placeItems: 'center' }}><Ic name="plus" s={17} /></span>
+                  </div>
+                  <div style={{ textAlign: 'center', fontSize: '12.5px', color: 'var(--m-faint)', padding: '0 0 16px' }}>Grounded in your course materials · Vertex AI</div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* QUESTION MARQUEE */}
+        <section className="mq-band reveal">
+          <p className="lead">Real questions students ask Scholr</p>
+          <div className="marquee">
+            <div className="mq-track">
+              {[...LANDING_MQ_1, ...LANDING_MQ_1].map((q, i) => (
+                <span key={i} className="q-chip"><span className="qm"><Ic name="message-square" s={15} /></span> {q}</span>
+              ))}
+            </div>
+            <div className="mq-track rev">
+              {[...LANDING_MQ_2, ...LANDING_MQ_2].map((q, i) => (
+                <span key={i} className="q-chip"><span className="qm"><Ic name="message-square" s={15} /></span> {q}</span>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* WHY SCHOLR */}
+        <section className="band" id="why">
+          <div className="wrap">
+            <div className="sec-head reveal">
+              <span className="eyebrow"><span className="dot" /> Why Scholr</span>
+              <h2>Answers you can <span className="ital">actually trust.</span></h2>
+              <p>Scholr is built on a single rule: never say anything it can't trace back to your course. That's what makes it safe to lean on the night before an exam.</p>
+            </div>
+            <div className="principles stagger">
+              {[
+                { n: '01', t: 'Grounded in your course', d: 'Every response is drawn only from the materials your professor uploaded — the syllabus, slides, readings, and notes. Nothing from the open web.' },
+                { n: '02', t: 'Cited to the page', d: 'Each answer points to the exact slide, page, or reading it came from — so a student can verify it in one click, and a professor can stand behind it.' },
+                { n: '03', t: 'Honest about limits', d: "If something isn't covered in the course, Scholr says so plainly instead of inventing an answer. No confident guesses, no hallucinations." },
+                { n: '04', t: 'Fluent in your class', d: 'It knows the deadlines, the grading rules, and the way your professor frames each topic — so the help actually fits the course you’re in.' },
+              ].map((p) => (
+                <div className="principle" key={p.n}>
+                  <div className="idx"><b>{p.n}</b><span className="ln" /></div>
+                  <h3>{p.t}</h3>
+                  <p>{p.d}</p>
                 </div>
-                <div className="flex-1 overflow-hidden px-5 py-4 flex flex-col gap-3">
-                  <div className="flex justify-end"><div className="bg-gray-900 text-white rounded-xl rounded-br-sm px-3 py-2 text-[11px] max-w-[70%]">What topics will be on the midterm?</div></div>
-                  <div className="flex flex-col gap-1.5 max-w-[88%]">
-                    <div className="bg-gray-50 border border-gray-200 rounded-xl rounded-bl-sm px-3 py-2.5 text-[11px] text-gray-700 leading-relaxed">The midterm covers chapters 1–4, with emphasis on cost-volume-profit analysis and contribution margin. (p. 12, 34)</div>
-                    <div className="flex items-center gap-1.5"><span className="text-[9px] text-gray-400">From</span><div className="flex items-center gap-1 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5"><FileText size={8} className="text-gray-500" /><span className="text-[9px] text-gray-600">Syllabus.pdf</span></div></div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* HOW IT WORKS */}
+        <section className="band" id="how" style={{ background: 'var(--bg-2)', borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)' }}>
+          <div className="wrap">
+            <div className="sec-head reveal">
+              <span className="eyebrow"><span className="dot" /> How it works</span>
+              <h2>Set up once. <span className="ital">Tutoring all term.</span></h2>
+              <p>A professor uploads their course once. Every student gets a tutor that knows it inside out.</p>
+            </div>
+            <div className="steps stagger">
+              {[
+                { n: '01', ic: 'upload', t: 'Upload the course', d: 'Drop in the syllabus, slides, readings, and notes. Scholr indexes every page in minutes.' },
+                { n: '02', ic: 'message-square', t: 'Students ask anything', d: 'From "what’s on the midterm?" to deep concept questions — at 11pm, the night before.' },
+                { n: '03', ic: 'scan-text', t: 'Every answer is cited', d: 'Responses point straight to the source page or slide. No guessing, no hallucinations.' },
+              ].map((s) => (
+                <div className="step" key={s.n}>
+                  <div className="num"><b>{s.n}</b></div>
+                  <div className="ic-box"><Ic name={s.ic} s={23} /></div>
+                  <h3>{s.t}</h3>
+                  <p>{s.d}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* FEATURES (bento) */}
+        <section className="band" id="features">
+          <div className="wrap">
+            <div className="sec-head reveal">
+              <span className="eyebrow"><span className="dot" /> Features</span>
+              <h2>A senior TA, <span className="ital">on every page.</span></h2>
+              <p>Everything a student wishes they could ask — and everything a professor wishes they could see.</p>
+            </div>
+            <div className="bento stagger">
+              <div className="feat span-3 dark">
+                <div className="ic-box"><Ic name="scan-text" s={23} /></div>
+                <h3>Cited answers, every time</h3>
+                <p>Each response links back to the exact page, slide, or reading it came from — so students learn to trust it, and check it.</p>
+                <div className="mini-cites">
+                  <span><span className="d" /> Lecture 7 · slide 12</span>
+                  <span><span className="d" /> Reading 4.2 · p. 88</span>
+                  <span><span className="d" /> Syllabus · §3</span>
+                </div>
+              </div>
+              <div className="feat span-3">
+                <div className="ic-box"><Ic name="shield-check" s={23} /></div>
+                <h3>Zero hallucinations</h3>
+                <p>If it isn't in the course materials, Scholr says so — instead of inventing an answer. Trust is the whole point.</p>
+              </div>
+              <div className="feat span-2">
+                <div className="ic-box"><Ic name="sparkles" s={23} /></div>
+                <h3>Quizzes from real material</h3>
+                <p>Practice questions generated from your professor's actual slides — not random sets.</p>
+              </div>
+              <div className="feat span-2">
+                <div className="ic-box"><Ic name="bar-chart" s={23} /></div>
+                <h3>Confusion analytics</h3>
+                <p>Professors see what students keep asking — before the next lecture.</p>
+              </div>
+              <div className="feat span-2">
+                <div className="ic-box"><Ic name="clock" s={23} /></div>
+                <h3>Available at midnight</h3>
+                <p>The 24/7 office hours every class wishes it had. No question too small.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* TRUST MANIFESTO */}
+        <section className="manifesto reveal">
+          <div className="wrap">
+            <span className="eyebrow"><span className="dot" /> Trust, by design</span>
+            <h2>If it isn't in your course, Scholr <span className="ital">won't say it</span> — every claim <span className="hl">traces to a page</span>.</h2>
+            <p>No open-web guessing. No invented citations. Each answer links straight back to the material your professor uploaded.</p>
+            <div className="src-row stagger">
+              <span className="src-dark"><span className="d" /> Lecture 6 · slide 14</span>
+              <span className="src-dark"><span className="d" /> Syllabus · §2</span>
+              <span className="src-dark"><span className="d" /> Reading · p. 132</span>
+            </div>
+          </div>
+        </section>
+
+        {/* AUDIENCE SPLIT */}
+        <section className="band" style={{ background: 'var(--bg-2)', borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)' }}>
+          <div className="wrap">
+            <div className="split">
+              <div className="aud prof reveal" id="professors">
+                <div className="kicker"><span className="d" /> For professors</div>
+                <h3>Stop answering the same<br /><span className="ital">question fifty times.</span></h3>
+                <p>Upload your course once. Scholr handles the repetitive questions and shows you exactly where your students are stuck.</p>
+                <ul>
+                  <li><span className="tick"><Ic name="check" s={13} /></span> Answers stay inside your materials — your voice, your rules</li>
+                  <li><span className="tick"><Ic name="check" s={13} /></span> Live analytics on what's confusing the class</li>
+                  <li><span className="tick"><Ic name="check" s={13} /></span> Set up in an afternoon, no IT required</li>
+                </ul>
+                <div className="aud-cta"><button type="button" className="btn btn-ghost btn-pill" onClick={onInstructor}>Bring Scholr to your course <Ic name="arrow-right" s={16} /></button></div>
+              </div>
+              <div className="aud stud reveal" id="students">
+                <div className="kicker"><span className="d" /> For students</div>
+                <h3>The tutor who actually<br /><span className="ital">read the syllabus.</span></h3>
+                <p>Ask anything about your class and get a straight, cited answer — without feeling dumb for asking, and without waiting for office hours.</p>
+                <ul>
+                  <li><span className="tick"><Ic name="check" s={13} /></span> Answers grounded in your real course, not the internet</li>
+                  <li><span className="tick"><Ic name="check" s={13} /></span> Practice quizzes from your actual material</li>
+                  <li><span className="tick"><Ic name="check" s={13} /></span> Available the night before the exam</li>
+                </ul>
+                <div className="aud-cta"><button type="button" className="btn btn-primary btn-pill" onClick={onStudent}>Enter your join code <Ic name="arrow-right" s={16} /></button></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ANALYTICS */}
+        <section className="band">
+          <div className="wrap">
+            <div className="analytics-grid">
+              <div className="reveal">
+                <span className="eyebrow"><span className="dot" /> Professor analytics</span>
+                <h2 className="serif" style={{ fontSize: 'clamp(30px,3.6vw,44px)', lineHeight: 1.06, margin: '18px 0 16px' }}>Know what's confusing <span className="ital">before</span> the next lecture.</h2>
+                <p style={{ fontSize: '18px', color: 'var(--muted)', lineHeight: 1.55 }}>Scholr turns thousands of student questions into a clear signal: the concepts your class keeps getting stuck on, ranked. Walk into lecture already knowing what to reteach.</p>
+                <div className="stat-row">
+                  <div className="stat"><div className="n">100<span style={{ fontSize: '24px' }}>%</span></div><div className="l">of answers cited<br />to a source</div></div>
+                  <div className="stat"><div className="n">0</div><div className="l">answers from<br />the open web</div></div>
+                  <div className="stat"><div className="n">24<span className="ital">/</span>7</div><div className="l">across the<br />whole term</div></div>
+                </div>
+              </div>
+              <div className="dash reveal">
+                <div className="dash-top">
+                  <div className="t">Most-asked · BUS-A 306</div>
+                  <div className="wk">This week</div>
+                </div>
+                <div className="dash-body">
+                  <div className="lead">Top points of confusion</div>
+                  <div className="confuse">
+                    {[
+                      { t: 'Contribution margin', n: '38 asks', w: '100%' },
+                      { t: 'Cost-volume-profit analysis', n: '29 asks', w: '76%' },
+                      { t: 'Overhead allocation', n: '21 asks', w: '55%' },
+                      { t: 'Break-even point', n: '14 asks', w: '37%' },
+                    ].map((r) => (
+                      <div className="row" key={r.t}>
+                        <div className="top"><b>{r.t}</b><span>{r.n}</span></div>
+                        <div className="bar"><i data-w={r.w} /></div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <div className="border-t border-gray-100 px-4 py-2.5 flex items-center gap-2">
-                  <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-[10px] text-gray-400">Ask about your course...</div>
-                  <div className="w-6 h-6 bg-gray-900 rounded-lg flex items-center justify-center flex-shrink-0"><Send size={9} className="text-white" /></div>
-                </div>
+                <div className="dash-foot"><Ic name="sparkles" s={16} /> Suggested: revisit contribution margin in Lecture 8.</div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
-      <div className="max-w-3xl mx-auto px-6 py-20">
-        <p className="sr text-xs font-semibold text-gray-400 uppercase tracking-widest text-center mb-3">How it works</p>
-        <h2 className="sr sr-d1 serif text-4xl text-gray-900 text-center mb-14 font-normal">Up and running in minutes</h2>
-        <div className="grid grid-cols-3 gap-8">
-          {[
-            { n: '1', title: 'Create a course', desc: 'Sign up as an instructor, create a course, and get an instant invite link to share with students.', d: 'sr-d1' },
-            { n: '2', title: 'Upload materials', desc: 'Drop in your syllabus, lecture notes, and readings. The AI indexes everything instantly.', d: 'sr-d2' },
-            { n: '3', title: 'Students get answers', desc: 'Students ask questions 24/7 and get cited answers grounded only in your materials.', d: 'sr-d3' },
-          ].map((s, i) => (
-            <div key={i} className={`sr ${s.d} text-center`}>
-              <div className="w-9 h-9 rounded-full bg-gray-900 text-white text-sm font-semibold flex items-center justify-center mx-auto mb-4">{s.n}</div>
-              <p className="text-gray-900 text-sm font-medium mb-2">{s.title}</p>
-              <p className="text-gray-400 text-xs leading-relaxed">{s.desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="bg-white border-t border-gray-200 py-20">
-        <div className="max-w-3xl mx-auto px-6">
-          <p className="sr text-xs font-semibold text-gray-400 uppercase tracking-widest text-center mb-3">Why Scholr</p>
-          <h2 className="sr sr-d1 serif text-4xl text-gray-900 text-center mb-14 font-normal">Built for academic integrity</h2>
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { icon: <CheckCircle2 size={14} className="text-white" />, title: 'Cited answers', desc: 'Every response traces back to the exact document and page it came from.', d: 'sr-d1' },
-              { icon: <Clock size={14} className="text-white" />, title: 'Always available', desc: 'Students get answers at 2am before exams — no waiting for office hours.', d: 'sr-d2' },
-              { icon: <Users size={14} className="text-white" />, title: 'Per course AI', desc: 'Each course gets its own tutor. Students only see answers from their class.', d: 'sr-d3' },
-              { icon: <BarChart2 size={14} className="text-white" />, title: 'Student insights', desc: 'See what students are confused about before the next class session.', d: 'sr-d1' },
-              { icon: <FileText size={14} className="text-white" />, title: 'Materials only', desc: 'The AI never answers from outside your course. No hallucinations.', d: 'sr-d2' },
-              { icon: <Lock size={14} className="text-white" />, title: 'FERPA aligned', desc: 'Student data stays private. Built with educational privacy standards in mind.', d: 'sr-d3' },
-            ].map((f, i) => (
-              <div key={i} className={`sr ${f.d} bg-[#FAFAFA] border border-gray-200 rounded-2xl p-5`}>
-                <div className="w-8 h-8 rounded-lg bg-gray-900 flex items-center justify-center mb-4">{f.icon}</div>
-                <p className="text-gray-900 text-sm font-medium mb-1.5">{f.title}</p>
-                <p className="text-gray-400 text-xs leading-relaxed">{f.desc}</p>
+        </section>
+
+        {/* FINAL CTA */}
+        <section className="cta-band">
+          <div className="wrap reveal">
+            <div className="cta-box">
+              <span className="chip"><span className="dot live" /> Course-grounded AI tutoring</span>
+              <h2>Give your class an AI tutor<br /><span className="ital">that actually knows it.</span></h2>
+              <p>Set up your course in an afternoon. Every answer cited, straight from your materials.</p>
+              <div className="cta-actions">
+                <button type="button" className="btn btn-primary btn-lg" onClick={onInstructor}>Start a course free <span className="arr"><Ic name="arrow-right" s={17} /></span></button>
+                <a className="btn btn-ghost btn-lg" href="mailto:hello@scholr.study">Talk to our team</a>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      <div className="bg-gray-900 py-16">
-        <div className="sr max-w-xl mx-auto px-6 text-center">
-          <h2 className="serif text-4xl text-white mb-4 font-normal">Ready to get started?</h2>
-          <p className="text-gray-400 text-sm mb-8 leading-relaxed">Set up your first course in minutes. Free to start.</p>
-          <div className="flex flex-col items-center gap-4">
-            <button onClick={onInstructor} className="px-8 py-3.5 rounded-xl bg-white hover:bg-gray-100 text-gray-900 text-sm font-medium transition-colors">Start a course free →</button>
-            <div className="flex items-center gap-3 text-xs text-gray-500">
-              <span>Joining a class?</span>
-              <button onClick={() => setJoinModalOpen(true)} className="text-gray-200 hover:text-white font-medium underline-offset-4 hover:underline transition-colors">Enter your join code →</button>
+              <p className="cta-note">Free to start · No credit card · Set up in minutes</p>
             </div>
           </div>
-        </div>
-      </div>
-      <footer className="bg-gray-900 border-t border-white/10 py-8">
-        <div className="max-w-3xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 bg-white rounded-md flex items-center justify-center"><svg width="12" height="12" viewBox="0 0 28 28" fill="none"><path d="M8 10h8M8 14h12M8 18h6" stroke="#0F0F0F" strokeWidth="2" strokeLinecap="round"/></svg></div>
-            <span className="text-white text-sm font-semibold">Scholr</span>
-            <span className="text-gray-600 text-xs">© 2026</span>
+        </section>
+      </main>
+
+      {/* FOOTER */}
+      <footer className="foot">
+        <div className="wrap">
+          <div className="foot-grid">
+            <div>
+              <a className="brand" href="#top" onClick={goHome}><LandingLogo s={34} />Scholr</a>
+              <p className="tag">An AI tutor built from your professor's exact course materials. Cited, accurate, and grounded in your class.</p>
+            </div>
+            <div className="foot-col">
+              <h4>Explore</h4>
+              <a href="#how">How it works</a>
+              <a href="#features">Features</a>
+              <a href="#professors">For professors</a>
+              <a href="#students">For students</a>
+            </div>
+            <div className="foot-col">
+              <h4>Legal</h4>
+              <a href="#" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }}>Privacy</a>
+              <a href="#" onClick={(e) => { e.preventDefault(); navigate('/terms'); }}>Terms</a>
+            </div>
           </div>
-          <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap justify-center">
-            <span>FERPA aligned</span>
-            <span className="hidden sm:inline">·</span>
-            <span>Powered by Google Vertex AI</span>
-            <span className="hidden sm:inline">·</span>
-            <button onClick={() => navigate('/privacy')} className="hover:text-white transition-colors">Privacy</button>
-            <span className="hidden sm:inline">·</span>
-            <button onClick={() => navigate('/terms')} className="hover:text-white transition-colors">Terms</button>
+          <div className="foot-bottom">
+            <div>© 2026 Scholr, Inc. · Grounded in your course materials.</div>
+            <div className="social">
+              <a href="#" aria-label="X" onClick={(e) => e.preventDefault()}><Ic name="x-logo" s={19} /></a>
+              <a href="#" aria-label="LinkedIn" onClick={(e) => e.preventDefault()}><Ic name="linkedin" s={19} /></a>
+              <a href="#" aria-label="GitHub" onClick={(e) => e.preventDefault()}><Ic name="github" s={19} /></a>
+            </div>
           </div>
         </div>
       </footer>
