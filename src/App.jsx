@@ -2001,6 +2001,31 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
 
   const closeMobile = () => setMobileChatsOpen(false);
 
+  const isEmpty = !active || active.messages.length === 0;
+  // Shared composer — rendered centered with the greeting on an empty chat, or
+  // pinned to the bottom once the conversation has messages (ChatGPT/Claude style).
+  const inputBox = (
+    <div className="flex items-center bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2 focus-within:border-gray-400 focus-within:bg-white focus-within:shadow-sm transition-all gap-2">
+      <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Paperclip size={15} /></button>
+      <input
+        ref={inputRef}
+        id="chat-input"
+        name="chat-input"
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!isTyping) onSend(); } }}
+        className="flex-1 bg-transparent text-gray-800 text-sm outline-none placeholder-gray-400 py-1.5"
+        placeholder={isEmpty && questions.length ? questions[phIdx % questions.length] : (myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course...")}
+        autoComplete="off"
+      />
+      {isTyping ? (
+        <button onClick={onStop} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0"><Square size={11} fill="currentColor" /></button>
+      ) : (
+        <button onClick={() => onSend()} disabled={!input.trim()} className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${!input.trim() ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}><Send size={12} /></button>
+      )}
+    </div>
+  );
+
   return (
     <div className="flex h-[100dvh] w-screen overflow-hidden fixed inset-0 bg-white page-enter">
       <style>{FONT}</style>
@@ -2138,21 +2163,24 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         <div className="flex flex-1 overflow-hidden">
           {/* Chat messages */}
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto relative">
-              <div className="w-full max-w-4xl mx-auto px-4 md:px-6 py-6 flex flex-col gap-8 min-h-full">
-              {(!active || active.messages.length === 0) && (
-                <div className="flex flex-col items-center justify-center flex-1 pb-10 fade-up">
-                  {documents.length === 0 ? (
-                    <div className="text-center max-w-xs"><Clock size={20} className="text-gray-200 mx-auto mb-4" /><h3 className="text-gray-700 font-medium text-sm mb-1">Setting up your course</h3><p className="text-gray-400 text-xs">Your instructor is uploading materials.</p></div>
-                  ) : (
-                    <div className="text-center max-w-md w-full flex flex-col items-center">
-                      <Logo size={40} />
-                      <h2 className="serif text-3xl text-gray-900 mt-5 mb-2">{greeting}{firstName ? `, ${firstName}` : ''}</h2>
-                      <p className="text-gray-400 text-sm">Ask anything about {course.name} — every answer is grounded in your professor's materials.</p>
-                    </div>
-                  )}
-                </div>
-              )}
+            {isEmpty ? (
+              <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-4 py-6 fade-up">
+                {documents.length === 0 ? (
+                  <div className="text-center max-w-xs"><Clock size={20} className="text-gray-200 mx-auto mb-4" /><h3 className="text-gray-700 font-medium text-sm mb-1">Setting up your course</h3><p className="text-gray-400 text-xs">Your instructor is uploading materials.</p></div>
+                ) : (
+                  <div className="w-full max-w-2xl flex flex-col items-center">
+                    <Logo size={40} />
+                    <h2 className="serif text-3xl text-gray-900 mt-5 mb-2 text-center">{greeting}{firstName ? `, ${firstName}` : ''}</h2>
+                    <p className="text-gray-400 text-sm text-center mb-7">Ask anything about {course.name} — every answer is grounded in your professor's materials.</p>
+                    <div className="w-full">{inputBox}</div>
+                    <p className="text-center text-[10px] text-gray-300 mt-3">Grounded in your course materials · Vertex AI</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+              <div ref={scrollContainerRef} className="flex-1 overflow-y-auto relative">
+                <div className="w-full max-w-4xl mx-auto px-4 md:px-6 py-6 flex flex-col gap-8 min-h-full">
               {active?.messages.map((m, i) => {
                 const msgId = m.id || i;
                 const isError = m.isError || m.content?.startsWith('error:');
@@ -2211,31 +2239,11 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
               </div>
             )}
             <div className="px-4 md:px-8 py-3 md:py-4 bg-white border-t border-gray-100 flex-shrink-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
-              <div className="max-w-4xl mx-auto">
-                <div className="flex items-center bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2 focus-within:border-gray-400 focus-within:bg-white focus-within:shadow-sm transition-all gap-2">
-                  <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Paperclip size={15} /></button>
-                  <input
-                    ref={inputRef}
-                    id="chat-input"
-                    name="chat-input"
-                    value={input}
-                    onChange={e => setInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!isTyping) onSend(); } }}
-                    className="flex-1 bg-transparent text-gray-800 text-sm outline-none placeholder-gray-400 py-1.5"
-                    placeholder={(!active || active.messages.length === 0) && questions.length
-                      ? questions[phIdx % questions.length]
-                      : (myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course...")}
-                    autoComplete="off"
-                  />
-                  {isTyping ? (
-                    <button onClick={onStop} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0"><Square size={11} fill="currentColor" /></button>
-                  ) : (
-                    <button onClick={() => onSend()} disabled={!input.trim()} className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${!input.trim() ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}><Send size={12} /></button>
-                  )}
-                </div>
-              </div>
+              <div className="max-w-4xl mx-auto">{inputBox}</div>
               <p className="text-center text-[10px] text-gray-300 mt-2">Grounded in your course materials · Vertex AI</p>
             </div>
+            </>
+            )}
           </div>
 
           {/* ── Quiz panel — full-screen overlay on mobile, sidebar on desktop ── */}
