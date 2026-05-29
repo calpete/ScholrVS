@@ -996,6 +996,7 @@ function ProfessorDashboard({ token, user, onLogout }) {
 
 function CourseManager({ token, course, onBack, authHeaders }) {
   const [mods, setMods] = useState([]);
+  const [loadingMods, setLoadingMods] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadingFile, setUploadingFile] = useState(null);  // { name, sizeKb }
@@ -1011,10 +1012,12 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
   useEffect(() => {
+    setLoadingMods(true);
     fetch(`${API}/course/${course.id}/documents`, { headers: authHeaders })
       .then(r => r.json()).then(data => {
         setMods((Array.isArray(data) ? data : []).map(d => ({ id: d.name, name: d.name, sizeKb: d.sizeKb, uploaded: new Date(d.uploadedAt) })));
-      }).catch(() => showToast('Could not load documents', 'error'));
+      }).catch(() => showToast('Could not load documents', 'error'))
+      .finally(() => setLoadingMods(false));
   }, [course.id]);
 
   const handleFile = (file) => {
@@ -1150,7 +1153,17 @@ function CourseManager({ token, course, onBack, authHeaders }) {
               </div>
             )}
             <div className="flex-1 overflow-y-auto p-8">
-              {mods.length === 0 ? (
+              {loadingMods ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {[0,1,2].map(i => (
+                    <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">
+                      <div className="w-9 h-9 rounded-lg bg-gray-100 mb-3" />
+                      <div className="h-3 bg-gray-100 rounded w-3/4 mb-2" />
+                      <div className="h-3 bg-gray-50 rounded w-1/2" />
+                    </div>
+                  ))}
+                </div>
+              ) : mods.length === 0 ? (
                 <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
                   onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }} onClick={() => fileRef.current.click()}
                   className={`flex flex-col items-center justify-center text-center px-6 py-14 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${dragOver ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
