@@ -2038,19 +2038,12 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       {/* ── Left sidebar / mobile drawer ── */}
       <aside style={isDesktop ? { width: sidebarW } : undefined} className={`fixed md:relative inset-y-0 left-0 z-40 w-72 bg-[#F6F6F4] border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileChatsOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
         <ResizeHandle onMouseDown={startSidebarDrag} />
-        <div className="px-3 py-3 border-b border-gray-200">
+        <div className="px-4 py-4 border-b border-gray-200">
           <div className="flex md:hidden items-center justify-end mb-1.5">
             <button onClick={closeMobile} aria-label="Close menu" className="p-1 text-gray-400"><X size={16} /></button>
           </div>
-          <div className="flex items-center gap-3 bg-white rounded-2xl border border-gray-200 px-3 py-3 shadow-sm">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm" style={{ background: COURSE_PATTERN_BGS[(coverPatternId(course) ?? 0) % COURSE_PATTERN_BGS.length] }}>
-              <BookOpen size={18} className="text-white" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-gray-900 text-sm font-semibold truncate leading-tight">{course.name}</p>
-              <p className="text-gray-400 text-[11px] mt-0.5">{documents.length} doc{documents.length !== 1 ? 's' : ''} · {myNotes.length} note{myNotes.length !== 1 ? 's' : ''}</p>
-            </div>
-          </div>
+          <p className="text-gray-900 text-[15px] font-bold truncate leading-tight">{course.name}</p>
+          <p className="text-gray-400 text-[11px] mt-1">{documents.length} doc{documents.length !== 1 ? 's' : ''} · {myNotes.length} note{myNotes.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="px-3 pt-3">
           <button onClick={() => { createNewChat(); closeMobile(); }} className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-gray-700 text-[13px] font-medium hover:bg-gray-200/60 transition-colors"><Plus size={15} className="text-gray-500" />New chat</button>
