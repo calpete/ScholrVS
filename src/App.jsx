@@ -5,7 +5,7 @@ import {
   ChevronRight, Users, AlertCircle, UploadCloud, BarChart2, Clock,
   CheckCircle2, Copy, Check, ThumbsUp, ThumbsDown, X,
   Lock, WifiOff, Paperclip, Square, ArrowLeft, ExternalLink, Hash, Menu,
-  ListChecks, RotateCcw, Sparkles, ChevronLeft, MoreHorizontal, Pencil
+  ListChecks, RotateCcw, Sparkles, ChevronLeft, MoreHorizontal, Pencil, FolderOpen
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -1442,6 +1442,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const [sidebarW, startSidebarDrag] = useSidebarWidth('scholr_student_sidebar_w');
   const [recentsOpen, setRecentsOpen] = useState(true);   // collapse the recents list
   const [allChatsOpen, setAllChatsOpen] = useState(false); // full "Chats" page overlay
+  const [notesOpen, setNotesOpen] = useState(false);       // full "My Notes" page overlay
   const [chatMenuId, setChatMenuId] = useState(null);      // which chat's "..." menu is open
   const [renamingId, setRenamingId] = useState(null);      // which chat is being renamed
   const [renameVal, setRenameVal] = useState('');
@@ -2045,8 +2046,10 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           <p className="text-gray-900 text-[15px] font-bold truncate leading-tight">{course.name}</p>
           <p className="text-gray-400 text-[11px] mt-1">{documents.length} doc{documents.length !== 1 ? 's' : ''} · {myNotes.length} note{myNotes.length !== 1 ? 's' : ''}</p>
         </div>
-        <div className="px-3 pt-3">
+        <div className="px-3 pt-3 space-y-0.5">
           <button onClick={() => { createNewChat(); closeMobile(); }} className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-gray-700 text-[13px] font-medium hover:bg-gray-200/60 transition-colors"><Plus size={15} className="text-gray-500" />New chat</button>
+          <button onClick={() => { setNotesOpen(true); closeMobile(); }} className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-gray-700 text-[13px] font-medium hover:bg-gray-200/60 transition-colors"><FolderOpen size={15} className="text-gray-500" />My Notes{myNotes.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{myNotes.length}</span>}</button>
+          <input ref={paperclipRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e => { handlePaperclipFile(e.target.files[0]); e.target.value = ''; }} />
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           <div className="group/recents flex items-center justify-between px-2 mb-2">
@@ -2092,23 +2095,6 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           ))}
         </nav>
         {chatMenuId && <div className="fixed inset-0 z-40" onClick={() => setChatMenuId(null)} />}
-        <div className="px-3 py-3 border-t border-gray-100">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">My Notes</p>
-            <button onClick={() => paperclipRef.current?.click()} className="text-[10px] text-gray-500 hover:text-gray-800 font-medium flex items-center gap-1"><Plus size={10} />Add</button>
-          </div>
-          <input ref={paperclipRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e => { handlePaperclipFile(e.target.files[0]); e.target.value = ''; }} />
-          {notesLoading ? (
-            <div className="flex items-center justify-center py-3"><div className="w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" /></div>
-          ) : myNotes.length === 0 ? (
-            <button onClick={() => paperclipRef.current?.click()} className="w-full flex flex-col items-center py-3 rounded-lg border border-dashed border-gray-200 hover:border-gray-300 transition-colors cursor-pointer">
-              <UploadCloud size={13} className="text-gray-300 mb-1" /><p className="text-[10px] text-gray-400">Drop notes or photos</p>
-            </button>
-          ) : (
-            <div className="space-y-1">{myNotes.map((doc, i) => (<div key={i} className="group flex items-center gap-2 px-2.5 py-2 rounded-lg bg-gray-50 border border-gray-100"><FileText size={10} className="text-gray-400 flex-shrink-0" /><span className="text-[11px] text-gray-700 flex-1 truncate">{cleanFileName(doc.name)}</span><button onClick={() => deleteNote(doc.name)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all"><X size={9} /></button></div>))}</div>
-          )}
-          {myNotes.length > 0 && <p className="text-[10px] text-gray-400 mt-2">AI reads your notes + course materials</p>}
-        </div>
         <div className="p-4 border-t border-gray-200">
           <button onClick={onExit} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs"><LogOut size={11} />Back to courses</button>
         </div>
@@ -2136,6 +2122,44 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                     <button onClick={e => { e.stopPropagation(); deleteChat(c.id); }} className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-300 hover:text-red-400 transition-all"><Trash2 size={12} /></button>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+        {notesOpen && (
+          <div className="absolute inset-0 z-40 bg-[#F6F6F4] flex flex-col">
+            <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-gray-200/70 flex-shrink-0" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
+              <div className="min-w-0">
+                <h2 className="serif text-2xl text-gray-900">My Notes</h2>
+                <p className="text-[12px] text-gray-400 mt-0.5 truncate">Uploaded here, read alongside your course materials.</p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button onClick={() => paperclipRef.current?.click()} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors"><Plus size={12} />Add notes</button>
+                <button onClick={() => setNotesOpen(false)} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={16} /></button>
+              </div>
+            </header>
+            <div className="flex-1 overflow-y-auto">
+              <div className="max-w-3xl mx-auto w-full px-4 md:px-6 py-5">
+                <button onClick={() => paperclipRef.current?.click()} className="w-full flex flex-col items-center justify-center py-10 rounded-2xl border-2 border-dashed border-gray-200 hover:border-gray-300 bg-white/40 transition-colors cursor-pointer mb-5">
+                  <UploadCloud size={22} className="text-gray-300 mb-2" />
+                  <p className="text-sm text-gray-500 font-medium">Drop notes or photos</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">PDF, JPG or PNG · added to this course's AI context</p>
+                </button>
+                {notesLoading ? (
+                  <div className="flex items-center justify-center py-10"><div className="w-5 h-5 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" /></div>
+                ) : myNotes.length === 0 ? (
+                  <p className="text-gray-400 text-sm text-center py-10">No notes yet — upload your own to ground answers in them.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {myNotes.map((doc, i) => (
+                      <div key={i} className="group flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-200">
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"><FileText size={14} className="text-gray-500" /></div>
+                        <span className="text-sm text-gray-800 flex-1 truncate">{cleanFileName(doc.name)}</span>
+                        <button onClick={() => deleteNote(doc.name)} aria-label="Delete note" className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
