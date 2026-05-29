@@ -1697,7 +1697,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const DEFAULT_QUESTIONS = ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
   const questions = suggestedQuestions?.length ? suggestedQuestions : DEFAULT_QUESTIONS;
   // Personalized greeting for the new-chat empty state.
-  const firstName = (() => { try { return (JSON.parse(localStorage.getItem('scholr_student_user') || '{}').name || '').split(' ')[0]; } catch { return ''; } })();
+  const firstName = (() => { try { const n = (JSON.parse(localStorage.getItem('scholr_student_user') || '{}').name || '').split(' ')[0]; return n ? n.charAt(0).toUpperCase() + n.slice(1) : ''; } catch { return ''; } })();
   const greetHr = new Date().getHours();
   const greeting = greetHr < 12 ? 'Good morning' : greetHr < 17 ? 'Good afternoon' : 'Good evening';
   // Rotate the suggested questions through the input placeholder on an empty chat.
@@ -2005,8 +2005,8 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   // Shared composer — rendered centered with the greeting on an empty chat, or
   // pinned to the bottom once the conversation has messages (ChatGPT/Claude style).
   const inputBox = (
-    <div className="flex items-center bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2 focus-within:border-gray-400 focus-within:bg-white focus-within:shadow-sm transition-all gap-2">
-      <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Paperclip size={15} /></button>
+    <div className="flex items-center bg-white border border-black/[0.07] rounded-2xl px-4 py-2.5 shadow-[0_2px_16px_rgba(0,0,0,0.05)] focus-within:shadow-[0_4px_24px_rgba(0,0,0,0.08)] focus-within:border-black/10 transition-all gap-2">
+      <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Paperclip size={16} /></button>
       <input
         ref={inputRef}
         id="chat-input"
@@ -2014,7 +2014,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         value={input}
         onChange={e => setInput(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!isTyping) onSend(); } }}
-        className="flex-1 bg-transparent text-gray-800 text-sm outline-none placeholder-gray-400 py-1.5"
+        className="flex-1 bg-transparent text-gray-800 text-[15px] outline-none placeholder-gray-400 py-1.5"
         placeholder={isEmpty && questions.length ? questions[phIdx % questions.length] : (myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course...")}
         autoComplete="off"
       />
@@ -2164,16 +2164,17 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           {/* Chat messages */}
           <div className="flex-1 flex flex-col overflow-hidden min-w-0">
             {isEmpty ? (
-              <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-4 py-6 fade-up">
+              <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-4 py-6 fade-up bg-[#FAF9F5]">
                 {documents.length === 0 ? (
-                  <div className="text-center max-w-xs"><Clock size={20} className="text-gray-200 mx-auto mb-4" /><h3 className="text-gray-700 font-medium text-sm mb-1">Setting up your course</h3><p className="text-gray-400 text-xs">Your instructor is uploading materials.</p></div>
+                  <div className="text-center max-w-xs"><Clock size={20} className="text-gray-300 mx-auto mb-4" /><h3 className="text-gray-700 font-medium text-sm mb-1">Setting up your course</h3><p className="text-gray-400 text-xs">Your instructor is uploading materials.</p></div>
                 ) : (
                   <div className="w-full max-w-2xl flex flex-col items-center">
-                    <Logo size={40} />
-                    <h2 className="serif text-3xl text-gray-900 mt-5 mb-2 text-center">{greeting}{firstName ? `, ${firstName}` : ''}</h2>
-                    <p className="text-gray-400 text-sm text-center mb-7">Ask anything about {course.name} — every answer is grounded in your professor's materials.</p>
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm" style={{ background: '#C2683D' }}>
+                      <svg width="24" height="24" viewBox="0 0 28 28" fill="none"><path d="M8 10h8M8 14h12M8 18h6" stroke="white" strokeWidth="1.9" strokeLinecap="round" /></svg>
+                    </div>
+                    <h2 className="serif text-[34px] leading-tight text-[#2A2622] mt-6 mb-2.5 text-center tracking-tight">{greeting}{firstName ? `, ${firstName}` : ''}</h2>
+                    <p className="text-[15px] text-gray-500 text-center mb-8 max-w-md leading-relaxed">Ask anything about {course.name} — grounded in your professor's materials.</p>
                     <div className="w-full">{inputBox}</div>
-                    <p className="text-center text-[10px] text-gray-300 mt-3">Grounded in your course materials · Vertex AI</p>
                   </div>
                 )}
               </div>
