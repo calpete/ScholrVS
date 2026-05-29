@@ -693,7 +693,7 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
   const firstName = (user.name || user.email).split(' ')[0];
 
   return (
-    <div className="min-h-[100dvh] bg-[#F7F7F7] page-enter" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="min-h-[100dvh] bg-[#F6F6F4] page-enter" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <style>{FONT}</style>
       <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between gap-3">
         <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-2 md:gap-3 min-w-0 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={24} /><span className="text-gray-900 font-semibold text-sm">Scholr</span><span className="text-gray-300 hidden sm:inline">·</span><span className="text-gray-500 text-sm truncate hidden sm:inline">{user.name || user.email}</span></button>
@@ -882,7 +882,7 @@ function ProfessorDashboard({ token, user, onLogout }) {
   if (selectedCourse) return <CourseManager token={token} course={selectedCourse} onBack={() => setSelectedCourse(null)} authHeaders={authHeaders} />;
 
   return (
-    <div className="min-h-[100dvh] bg-[#F7F7F7] page-enter" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="min-h-[100dvh] bg-[#F6F6F4] page-enter" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <style>{FONT}</style>
       <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between gap-3">
         <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-2 md:gap-3 min-w-0 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={24} /><span className="text-gray-900 font-semibold text-sm">Scholr</span><span className="text-gray-300 hidden sm:inline">·</span><span className="text-gray-500 text-sm truncate hidden sm:inline">{user.name || user.email}</span></button>
@@ -1081,7 +1081,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   const closeMobileNav = () => setMobileNavOpen(false);
 
   return (
-    <div className="flex h-[100dvh] w-screen overflow-hidden bg-[#F7F7F7] fixed inset-0 page-enter">
+    <div className="flex h-[100dvh] w-screen overflow-hidden bg-[#F6F6F4] fixed inset-0 page-enter">
       <style>{FONT}</style>
       {/* Mobile top bar — hamburger + course name. Hidden on desktop. */}
       <div className="md:hidden fixed top-0 inset-x-0 z-20 bg-white border-b border-gray-200 flex items-center gap-3 px-4 h-14 pt-[env(safe-area-inset-top)]" style={{ height: 'calc(3.5rem + env(safe-area-inset-top))' }}>
@@ -1092,7 +1092,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
       </div>
       {/* Backdrop when mobile nav is open */}
       {mobileNavOpen && <div onClick={closeMobileNav} className="md:hidden fixed inset-0 bg-black/40 z-30" />}
-      <aside style={isDesktop ? { width: sidebarW } : undefined} className={`fixed md:relative inset-y-0 left-0 z-40 w-72 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
+      <aside style={isDesktop ? { width: sidebarW } : undefined} className={`fixed md:relative inset-y-0 left-0 z-40 w-72 bg-[#F6F6F4] border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
         <ResizeHandle onMouseDown={startSidebarDrag} />
         <div className="px-5 py-5 border-b border-gray-100">
           <div className="flex items-center justify-between mb-4">
@@ -1281,7 +1281,7 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
   useEffect(() => { if (insights?.totalQuestions > 0 && !summary) fetchSummary(); }, [insights?.totalQuestions]);
 
   if (loading) return (
-    <div className="flex-1 flex flex-col bg-[#F7F7F7]">
+    <div className="flex-1 flex flex-col bg-[#F6F6F4]">
       <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 md:py-5 flex-shrink-0">
         <Skeleton className="h-4 w-32 mb-2" />
         <Skeleton className="h-3 w-40" />
@@ -1303,7 +1303,7 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
   const isEmpty = !insights || insights.totalQuestions === 0;
   if (isEmpty) {
     return (
-      <div className="flex-1 flex flex-col bg-[#F7F7F7]">
+      <div className="flex-1 flex flex-col bg-[#F6F6F4]">
         <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 md:py-5 flex-shrink-0">
           <h2 className="text-gray-900 font-semibold text-sm">Student Insights</h2>
           <div className="flex items-center gap-2 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><p className="text-gray-400 text-xs">Live · updates every 10s</p></div>
@@ -1359,7 +1359,7 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
   const topTopic = d.topTopics?.[0]?.topic || '—';
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-[#F7F7F7]">
+    <div className="flex-1 flex flex-col overflow-hidden bg-[#F6F6F4]">
       <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 md:py-5 flex-shrink-0">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div><h2 className="text-gray-900 font-semibold text-sm">Student Insights</h2><div className="flex items-center gap-2 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><p className="text-gray-400 text-xs">Live · updates every 10s</p></div></div>
@@ -2027,14 +2027,14 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   );
 
   return (
-    <div className="flex h-[100dvh] w-screen overflow-hidden fixed inset-0 bg-white page-enter">
+    <div className="flex h-[100dvh] w-screen overflow-hidden fixed inset-0 bg-[#F6F6F4] page-enter">
       <style>{FONT}</style>
 
       {/* Backdrop on mobile when drawer is open */}
       {mobileChatsOpen && <div onClick={closeMobile} className="md:hidden fixed inset-0 bg-black/40 z-30" />}
 
       {/* ── Left sidebar / mobile drawer ── */}
-      <aside style={isDesktop ? { width: sidebarW } : undefined} className={`fixed md:relative inset-y-0 left-0 z-40 w-72 bg-[#F7F7F7] border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileChatsOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
+      <aside style={isDesktop ? { width: sidebarW } : undefined} className={`fixed md:relative inset-y-0 left-0 z-40 w-72 bg-[#F6F6F4] border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileChatsOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
         <ResizeHandle onMouseDown={startSidebarDrag} />
         <div className="px-4 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between mb-3">
@@ -2118,8 +2118,8 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       {/* ── Main chat ── */}
       <main className="flex-1 flex flex-col overflow-hidden min-w-0 relative" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         {allChatsOpen && (
-          <div className="absolute inset-0 z-40 bg-white flex flex-col">
-            <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-gray-100 flex-shrink-0" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
+          <div className="absolute inset-0 z-40 bg-[#F6F6F4] flex flex-col">
+            <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-gray-200/70 flex-shrink-0" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
               <h2 className="serif text-2xl text-gray-900">Chats</h2>
               <div className="flex items-center gap-2">
                 <button onClick={() => { createNewChat(); setAllChatsOpen(false); }} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors"><Plus size={12} />New chat</button>
@@ -2141,7 +2141,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             </div>
           </div>
         )}
-        <header className="bg-white border-b border-gray-100 flex items-center justify-between px-4 md:px-8 py-2 md:h-12 flex-shrink-0 gap-3">
+        <header className="bg-[#F6F6F4] border-b border-gray-200/70 flex items-center justify-between px-4 md:px-8 py-2 md:h-12 flex-shrink-0 gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <button onClick={() => setMobileChatsOpen(true)} aria-label="Open chats" className="md:hidden p-1 -ml-1 text-gray-600">
               <Menu size={20} />
@@ -2236,7 +2236,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                 </button>
               </div>
             )}
-            <div className="px-4 md:px-8 py-3 md:py-4 bg-white border-t border-gray-100 flex-shrink-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+            <div className="px-4 md:px-8 py-3 md:py-4 bg-[#F6F6F4] border-t border-gray-200/70 flex-shrink-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
               <div className="max-w-4xl mx-auto">{inputBox}</div>
               <p className="text-center text-[10px] text-gray-300 mt-2">Grounded in your course materials · Vertex AI</p>
             </div>
