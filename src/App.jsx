@@ -347,25 +347,33 @@ function SmartSignIn({ onPickStudent, onPickProfessor, onBack }) {
   return (
     <div className="scholr-auth choose">
       <style>{AUTH_CSS}</style>
-      <div className="choose-wrap">
-        <button type="button" className="auth-brand choose-brand" onClick={onBack} aria-label="Scholr home"><LandingLogo s={32} />Scholr</button>
-        <div className="choose-eyebrow"><span className="dash" /> Sign in <span className="dash" /></div>
-        <h1 className="choose-h">Welcome back.</h1>
-        <p className="choose-sub">Sign in to the portal you signed up for.</p>
-        <div className="choose-cards">
-          <button type="button" className="choose-card" onClick={onPickStudent}>
-            <span className="choose-ic"><BookOpen size={18} /></span>
-            <span className="choose-text"><b>I'm a student</b><span>Ask questions and get cited answers from your class.</span></span>
-            <Ic name="arrow-right" s={16} />
+      <button type="button" className="auth-brand" onClick={onBack} aria-label="Scholr home"><LandingLogo s={32} />Scholr</button>
+      <div className="ed-body">
+        <span className="ed-kicker">Sign in</span>
+        <h1 className="ed-h">Welcome<span className="ital"> back.</span></h1>
+        <p className="ed-lede">Pick the portal you signed up for — it'll only take a second.</p>
+        <div className="ed-rows">
+          <button type="button" className="ed-row" onClick={onPickStudent}>
+            <span className="ed-num">01</span>
+            <span className="ed-text">
+              <b>I'm a student</b>
+              <span>Ask anything about your class and get cited answers from your professor's materials.</span>
+            </span>
+            <Ic name="arrow-right" s={20} className="ed-arrow" />
           </button>
-          <button type="button" className="choose-card prof" onClick={onPickProfessor}>
-            <span className="choose-ic"><Lock size={17} /></span>
-            <span className="choose-text"><b>I'm a teacher</b><span>Manage your courses and see what your class is asking.</span></span>
-            <Ic name="arrow-right" s={16} />
+          <button type="button" className="ed-row" onClick={onPickProfessor}>
+            <span className="ed-num">02</span>
+            <span className="ed-text">
+              <b>I'm a teacher</b>
+              <span>Manage your courses and see exactly where your class is stuck.</span>
+            </span>
+            <Ic name="arrow-right" s={20} className="ed-arrow" />
           </button>
         </div>
-        <button type="button" className="choose-back" onClick={onBack}><ArrowLeft size={13} />Back</button>
-        <div className="theme-foot"><Lock size={12} /> FERPA aligned <span className="sep" /> Powered by Google Vertex AI</div>
+      </div>
+      <div className="ed-foot">
+        <button type="button" className="ed-back" onClick={onBack}><ArrowLeft size={13} />Back</button>
+        <span className="ed-tagline">Scholr · Built for academic integrity</span>
       </div>
     </div>
   );
@@ -514,6 +522,47 @@ const AUTH_CSS = `
 .scholr-auth.invite .invite-card.invite-err .invite-btn{max-width:260px;margin:0 auto;}
 .scholr-auth .choose-card{background:transparent;box-shadow:none;}
 .scholr-auth .choose-card:hover{background:var(--surface);border-color:var(--ink);box-shadow:0 8px 22px -14px rgba(21,22,27,.18);}
+/* ---- editorial layout: chooser, invite, not-found (full-viewport, left-aligned) ---- */
+.scholr-auth.choose, .scholr-auth.invite{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;padding:44px 52px;grid-template-columns:none;}
+.scholr-auth.choose .auth-brand, .scholr-auth.invite .auth-brand{margin:0;align-self:flex-start;}
+.scholr-auth .ed-body{flex:1;display:flex;flex-direction:column;justify-content:center;width:100%;max-width:760px;padding:36px 0;}
+.scholr-auth .ed-kicker{display:inline-flex;align-items:center;gap:14px;font-size:12.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:22px;}
+.scholr-auth .ed-kicker::before{content:"";display:inline-block;width:30px;height:1.5px;background:currentColor;opacity:.55;border-radius:2px;}
+.scholr-auth .ed-h{font-family:var(--font-display);font-weight:500;font-size:clamp(46px,7.5vw,108px);line-height:.98;letter-spacing:-.028em;color:var(--ink);margin-bottom:26px;}
+.scholr-auth .ed-h .ital{font-style:italic;}
+.scholr-auth .ed-lede{font-size:clamp(17px,1.5vw,20px);color:var(--muted);line-height:1.5;max-width:560px;margin-bottom:38px;}
+.scholr-auth .ed-meta{display:flex;align-items:center;gap:14px;font-size:13.5px;color:var(--muted-2);letter-spacing:.12em;text-transform:uppercase;font-weight:600;margin-bottom:32px;flex-wrap:wrap;}
+.scholr-auth .ed-code{display:inline-block;padding:6px 13px;border-radius:8px;background:var(--bg-2);border:1px solid var(--line);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;font-weight:600;color:var(--ink-2);letter-spacing:.08em;text-transform:none;}
+.scholr-auth .ed-actions{display:flex;align-items:center;gap:22px;flex-wrap:wrap;}
+.scholr-auth .ed-btn{display:inline-flex;align-items:center;gap:10px;padding:15px 26px;border-radius:999px;border:none;background:var(--ink);color:#fff;font-family:var(--font-body);font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 1px 2px rgba(21,22,27,.3);transition:background .2s,transform .15s,box-shadow .2s;}
+.scholr-auth .ed-btn:hover:not(:disabled){background:#000;transform:translateY(-1px);box-shadow:0 8px 22px -10px rgba(21,22,27,.5);}
+.scholr-auth .ed-btn:disabled{opacity:.5;cursor:default;}
+.scholr-auth .ed-btn svg{width:16px;height:16px;transition:transform .2s ease;}
+.scholr-auth .ed-btn:hover:not(:disabled) svg{transform:translateX(3px);}
+.scholr-auth .ed-alt{background:none;border:none;font-family:var(--font-body);font-size:14px;color:var(--muted);cursor:pointer;}
+.scholr-auth .ed-alt b{font-weight:700;color:var(--ink);}
+.scholr-auth .ed-alt:hover{color:var(--ink);}
+.scholr-auth .ed-rows{display:flex;flex-direction:column;border-top:1px solid var(--line);margin-top:6px;}
+.scholr-auth .ed-row{display:flex;align-items:center;gap:24px;padding:24px 0;border:none;border-bottom:1px solid var(--line);background:none;cursor:pointer;font-family:var(--font-body);color:var(--ink);text-align:left;width:100%;transition:padding-left .25s ease;}
+.scholr-auth .ed-row:hover{padding-left:14px;}
+.scholr-auth .ed-row .ed-num{font-family:var(--font-display);font-style:italic;font-weight:500;font-size:22px;color:var(--muted-2);width:42px;flex:none;}
+.scholr-auth .ed-row .ed-text{flex:1;display:flex;flex-direction:column;gap:6px;}
+.scholr-auth .ed-row .ed-text b{display:block;font-family:var(--font-display);font-weight:500;font-size:clamp(24px,2.4vw,32px);letter-spacing:-.02em;color:var(--ink);}
+.scholr-auth .ed-row .ed-text span{font-size:14.5px;color:var(--muted);line-height:1.5;}
+.scholr-auth .ed-row .ed-arrow{flex:none;color:var(--muted-2);transition:transform .25s ease,color .15s ease;width:22px;height:22px;}
+.scholr-auth .ed-row:hover .ed-arrow{color:var(--ink);transform:translateX(6px);}
+.scholr-auth .ed-foot{padding-top:32px;display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:12px;color:var(--muted-2);}
+.scholr-auth .ed-back{display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:var(--muted);cursor:pointer;font-family:var(--font-body);font-size:13px;}
+.scholr-auth .ed-back:hover{color:var(--ink);}
+.scholr-auth .ed-tagline{letter-spacing:.12em;text-transform:uppercase;font-weight:600;}
+@media (max-width:760px){
+.scholr-auth.choose, .scholr-auth.invite{padding:28px 22px;}
+.scholr-auth .ed-h{font-size:clamp(38px,11vw,72px);}
+.scholr-auth .ed-row{padding:20px 0;gap:16px;}
+.scholr-auth .ed-row .ed-num{width:28px;font-size:18px;}
+.scholr-auth .ed-row .ed-text b{font-size:22px;}
+.scholr-auth .ed-foot{flex-direction:column;align-items:flex-start;gap:12px;}
+}
 `;
 
 // Full-page split shell shared by all four auth screens. Left = branded
@@ -3648,33 +3697,38 @@ function JoinCoursePage({ studentToken, studentUser, onStudentLogin, onEnterCour
   return (
     <div className="scholr-auth invite">
       <style>{AUTH_CSS}</style>
-      <div className="invite-wrap">
-        <button type="button" className="auth-brand invite-brand" onClick={() => navigate('/')} aria-label="Scholr home"><LandingLogo s={32} />Scholr</button>
+      <button type="button" className="auth-brand" onClick={() => navigate('/')} aria-label="Scholr home"><LandingLogo s={32} />Scholr</button>
+      <div className="ed-body">
         {error ? (
-          <div className="invite-card invite-err">
-            <h1>Course not found</h1>
-            <p>This course may no longer be available. Contact your professor for a new link.</p>
-            <button type="button" className="invite-btn" onClick={() => navigate('/')}>Back to Scholr</button>
-          </div>
+          <>
+            <span className="ed-kicker">404 · Class not found</span>
+            <h1 className="ed-h">This class isn't<span className="ital"> here anymore.</span></h1>
+            <p className="ed-lede">Your invite link may have been replaced or the class is no longer active. Ask your professor for a new link and they'll send you one.</p>
+            <div className="ed-actions">
+              <button type="button" className="ed-btn" onClick={() => navigate('/')}>Back to Scholr <Ic name="arrow-right" s={16} /></button>
+            </div>
+          </>
         ) : (
           <>
-            <div className="invite-card">
-              <div className="invite-ic"><BookOpen size={20} /></div>
-              <p className="invite-eyebrow">You've been invited to join</p>
-              <h1 className="invite-course">{course?.name}</h1>
-              <div className="invite-code">{code}</div>
-              <button type="button" className="invite-btn" onClick={handleJoinNow} disabled={joining}>
-                {joining ? 'Joining…' : studentToken ? <>Join class now <Ic name="arrow-right" s={16} /></> : <>Sign up to join class <Ic name="arrow-right" s={16} /></>}
+            <span className="ed-kicker">You've been invited to —</span>
+            <h1 className="ed-h">{course?.name}<span className="ital">.</span></h1>
+            <div className="ed-meta">Class code <span className="ed-code">{code}</span></div>
+            <div className="ed-actions">
+              <button type="button" className="ed-btn" onClick={handleJoinNow} disabled={joining}>
+                {joining ? 'Joining…' : (studentToken ? 'Join class now' : 'Sign up to join class')} <Ic name="arrow-right" s={16} />
               </button>
               {!studentToken && (
-                <button type="button" className="invite-alt" onClick={() => { sessionStorage.setItem('scholr_pending_join', code); navigate('/student/login'); }}>
+                <button type="button" className="ed-alt" onClick={() => { sessionStorage.setItem('scholr_pending_join', code); navigate('/student/login'); }}>
                   Already have an account? <b>Sign in</b>
                 </button>
               )}
             </div>
-            <div className="theme-foot"><Lock size={12} /> FERPA aligned <span className="sep" /> Powered by Google Vertex AI</div>
           </>
         )}
+      </div>
+      <div className="ed-foot">
+        <span />
+        <span className="ed-tagline">Scholr · Built for academic integrity</span>
       </div>
     </div>
   );
