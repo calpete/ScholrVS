@@ -3743,10 +3743,25 @@ export default function App() {
     try {
       const pt = localStorage.getItem('scholr_token');
       const pu = localStorage.getItem('scholr_user');
-      if (pt && pu) return { screen: 'prof-dashboard', profToken: pt, profUser: JSON.parse(pu), studentToken: null, studentUser: null };
       const st = localStorage.getItem('scholr_student_token');
       const su = localStorage.getItem('scholr_student_user');
-      if (st && su) return { screen: 'student-dashboard', profToken: null, profUser: null, studentToken: st, studentUser: JSON.parse(su) };
+      const profToken = (pt && pu) ? pt : null;
+      const profUser = (pt && pu) ? JSON.parse(pu) : null;
+      const studentToken = (st && su) ? st : null;
+      const studentUser = (st && su) ? JSON.parse(su) : null;
+      // Restore the screen the user was on (refresh stays put), but sanity-
+      // check against their current auth state — a logged-out user can't be
+      // restored to a dashboard. student-chat is intentionally NOT restored
+      // because its course context lives in memory; fall back to dashboard.
+      const persisted = localStorage.getItem('scholr_screen');
+      const publicOk = new Set(['landing', 'smart-signin', 'prof-login', 'prof-signup', 'student-login', 'student-signup']);
+      const profOk = new Set(['prof-dashboard']);
+      const studentOk = new Set(['student-dashboard']);
+      let screen;
+      if (profToken) screen = (persisted && profOk.has(persisted)) ? persisted : 'prof-dashboard';
+      else if (studentToken) screen = (persisted && studentOk.has(persisted)) ? persisted : 'student-dashboard';
+      else screen = (persisted && publicOk.has(persisted)) ? persisted : 'landing';
+      return { screen, profToken, profUser, studentToken, studentUser };
     } catch {}
     return { screen: 'landing', profToken: null, profUser: null, studentToken: null, studentUser: null };
   })();
@@ -3760,6 +3775,9 @@ export default function App() {
   const [studentQuestions, setStudentQuestions] = useState([]);
   const [pendingJoinCode, setPendingJoinCode] = useState(null);
   const [globalToast, setGlobalToast] = useState(null);
+
+  // Persist the current screen so refreshing keeps the user where they were.
+  useEffect(() => { try { localStorage.setItem('scholr_screen', screen); } catch {} }, [screen]);
 
   useEffect(() => {
     const hash = window.location.hash;
