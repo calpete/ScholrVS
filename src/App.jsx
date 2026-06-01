@@ -2128,9 +2128,11 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
 
   const DEFAULT_QUESTIONS = ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
   const questions = suggestedQuestions?.length ? suggestedQuestions : DEFAULT_QUESTIONS;
-  // Just two rotating placeholders, alternating: one shows the slash discovery
-  // hint, the other shows the original ask-prompt. Keeps the input clean.
-  const placeholders = ['Type / for commands', 'Ask about your course...'];
+  // Empty (new-chat) hero composer rotates the AI-suggested questions plus a
+  // slash-hint so students discover both. Once the chat has messages and the
+  // composer pins to the bottom, we cycle just the two minimal prompts.
+  const emptyPlaceholders = [...questions, 'Type / for commands'];
+  const pinnedPlaceholders = ['Ask about your course...', 'Type / for commands'];
   // Filter slash commands by what the user has typed after the leading slash.
   // The popover is only relevant when (a) no command is already picked and
   // (b) the input starts with a single slash (no spaces yet — once they hit
@@ -2531,7 +2533,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!isTyping) onSend(); }
             }}
             className="flex-1 bg-transparent text-gray-800 text-base outline-none placeholder-gray-400 px-1"
-            placeholder={isEmpty && placeholders.length ? placeholders[phIdx % placeholders.length] : (slashCmd ? '…what about?' : (myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course..."))}
+            placeholder={slashCmd ? '…what about?' : (isEmpty ? emptyPlaceholders[phIdx % emptyPlaceholders.length] : pinnedPlaceholders[phIdx % pinnedPlaceholders.length])}
             autoComplete="off"
           />
         </div>
