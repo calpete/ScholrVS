@@ -3840,7 +3840,12 @@ export default function App() {
   // Landing "Enter your join code": capture the code BEFORE login so the student
   // is auto-enrolled right after signing in (StudentDashboard reads this on mount).
   const handleJoinCodeEntry = (code) => { const c = (code || '').trim().toUpperCase(); if (!c) return; sessionStorage.setItem('scholr_pending_join', c); setPendingJoinCode(c); setScreen('student-login'); navigate('/student/login'); };
-  const handleStudentLogout = () => { localStorage.removeItem('scholr_student_token'); localStorage.removeItem('scholr_student_user'); setStudentToken(null); setStudentUser(null); setScreen('landing'); };
+  // Important: navigate('/') here too. Without it, signing out from the
+  // student dashboard leaves the URL at /student and lands you on a landing
+  // page that's stuck on that route — its setScreen-only callbacks (Sign in,
+  // Start a course free) silently no-op because /student only re-renders
+  // when studentToken changes, not when screen does.
+  const handleStudentLogout = () => { localStorage.removeItem('scholr_student_token'); localStorage.removeItem('scholr_student_user'); setStudentToken(null); setStudentUser(null); setScreen('landing'); navigate('/'); };
   const handleEnterCourse = (course, docs, questions) => { setStudentCourse(course); setStudentDocs(docs); setStudentQuestions(questions); setScreen('student-chat'); };
 
   const renderScreen = () => {
@@ -3871,7 +3876,7 @@ export default function App() {
             ? (screen === 'student-chat' && studentCourse
                 ? <StudentView course={studentCourse} documents={studentDocs} suggestedQuestions={studentQuestions} onExit={() => setScreen('student-dashboard')} studentToken={studentToken} />
                 : <StudentDashboard token={studentToken} user={studentUser} onEnterCourse={handleEnterCourse} onLogout={handleStudentLogout} />)
-            : <LandingPage onStudent={() => navigate('/student/login')} onInstructor={() => setScreen('prof-signup')} onSignIn={() => setScreen('smart-signin')} onJoinCode={handleJoinCodeEntry} />
+            : <LandingPage onStudent={() => navigate('/student/login')} onInstructor={() => { navigate('/'); setScreen('prof-signup'); }} onSignIn={() => { navigate('/'); setScreen('smart-signin'); }} onJoinCode={handleJoinCodeEntry} />
         } />
         <Route path="/*" element={renderScreen()} />
       </Routes>
