@@ -48,6 +48,18 @@ const FONT = `
   .sr-d3 { transition-delay:0.3s; }
   .sr-d4 { transition-delay:0.4s; }
   .sr-d5 { transition-delay:0.5s; }
+  /* ---- slash command popover + chip ---- */
+  .cmd-chip { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #2A4D8F; font-weight: 600; font-size: 15px; padding-right: 4px; white-space: nowrap; flex: none; }
+  .cmd-popover { position: absolute; left: 0; right: 0; bottom: 100%; margin-bottom: 10px; background: #fff; border: 1px solid #E7E4DD; border-radius: 18px; box-shadow: 0 24px 60px -28px rgba(21,22,27,.28), 0 8px 22px -14px rgba(21,22,27,.10); padding: 8px 0; overflow: hidden; z-index: 30; animation: fadeUp 0.18s ease forwards; }
+  .cmd-group { padding: 12px 22px 6px; font-size: 10.5px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: #9A9CA3; display: flex; align-items: center; gap: 10px; border-top: 1px solid #EEEBE4; margin-top: 4px; }
+  .cmd-group.first { border-top: none; margin-top: 0; padding-top: 10px; }
+  .cmd-group .dash { display: inline-block; width: 22px; height: 1.5px; background: currentColor; opacity: .55; border-radius: 2px; }
+  .cmd-row { display: flex; align-items: center; gap: 18px; padding: 11px 22px; cursor: pointer; transition: background .15s; border-left: 2px solid transparent; }
+  .cmd-row:hover { background: rgba(21,22,27,.025); }
+  .cmd-row.selected { border-left-color: #15161B; background: rgba(21,22,27,.045); padding-left: 20px; }
+  .cmd-row .cname { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; font-weight: 600; color: #2A4D8F; min-width: 92px; flex: none; }
+  .cmd-row .cdesc { font-family: 'Newsreader', Georgia, serif; font-style: italic; font-size: 15px; color: #6B6E76; }
+  .cmd-foot { border-top: 1px solid #EEEBE4; margin-top: 4px; padding: 9px 22px; font-size: 11px; color: #9A9CA3; display: flex; align-items: center; justify-content: space-between; letter-spacing: .04em; }
 `;
 
 function formatTime(date) { return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
@@ -1761,12 +1773,33 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
 }
 
 // ── StudentView — all three bugs fixed ────────────────────────────────────────
+// Slash commands available in the student chat composer. Each command has a
+// short label, a description shown in the popover (italic serif), and an
+// `expand` function that turns the command + the user's free-typed
+// continuation into the message that actually gets sent to the AI. The AI
+// already grounds answers in the course materials, so these are just
+// prompt-engineered intents — the model handles the rest.
+const SLASH_COMMANDS = [
+  { name: 'quiz',    group: 'Smart',    desc: 'Quiz me on what we just discussed',     expand: (t) => `Make me a 5-question quiz${t.trim() ? ` on ${t.trim()}` : ' on what we just covered'}.` },
+  { name: 'cards',   group: 'Smart',    desc: 'Turn this answer into flashcards',      expand: (t) => `Generate a deck of flashcards${t.trim() ? ` on ${t.trim()}` : ' from your last answer'}. Each card: term on the front, concise definition on the back, with a one-line source citation.` },
+  { name: 'exam',    group: 'Practice', desc: 'Simulate a closed-book midterm',        expand: (t) => `Simulate a closed-book midterm exam${t.trim() ? ` covering ${t.trim()}` : ''}. 5 questions, mixed types (multiple choice + short answer), grounded in the course materials.` },
+  { name: 'oral',    group: 'Practice', desc: 'Socratic mode — I keep asking',         expand: (t) => `Switch to Socratic mode${t.trim() ? ` on ${t.trim()}` : ''}: ask me one question at a time and follow up based on my answers. Start with your first question now.` },
+  { name: 'eli5',    group: 'Explain',  desc: 'Explain it like I missed last week',    expand: (t) => `Explain ${t.trim() || 'the topic we just discussed'} as if I missed last week of class — simple language, no jargon, include a quick analogy at the end.` },
+  { name: 'example', group: 'Explain',  desc: 'Show me a worked example with numbers', expand: (t) => `Show me a worked example with concrete numbers${t.trim() ? ` for ${t.trim()}` : ' for what we just covered'} — walk through every step.` },
+];
+
 function StudentView({ course, documents: initialDocuments, suggestedQuestions: initialSuggestedQuestions, onExit, studentToken }) {
   const [documents, setDocuments] = useState(initialDocuments || []);
   const [suggestedQuestions, setSuggestedQuestions] = useState(initialSuggestedQuestions || []);
   const [chats, setChats] = useState([]);
   const [chatId, setChatId] = useState(null);
   const [input, setInput] = useState('');
+  // Slash-command state. `slashCmd` is the active command's name (e.g. 'quiz')
+  // — when set, a small colored chip renders before the input and the user's
+  // typing becomes the command's argument. The popover only shows when the
+  // user is mid-typing a slash (no command picked yet).
+  const [slashCmd, setSlashCmd] = useState(null);
+  const [slashIdx, setSlashIdx] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
   const [feedback, setFeedback] = useState({});
@@ -2034,6 +2067,22 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
 
   const DEFAULT_QUESTIONS = ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
   const questions = suggestedQuestions?.length ? suggestedQuestions : DEFAULT_QUESTIONS;
+  // Mix slash-command hints into the rotating placeholder so people discover them.
+  const placeholders = [...questions, 'Type / for quick commands', '/quiz me on this week\'s lecture', '/cards from Chapter 4'];
+  // Filter slash commands by what the user has typed after the leading slash.
+  // The popover is only relevant when (a) no command is already picked and
+  // (b) the input starts with a single slash (no spaces yet — once they hit
+  // space we treat the input as free text).
+  const slashFilter = !slashCmd && input.startsWith('/') && !input.includes(' ') ? input.slice(1).toLowerCase() : null;
+  const filteredCmds = slashFilter !== null ? SLASH_COMMANDS.filter(c => c.name.toLowerCase().startsWith(slashFilter)) : [];
+  const showSlashPopover = filteredCmds.length > 0;
+  useEffect(() => { setSlashIdx(0); }, [slashFilter]);
+  const pickSlashCommand = (cmd) => {
+    setSlashCmd(cmd.name);
+    setInput('');
+    setSlashIdx(0);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
   // Personalized greeting for the new-chat empty state.
   const firstName = (() => { try { const n = (JSON.parse(localStorage.getItem('scholr_student_user') || '{}').name || '').split(' ')[0]; return n ? n.charAt(0).toUpperCase() + n.slice(1) : ''; } catch { return ''; } })();
   const greetHr = new Date().getHours();
@@ -2041,10 +2090,11 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   // Rotate the suggested questions through the input placeholder on an empty chat.
   const [phIdx, setPhIdx] = useState(0);
   useEffect(() => {
-    if (!questions.length) return;
-    const id = setInterval(() => setPhIdx(i => (i + 1) % questions.length), 3200);
+    // Bare increment; the placeholder picker mods by placeholders.length at
+    // render time so slash hints get their turn in the rotation too.
+    const id = setInterval(() => setPhIdx(i => i + 1), 3200);
     return () => clearInterval(id);
-  }, [questions.length]);
+  }, []);
   const active = chats.find(c => c.id === chatId) || chats[0];
   // Smart autoscroll: only scroll to bottom if the user is already within
   // 150px of the bottom. If they've scrolled up to re-read something, leave
@@ -2175,8 +2225,12 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   };
 
   const onSend = async (messageOverride) => {
-    const message = messageOverride || input;
+    // If a slash command is active, expand the user's free-typed continuation
+    // through the command's template and clear the chip. Otherwise send as-is.
+    const activeCmd = !messageOverride && slashCmd ? SLASH_COMMANDS.find(c => c.name === slashCmd) : null;
+    const message = messageOverride || (activeCmd ? activeCmd.expand(input) : input);
     if (!message.trim() || isTyping) return;
+    if (activeCmd) setSlashCmd(null);
 
     // Quiz shortcut
     if (isFullQuizRequest(message)) {
@@ -2348,25 +2402,60 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   // Shared composer — rendered centered with the greeting on an empty chat, or
   // pinned to the bottom once the conversation has messages (ChatGPT/Claude style).
   const inputBox = (
-    <div className="bg-white border border-gray-200 rounded-[26px] px-4 pt-4 pb-2.5 focus-within:border-gray-300 shadow-sm transition-colors">
-      <input
-        ref={inputRef}
-        id="chat-input"
-        name="chat-input"
-        value={input}
-        onChange={e => setInput(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!isTyping) onSend(); } }}
-        className="w-full bg-transparent text-gray-800 text-base outline-none placeholder-gray-400 px-1"
-        placeholder={isEmpty && questions.length ? questions[phIdx % questions.length] : (myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course...")}
-        autoComplete="off"
-      />
-      <div className="flex items-center justify-between mt-6">
-        <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Plus size={20} /></button>
-        {isTyping ? (
-          <button onClick={onStop} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0"><Square size={11} fill="currentColor" /></button>
-        ) : input.trim() ? (
-          <button onClick={() => onSend()} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0 fade-up"><Send size={12} /></button>
-        ) : null}
+    <div style={{ position: 'relative' }}>
+      {showSlashPopover && (
+        <div className="cmd-popover">
+          {filteredCmds.map((c, i) => {
+            const prev = filteredCmds[i - 1];
+            const showGroupHeader = !prev || prev.group !== c.group;
+            return (
+              <React.Fragment key={c.name}>
+                {showGroupHeader && (
+                  <div className={`cmd-group${i === 0 ? ' first' : ''}`}><span className="dash" />{c.group}</div>
+                )}
+                <div className={`cmd-row${i === slashIdx ? ' selected' : ''}`} onMouseEnter={() => setSlashIdx(i)} onMouseDown={(e) => { e.preventDefault(); pickSlashCommand(c); }}>
+                  <span className="cname">/{c.name}</span>
+                  <span className="cdesc">{c.desc}</span>
+                </div>
+              </React.Fragment>
+            );
+          })}
+          <div className="cmd-foot"><span>↑↓ navigate · ↵ select · esc dismiss</span><span style={{ opacity: 0.7 }}>{filteredCmds.length} {filteredCmds.length === 1 ? 'command' : 'commands'}</span></div>
+        </div>
+      )}
+      <div className="bg-white border border-gray-200 rounded-[26px] px-4 pt-4 pb-2.5 focus-within:border-gray-300 shadow-sm transition-colors">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {slashCmd && <span className="cmd-chip">/{slashCmd}</span>}
+          <input
+            ref={inputRef}
+            id="chat-input"
+            name="chat-input"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => {
+              if (showSlashPopover) {
+                if (e.key === 'ArrowDown') { e.preventDefault(); setSlashIdx(i => Math.min(i + 1, filteredCmds.length - 1)); return; }
+                if (e.key === 'ArrowUp')   { e.preventDefault(); setSlashIdx(i => Math.max(i - 1, 0)); return; }
+                if (e.key === 'Enter')     { e.preventDefault(); pickSlashCommand(filteredCmds[slashIdx]); return; }
+                if (e.key === 'Escape')    { e.preventDefault(); setInput(''); return; }
+                if (e.key === 'Tab')       { e.preventDefault(); pickSlashCommand(filteredCmds[slashIdx]); return; }
+              }
+              if (e.key === 'Backspace' && input === '' && slashCmd) { e.preventDefault(); setSlashCmd(null); return; }
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!isTyping) onSend(); }
+            }}
+            className="flex-1 bg-transparent text-gray-800 text-base outline-none placeholder-gray-400 px-1"
+            placeholder={isEmpty && placeholders.length ? placeholders[phIdx % placeholders.length] : (slashCmd ? '…what about?' : (myNotes.length > 0 ? "Ask about your course + notes..." : "Ask about your course..."))}
+            autoComplete="off"
+          />
+        </div>
+        <div className="flex items-center justify-between mt-6">
+          <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Plus size={20} /></button>
+          {isTyping ? (
+            <button onClick={onStop} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0"><Square size={11} fill="currentColor" /></button>
+          ) : (input.trim() || slashCmd) ? (
+            <button onClick={() => onSend()} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0 fade-up"><Send size={12} /></button>
+          ) : null}
+        </div>
       </div>
     </div>
   );
