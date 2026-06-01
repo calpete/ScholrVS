@@ -505,7 +505,15 @@ const AUTH_CSS = `
 .scholr-auth .invite-err{text-align:center;width:100%;}
 .scholr-auth .invite-err h1{font-family:var(--font-display);font-weight:500;font-size:30px;letter-spacing:-.02em;color:var(--ink);margin-bottom:10px;}
 .scholr-auth .invite-err p{font-size:15px;color:var(--muted);margin-bottom:20px;}
-@media (max-width:480px){.scholr-auth .invite-card{padding:30px 24px;}.scholr-auth .invite-course{font-size:28px;}}
+@media (max-width:480px){.scholr-auth .invite-course{font-size:28px;}}
+/* ---- flat (cardless) chooser + invite so the page matches the landing hero ---- */
+.scholr-auth.invite .invite-card{background:transparent;border:none;box-shadow:none;padding:0;margin-top:36px;text-align:center;}
+.scholr-auth.invite .invite-ic{margin:0 auto 24px;}
+.scholr-auth.invite .invite-card .invite-btn{max-width:320px;margin:8px auto 0;}
+.scholr-auth.invite .invite-card.invite-err{text-align:center;}
+.scholr-auth.invite .invite-card.invite-err .invite-btn{max-width:260px;margin:0 auto;}
+.scholr-auth .choose-card{background:transparent;box-shadow:none;}
+.scholr-auth .choose-card:hover{background:var(--surface);border-color:var(--ink);box-shadow:0 8px 22px -14px rgba(21,22,27,.18);}
 `;
 
 // Full-page split shell shared by all four auth screens. Left = branded
