@@ -1798,9 +1798,6 @@ const SLASH_COMMANDS = [
   { name: 'quiz',    group: 'Smart',    desc: 'Quick 5-question check',                expand: (t) => `Quiz ${t.trim() || 'me on what we just covered'}. 5 questions, mixed types (multiple choice + short answer), grounded in the course materials. Wait for my answer before revealing each correct response.` },
   { name: 'cards',   group: 'Smart',    desc: 'Build a flashcard deck',                expand: (t) => `Make me a deck of flashcards ${t.trim() || 'from your last answer'}. Format the response EXACTLY as a markdown list, one card per block, separated by horizontal rules. Each card:\n\n**1. FRONT:** [a term, question, or prompt]\n**BACK:** [the concise definition or answer]\n*From — [one-line source citation: lecture/slide/page]*\n\n---\n\nAim for 8–12 cards. Cover the most exam-worthy concepts. Keep each side under two sentences.` },
   { name: 'test',    group: 'Smart',    desc: 'Closed-book practice test',             expand: (t) => `Generate a closed-book practice test ${t.trim() || 'covering everything we have studied so far'}. 8 questions, mixed difficulty, grounded in the course materials. Do not reveal any answers — I'll review the whole test at the end.` },
-  { name: 'oral',    group: 'Practice', desc: 'Socratic mode — I keep asking',         expand: (t) => `Adopt Socratic teaching mode${t.trim() ? `: ${t.trim()}` : ''}. Ask me one question at a time and follow up based on my answers. Start with your first question right now — no preamble.` },
-  { name: 'eli5',    group: 'Explain',  desc: 'Explain it like I missed last week',    expand: (t) => `Explain ${t.trim() || 'what we just covered'} as if I missed last week of class. Simple language, no jargon, include a quick analogy at the end.` },
-  { name: 'example', group: 'Explain',  desc: 'Show me a worked example with numbers', expand: (t) => `Show me a worked example ${t.trim() || 'for what we just covered'} — concrete numbers, step by step.` },
 ];
 
 function StudentView({ course, documents: initialDocuments, suggestedQuestions: initialSuggestedQuestions, onExit, studentToken }) {
@@ -1893,8 +1890,15 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const bottomRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const inputRef = useRef(null);
-  const paperclipRef = useRef(null);
+  // Two separate file inputs so the composer paperclip and the My Notes
+  // overlay don't share behavior. notesUploadRef goes through the persistent
+  // /student/notes upload; chatAttachRef stays local + one-shot.
+  const notesUploadRef = useRef(null);
+  const chatAttachRef = useRef(null);
   const abortRef = useRef(null);
+  // Ephemeral attachment for the current composer state. Sent with the next
+  // message and cleared — never persisted to My Notes.
+  const [chatAttachment, setChatAttachment] = useState(null); // { name, mimeType, buffer, dataUrl }
   const [showNewMessageIndicator, setShowNewMessageIndicator] = useState(false);
 
   const authHeaders = { Authorization: `Bearer ${studentToken}` };
@@ -2512,6 +2516,9 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     }
   };
 
+  // Persistent upload — only fires from the My Notes overlay dropzone now.
+  // Stores the file in the course's My Notes folder + adds the buffer to the
+  // pinned notes context that the chat backend sees on every message.
   const handlePaperclipFile = async (file) => {
     if (!file) return;
     setUploadingNote(file.name);
@@ -2533,6 +2540,27 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         setUploadingNote(null);
       }
     } catch { setUploadingNote(null); }
+  };
+
+  // Ephemeral attach — the composer paperclip. Reads the file locally,
+  // shows a chip above the input, and rides on the next message. Never
+  // uploaded to the My Notes folder. Cleared after send.
+  const handleComposerAttach = (file) => {
+    if (!file) return;
+    const ext = file.name.toLowerCase().split('.').pop();
+    const mimeMap = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+    const mimeType = mimeMap[ext] || file.type || 'application/octet-stream';
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setChatAttachment({ name: file.name, mimeType, buffer: e.target.result, dataUrl: null });
+      // Also pre-build a data URL for image previews in the user bubble.
+      if (mimeType.startsWith('image/')) {
+        const r2 = new FileReader();
+        r2.onload = (ev) => setChatAttachment(prev => prev && prev.name === file.name ? { ...prev, dataUrl: ev.target.result } : prev);
+        r2.readAsDataURL(file);
+      }
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   const deleteNote = async (name) => {
@@ -2684,13 +2712,19 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     const completedMessages = (currentActive?.messages || []).filter(m => !m.streaming);
     const streamingMsgId = Date.now();
 
-    // Optimistic UI update
+    // Snapshot the ephemeral attachment for this send, then clear so the
+    // chip disappears from the composer immediately.
+    const sendAttachment = chatAttachment;
+    setChatAttachment(null);
+
+    // Optimistic UI update — the user bubble carries the attachment so it
+    // shows in the chat history (until reload — we don't persist files).
     setChats(prev => prev.map(c => c.id === currentChatId ? {
       ...c,
       title: isFirstMessage ? titleFromQuestion : c.title,
       messages: [
         ...c.messages,
-        { role: 'user', content: message, ts: Date.now() },
+        { role: 'user', content: message, ts: Date.now(), attachment: sendAttachment ? { name: sendAttachment.name, mimeType: sendAttachment.mimeType, dataUrl: sendAttachment.dataUrl } : null },
         { id: streamingMsgId, role: 'assistant', content: '', sources: [], ts: Date.now(), streaming: true },
       ],
     } : c));
@@ -2725,11 +2759,17 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     try {
       let response;
       const loadedNotes = myNotes.filter(n => n.buffer);
-      if (loadedNotes.length > 0) {
+      const hasAttachment = !!(sendAttachment && sendAttachment.buffer);
+      if (loadedNotes.length > 0 || hasAttachment) {
         const fd = new FormData();
         fd.append('message', message);
         fd.append('history', JSON.stringify(completedMessages.map(m => ({ role: m.role, content: m.content }))));
         loadedNotes.forEach((n, i) => fd.append(`note_${i}`, new Blob([n.buffer], { type: n.mimeType }), n.name));
+        if (hasAttachment) {
+          // Backend treats note_* and the ephemeral attachment identically —
+          // both flow into the prompt as inline context for this turn.
+          fd.append(`note_${loadedNotes.length}`, new Blob([sendAttachment.buffer], { type: sendAttachment.mimeType }), sendAttachment.name);
+        }
         response = await fetch(`${API}/course/${course.id}/chat`, { method: 'POST', headers: { Authorization: `Bearer ${studentToken}` }, body: fd, signal: controller.signal });
       } else {
         response = await fetch(`${API}/course/${course.id}/chat`, {
@@ -2867,32 +2907,33 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           />
         </div>
         <div className="flex items-center justify-between mt-6">
-          <button onClick={() => paperclipRef.current?.click()} className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Plus size={20} /></button>
+          <button onClick={() => chatAttachRef.current?.click()} aria-label="Attach a file to this message" className="flex-shrink-0 text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><Plus size={20} /></button>
           {isTyping ? (
             <button onClick={onStop} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0"><Square size={11} fill="currentColor" /></button>
-          ) : (input.trim() || slashCmd) ? (
+          ) : (input.trim() || slashCmd || chatAttachment) ? (
             <button onClick={() => onSend()} className="w-8 h-8 rounded-full bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center flex-shrink-0 fade-up"><Send size={12} /></button>
           ) : null}
         </div>
       </div>
     </div>
   );
-  // Attached notes show as chips above the composer; they persist in "My Notes".
-  const notesBar = (myNotes.length > 0 || uploadingNote) ? (
+  // Composer attachment chip — one file, one message, then cleared.
+  // Persistent My Notes are NOT shown here; they're injected into the chat
+  // backend silently. Image attachments show a small thumbnail.
+  const attachmentBar = chatAttachment ? (
     <div className="flex flex-wrap gap-1.5 mb-2 px-1">
-      {uploadingNote && (
-        <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white border border-gray-200 text-[11px] text-gray-500 max-w-[200px]">
-          <div className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-          <span className="truncate">{cleanFileName(uploadingNote)}</span>
-        </div>
-      )}
-      {myNotes.map((doc, i) => (
-        <div key={i} className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg bg-white border border-gray-200 text-[11px] text-gray-600 max-w-[200px]">
-          <FileText size={11} className="text-gray-400 flex-shrink-0" />
-          <span className="truncate">{cleanFileName(doc.name)}</span>
-          <button onClick={() => deleteNote(doc.name)} aria-label="Remove note" className="text-gray-300 hover:text-red-400 transition-colors flex-shrink-0"><X size={11} /></button>
-        </div>
-      ))}
+      <div className="inline-flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-xl bg-white border border-gray-200 text-[12px] text-gray-700 max-w-[260px] shadow-sm">
+        {chatAttachment.dataUrl ? (
+          <img src={chatAttachment.dataUrl} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+        ) : (
+          <span className="w-8 h-8 rounded-lg bg-[#F3F2EF] flex items-center justify-center flex-shrink-0"><FileText size={13} className="text-gray-500" /></span>
+        )}
+        <span className="flex flex-col min-w-0">
+          <span className="truncate font-medium text-gray-900 leading-tight">{cleanFileName(chatAttachment.name)}</span>
+          <span className="text-[10px] tracking-[.12em] uppercase text-gray-400 leading-tight">Attached to this message</span>
+        </span>
+        <button onClick={() => setChatAttachment(null)} aria-label="Remove attachment" className="ml-1 p-1 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"><X size={12} /></button>
+      </div>
     </div>
   ) : null;
 
@@ -2949,7 +2990,10 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             Flashcards
             {savedDecks.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{savedDecks.length}</span>}
           </button>
-          <input ref={paperclipRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e => { handlePaperclipFile(e.target.files[0]); e.target.value = ''; }} />
+          {/* Persistent My Notes upload — fired only from the My Notes overlay dropzone. */}
+          <input ref={notesUploadRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e => { handlePaperclipFile(e.target.files[0]); e.target.value = ''; }} />
+          {/* Ephemeral composer attachment — fired from the Plus button next to the chat input. */}
+          <input ref={chatAttachRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e => { handleComposerAttach(e.target.files[0]); e.target.value = ''; }} />
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           <div className="group/recents flex items-center justify-between px-2 mb-2">
@@ -3038,7 +3082,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             </header>
             <div className="flex-1 overflow-y-auto">
               <div className="max-w-3xl mx-auto w-full px-6 md:px-10 py-7">
-                <button onClick={() => paperclipRef.current?.click()} className="group/drop w-full flex flex-col items-center justify-center py-12 rounded-2xl border-2 border-dashed border-gray-200 hover:border-gray-400 bg-white/50 hover:bg-white transition-all cursor-pointer mb-6">
+                <button onClick={() => notesUploadRef.current?.click()} className="group/drop w-full flex flex-col items-center justify-center py-12 rounded-2xl border-2 border-dashed border-gray-200 hover:border-gray-400 bg-white/50 hover:bg-white transition-all cursor-pointer mb-6">
                   <UploadCloud size={26} className="text-gray-300 group-hover/drop:text-gray-500 mb-3 transition-colors" />
                   <p className="serif text-lg text-gray-800">Drop notes or photos</p>
                   <p className="text-[12px] text-gray-400 mt-1.5 tracking-wide">PDF · JPG · PNG  —  added to this course's AI context</p>
@@ -3523,7 +3567,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                   <div className="w-full max-w-3xl flex flex-col items-center">
                     <h2 className="serif text-4xl md:text-5xl leading-tight text-gray-900 mb-4 text-center tracking-tight">{greeting}{firstName ? `, ${firstName}` : ''}</h2>
                     <p className="text-[15px] text-gray-500 text-center mb-10 max-w-md leading-relaxed">Ask anything about {course.name} — grounded in your professor's materials.</p>
-                    <div className="w-full">{notesBar}{inputBox}</div>
+                    <div className="w-full">{attachmentBar}{inputBox}</div>
                   </div>
                 )}
               </div>
@@ -3572,6 +3616,16 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                         </div>
                       ) : (
                         <div className={`rounded-2xl text-sm w-full ${m.role === 'user' ? 'bg-gray-100 text-gray-900 px-4 py-3 rounded-br-sm' : 'text-gray-800'}`}>
+                          {m.role === 'user' && m.attachment && (
+                            <div className="mb-2 inline-flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 rounded-xl bg-white border border-gray-200 max-w-full">
+                              {m.attachment.dataUrl ? (
+                                <img src={m.attachment.dataUrl} alt="" className="w-7 h-7 rounded-md object-cover flex-shrink-0" />
+                              ) : (
+                                <span className="w-7 h-7 rounded-md bg-[#F3F2EF] flex items-center justify-center flex-shrink-0"><FileText size={12} className="text-gray-500" /></span>
+                              )}
+                              <span className="text-[12px] font-medium text-gray-800 truncate max-w-[200px]">{cleanFileName(m.attachment.name)}</span>
+                            </div>
+                          )}
                           {m.role === 'assistant' && m.content === '' && m.streaming ? (
                             <ThinkingText />
                           ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user' ? <p className="leading-relaxed whitespace-pre-wrap text-gray-900">{m.content}</p> : <MarkdownMessage content={m.content} />}
@@ -3610,7 +3664,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
               </div>
             )}
             <div className="px-4 md:px-8 py-3 md:py-4 bg-[#F6F6F4] border-t border-gray-200/70 flex-shrink-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
-              <div className="max-w-3xl mx-auto">{notesBar}{inputBox}</div>
+              <div className="max-w-3xl mx-auto">{attachmentBar}{inputBox}</div>
               <p className="text-center text-[10px] text-gray-300 mt-2">Grounded in your course materials · Vertex AI</p>
             </div>
             </>
