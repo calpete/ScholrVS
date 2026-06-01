@@ -3868,12 +3868,11 @@ export default function App() {
       return;
     }
 
-    const pToken = localStorage.getItem('scholr_token');
-    const pUser = localStorage.getItem('scholr_user');
-    if (pToken && pUser) { setProfToken(pToken); setProfUser(JSON.parse(pUser)); setScreen('prof-dashboard'); return; }
-    const sToken = localStorage.getItem('scholr_student_token');
-    const sUser = localStorage.getItem('scholr_student_user');
-    if (sToken && sUser) { setStudentToken(sToken); setStudentUser(JSON.parse(sUser)); setScreen('student-dashboard'); }
+    // (initialAuth above already restores tokens + the persisted screen
+    // synchronously on mount, so no auth-restore needs to run here. The old
+    // setScreen('student-dashboard')/setScreen('prof-dashboard') override
+    // was clobbering the persisted student-chat / prof course-manager view
+    // every time the page refreshed.)
   }, []);
 
   const handleProfLogin = (token, user) => { localStorage.setItem('scholr_token', token); localStorage.setItem('scholr_user', JSON.stringify(user)); setProfToken(token); setProfUser(user); setScreen('prof-dashboard'); };
