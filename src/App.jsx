@@ -1037,7 +1037,11 @@ function ProfessorDashboard({ token, user, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newCourseName, setNewCourseName] = useState('');
-  const [selectedCourse, setSelectedCourse] = useState(null);
+  // Lazy-init from localStorage so a refresh keeps the professor inside the
+  // course they were managing instead of bouncing back to the course list.
+  const [selectedCourse, setSelectedCourse] = useState(() => {
+    try { const j = localStorage.getItem('scholr_prof_course'); return j ? JSON.parse(j) : null; } catch { return null; }
+  });
   const [toast, setToast] = useState(null);
   const [copied, setCopied] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -1051,6 +1055,14 @@ function ProfessorDashboard({ token, user, onLogout }) {
       .then(r => r.json()).then(data => { setCourses(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
+
+  // Persist the active course so refresh keeps the professor inside it.
+  useEffect(() => {
+    try {
+      if (selectedCourse) localStorage.setItem('scholr_prof_course', JSON.stringify(selectedCourse));
+      else localStorage.removeItem('scholr_prof_course');
+    } catch {}
+  }, [selectedCourse]);
 
   const createCourse = async (e) => {
     e.preventDefault();
@@ -3751,15 +3763,18 @@ export default function App() {
       const studentUser = (st && su) ? JSON.parse(su) : null;
       // Restore the screen the user was on (refresh stays put), but sanity-
       // check against their current auth state — a logged-out user can't be
-      // restored to a dashboard. student-chat is intentionally NOT restored
-      // because its course context lives in memory; fall back to dashboard.
+      // restored to a dashboard. student-chat is restored only when we also
+      // have the cached course object below.
       const persisted = localStorage.getItem('scholr_screen');
+      const hasStudentCourse = !!localStorage.getItem('scholr_student_course');
       const publicOk = new Set(['landing', 'smart-signin', 'prof-login', 'prof-signup', 'student-login', 'student-signup']);
       const profOk = new Set(['prof-dashboard']);
-      const studentOk = new Set(['student-dashboard']);
       let screen;
       if (profToken) screen = (persisted && profOk.has(persisted)) ? persisted : 'prof-dashboard';
-      else if (studentToken) screen = (persisted && studentOk.has(persisted)) ? persisted : 'student-dashboard';
+      else if (studentToken) {
+        if (persisted === 'student-chat' && hasStudentCourse) screen = 'student-chat';
+        else screen = 'student-dashboard';
+      }
       else screen = (persisted && publicOk.has(persisted)) ? persisted : 'landing';
       return { screen, profToken, profUser, studentToken, studentUser };
     } catch {}
@@ -3770,7 +3785,9 @@ export default function App() {
   const [profUser, setProfUser] = useState(initialAuth.profUser);
   const [studentToken, setStudentToken] = useState(initialAuth.studentToken);
   const [studentUser, setStudentUser] = useState(initialAuth.studentUser);
-  const [studentCourse, setStudentCourse] = useState(null);
+  const [studentCourse, setStudentCourse] = useState(() => {
+    try { const j = localStorage.getItem('scholr_student_course'); return j ? JSON.parse(j) : null; } catch { return null; }
+  });
   const [studentDocs, setStudentDocs] = useState([]);
   const [studentQuestions, setStudentQuestions] = useState([]);
   const [pendingJoinCode, setPendingJoinCode] = useState(null);
@@ -3778,6 +3795,13 @@ export default function App() {
 
   // Persist the current screen so refreshing keeps the user where they were.
   useEffect(() => { try { localStorage.setItem('scholr_screen', screen); } catch {} }, [screen]);
+  // Persist the active student course so refresh keeps them inside it.
+  useEffect(() => {
+    try {
+      if (studentCourse) localStorage.setItem('scholr_student_course', JSON.stringify(studentCourse));
+      else localStorage.removeItem('scholr_student_course');
+    } catch {}
+  }, [studentCourse]);
 
   useEffect(() => {
     const hash = window.location.hash;
@@ -3853,7 +3877,7 @@ export default function App() {
   }, []);
 
   const handleProfLogin = (token, user) => { localStorage.setItem('scholr_token', token); localStorage.setItem('scholr_user', JSON.stringify(user)); setProfToken(token); setProfUser(user); setScreen('prof-dashboard'); };
-  const handleProfLogout = () => { localStorage.removeItem('scholr_token'); localStorage.removeItem('scholr_user'); setProfToken(null); setProfUser(null); setScreen('landing'); };
+  const handleProfLogout = () => { localStorage.removeItem('scholr_token'); localStorage.removeItem('scholr_user'); localStorage.removeItem('scholr_prof_course'); setProfToken(null); setProfUser(null); setScreen('landing'); };
   const handleStudentLogin = (token, user) => { localStorage.setItem('scholr_student_token', token); localStorage.setItem('scholr_student_user', JSON.stringify(user)); setStudentToken(token); setStudentUser(user); setScreen('student-dashboard'); navigate('/student'); };
   // Landing "Enter your join code": capture the code BEFORE login so the student
   // is auto-enrolled right after signing in (StudentDashboard reads this on mount).
@@ -3863,7 +3887,7 @@ export default function App() {
   // page that's stuck on that route — its setScreen-only callbacks (Sign in,
   // Start a course free) silently no-op because /student only re-renders
   // when studentToken changes, not when screen does.
-  const handleStudentLogout = () => { localStorage.removeItem('scholr_student_token'); localStorage.removeItem('scholr_student_user'); setStudentToken(null); setStudentUser(null); setScreen('landing'); navigate('/'); };
+  const handleStudentLogout = () => { localStorage.removeItem('scholr_student_token'); localStorage.removeItem('scholr_student_user'); localStorage.removeItem('scholr_student_course'); setStudentToken(null); setStudentUser(null); setStudentCourse(null); setScreen('landing'); navigate('/'); };
   const handleEnterCourse = (course, docs, questions) => { setStudentCourse(course); setStudentDocs(docs); setStudentQuestions(questions); setScreen('student-chat'); };
 
   const renderScreen = () => {
