@@ -1376,6 +1376,112 @@ app.delete('/student/flashcard-decks/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
+// ── Tests (closed-book practice) ──────────────────────────────────────────────
+// Same shape as quizzes — same question schema, same CRUD — but lives in its
+// own table so the Tests folder in the sidebar stays distinct from Quizzes.
+// The taking UX defers all feedback until the end (no per-question reveal),
+// but that's a client-side concern — the data is identical.
+app.post('/course/:courseId/test', requireAuth, requireCourseAccess, async (req, res) => {
+  const { courseId } = req.params;
+  const { topic } = req.body;
+  const docs = getCourseDocuments(courseId);
+  if (Object.keys(docs).length === 0) return res.status(400).json({ error: 'No documents uploaded yet' });
+
+  const docEntries = Object.entries(docs);
+  const docUris = await Promise.all(docEntries.map(([name, doc]) => getGeminiUri(courseId, name, doc)));
+  const docParts = [];
+  docEntries.forEach(([name, doc], i) => {
+    const uri = docUris[i];
+    if (uri) docParts.push({ fileData: { mimeType: doc.mimeType, fileUri: uri } });
+    else docParts.push({ inlineData: { mimeType: doc.mimeType, data: doc.buffer.toString('base64') } });
+    docParts.push({ text: `[Document: ${name}]` });
+  });
+
+  // Tests are slightly longer + more midterm-shaped than quizzes — 8 questions,
+  // mix of difficulty. Same answer schema so the client can reuse the renderer.
+  const prompt = `Read these course documents and generate an 8-question closed-book practice test${topic ? ` about: ${topic}` : ''}. Vary the difficulty — some recall, some application, some synthesis.
+
+For each question, write it in this EXACT format with no variations:
+QUESTION: [question text]
+A: [option a]
+B: [option b]
+C: [option c]
+D: [option d]
+CORRECT: [A or B or C or D]
+EXPLANATION: [one sentence explanation grounded in the materials]
+---
+
+Generate all 8 questions now:`;
+
+  try {
+    const result = await ai.models.generateContent({
+      model: MODEL,
+      contents: [{ role: 'user', parts: [...docParts, { text: prompt }] }],
+      config: { temperature: 0.3, maxOutputTokens: 4000 },
+    });
+    const text = result.text.trim();
+    const blocks = text.split(/---+|\n(?=QUESTION:)/).map(b => b.trim()).filter(b => b.length > 20);
+    const questions = blocks.slice(0, 8).map(block => {
+      const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+      const get = (prefix) => { const line = lines.find(l => l.startsWith(prefix)); return line ? line.slice(prefix.length).trim() : ''; };
+      const question = get('QUESTION:');
+      const options = [`A) ${get('A:')}`, `B) ${get('B:')}`, `C) ${get('C:')}`, `D) ${get('D:')}`];
+      const correctLetter = get('CORRECT:').toUpperCase().trim();
+      const correct = ['A', 'B', 'C', 'D'].indexOf(correctLetter);
+      const explanation = get('EXPLANATION:');
+      return { question, options, correct: correct === -1 ? 0 : correct, explanation };
+    }).filter(q => q.question && q.options[0] !== 'A) ');
+    if (questions.length === 0) return res.status(500).json({ error: 'Could not generate test questions' });
+    let savedId = null;
+    try {
+      const { data: saved } = await supabase.from('tests')
+        .insert({ student_id: req.user.id, course_id: courseId, topic: topic || null, questions })
+        .select('id').single();
+      savedId = saved?.id || null;
+    } catch (e) { console.error('Test save error:', e.message); }
+    res.json({ id: savedId, questions });
+  } catch (err) {
+    console.error('Test generation error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/student/tests', requireAuth, async (req, res) => {
+  const { courseId } = req.query;
+  if (!courseId) return res.status(400).json({ error: 'courseId required' });
+  const { data } = await supabase.from('tests')
+    .select('id, topic, attempts, last_score, best_score, created_at')
+    .eq('student_id', req.user.id).eq('course_id', courseId)
+    .order('created_at', { ascending: false });
+  res.json(data || []);
+});
+
+app.get('/student/tests/:id', requireAuth, async (req, res) => {
+  const { data, error } = await supabase.from('tests')
+    .select('*').eq('student_id', req.user.id).eq('id', req.params.id).single();
+  if (error || !data) return res.status(404).json({ error: 'Not found' });
+  res.json(data);
+});
+
+app.patch('/student/tests/:id', requireAuth, async (req, res) => {
+  const { score } = req.body;
+  if (typeof score !== 'number') return res.status(400).json({ error: 'score required' });
+  const { data: cur } = await supabase.from('tests')
+    .select('best_score, attempts').eq('id', req.params.id).eq('student_id', req.user.id).single();
+  if (!cur) return res.status(404).json({ error: 'Not found' });
+  const best = Math.max(cur.best_score ?? 0, score);
+  const attempts = (cur.attempts ?? 0) + 1;
+  await supabase.from('tests')
+    .update({ last_score: score, best_score: best, attempts })
+    .eq('id', req.params.id).eq('student_id', req.user.id);
+  res.json({ success: true, attempts, last_score: score, best_score: best });
+});
+
+app.delete('/student/tests/:id', requireAuth, async (req, res) => {
+  await supabase.from('tests').delete().eq('id', req.params.id).eq('student_id', req.user.id);
+  res.json({ success: true });
+});
+
 // ── Legacy routes ─────────────────────────────────────────────────────────────
 app.post('/auth', (req, res) => {
   const { password } = req.body;

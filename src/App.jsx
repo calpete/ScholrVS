@@ -5,7 +5,7 @@ import {
   ChevronRight, Users, AlertCircle, UploadCloud, BarChart2, Clock,
   CheckCircle2, Copy, Check, ThumbsUp, ThumbsDown, X,
   Lock, WifiOff, Paperclip, Square, ArrowLeft, ExternalLink, Hash, Menu,
-  ListChecks, RotateCcw, Sparkles, ChevronLeft, MoreHorizontal, Pencil, FolderOpen, Layers
+  ListChecks, RotateCcw, Sparkles, ChevronLeft, MoreHorizontal, Pencil, FolderOpen, Layers, GraduationCap
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -1795,9 +1795,9 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
 // already grounds answers in the course materials, so these are just
 // prompt-engineered intents — the model handles the rest.
 const SLASH_COMMANDS = [
-  { name: 'quiz',    group: 'Smart',    desc: 'Quiz me on what we just discussed',     expand: (t) => `Quiz ${t.trim() || 'me on what we just covered'}. 5 questions, mixed types (multiple choice + short answer), grounded in the course materials. Wait for my answer before revealing each correct response.` },
-  { name: 'cards',   group: 'Smart',    desc: 'Turn this answer into flashcards',      expand: (t) => `Make me a deck of flashcards ${t.trim() || 'from your last answer'}. Format the response EXACTLY as a markdown list, one card per block, separated by horizontal rules. Each card:\n\n**1. FRONT:** [a term, question, or prompt]\n**BACK:** [the concise definition or answer]\n*From — [one-line source citation: lecture/slide/page]*\n\n---\n\nAim for 8–12 cards. Cover the most exam-worthy concepts. Keep each side under two sentences.` },
-  { name: 'exam',    group: 'Practice', desc: 'Simulate a closed-book midterm',        expand: (t) => `Simulate a closed-book midterm exam ${t.trim() || 'covering everything we have studied so far'}. 5 questions, mixed types (multiple choice + short answer). Grounded in the course materials. Do not reveal the answers until I respond.` },
+  { name: 'quiz',    group: 'Smart',    desc: 'Quick 5-question check',                expand: (t) => `Quiz ${t.trim() || 'me on what we just covered'}. 5 questions, mixed types (multiple choice + short answer), grounded in the course materials. Wait for my answer before revealing each correct response.` },
+  { name: 'cards',   group: 'Smart',    desc: 'Build a flashcard deck',                expand: (t) => `Make me a deck of flashcards ${t.trim() || 'from your last answer'}. Format the response EXACTLY as a markdown list, one card per block, separated by horizontal rules. Each card:\n\n**1. FRONT:** [a term, question, or prompt]\n**BACK:** [the concise definition or answer]\n*From — [one-line source citation: lecture/slide/page]*\n\n---\n\nAim for 8–12 cards. Cover the most exam-worthy concepts. Keep each side under two sentences.` },
+  { name: 'test',    group: 'Smart',    desc: 'Closed-book practice test',             expand: (t) => `Generate a closed-book practice test ${t.trim() || 'covering everything we have studied so far'}. 8 questions, mixed difficulty, grounded in the course materials. Do not reveal any answers — I'll review the whole test at the end.` },
   { name: 'oral',    group: 'Practice', desc: 'Socratic mode — I keep asking',         expand: (t) => `Adopt Socratic teaching mode${t.trim() ? `: ${t.trim()}` : ''}. Ask me one question at a time and follow up based on my answers. Start with your first question right now — no preamble.` },
   { name: 'eli5',    group: 'Explain',  desc: 'Explain it like I missed last week',    expand: (t) => `Explain ${t.trim() || 'what we just covered'} as if I missed last week of class. Simple language, no jargon, include a quick analogy at the end.` },
   { name: 'example', group: 'Explain',  desc: 'Show me a worked example with numbers', expand: (t) => `Show me a worked example ${t.trim() || 'for what we just covered'} — concrete numbers, step by step.` },
@@ -1870,6 +1870,26 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const quizChatRef = useRef({ id: null, dbId: null }); // chat the quiz was launched from
   const quizRecordedRef = useRef(false);                // record the result once per generated quiz
 
+  // ── Tests state — same shape as quizzes but the taking UX defers all
+  // feedback until the student has answered every question. Mirrors the
+  // quiz machinery one-for-one so the renderer stays simple.
+  const [savedTests, setSavedTests] = useState([]);
+  const [testGenState, setTestGenState] = useState('idle');
+  const [testsOpen, setTestsOpen] = useState(false);
+  const [testTaking, setTestTaking] = useState(false);
+  const [currentTestId, setCurrentTestId] = useState(null);
+  const [testLoading, setTestLoading] = useState(false);
+  const [testQuestions, setTestQuestions] = useState([]);
+  const [testIndex, setTestIndex] = useState(0);
+  const [testAnswers, setTestAnswers] = useState({});
+  const [testDone, setTestDone] = useState(false);
+  const [testTopic, setTestTopic] = useState('');
+  const testChatRef = useRef({ id: null, dbId: null });
+  const testRecordedRef = useRef(false);
+  // While reviewing a finished test, the student can expand any question to
+  // see the correct answer + explanation. Tracks the currently-expanded index.
+  const [testReviewIndex, setTestReviewIndex] = useState(null);
+
   const bottomRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const inputRef = useRef(null);
@@ -1898,6 +1918,29 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       /quiz.{0,15}(?:on|about|over|covering)\s+(.+)/i,
       /(?:on|about|over)\s+(.+?)\s+(?:quiz|questions)/i,
       /quiz me on\s+(.+)/i,
+    ];
+    for (const p of patterns) {
+      const m = msg.match(p);
+      if (m) return m[1].trim().slice(0, 80);
+    }
+    return '';
+  };
+
+  // ── Tests ───────────────────────────────────────────────────────────────
+  // Natural-language detection for test/exam requests. Used by the
+  // confirmation flow (not auto-generation) — the student has to confirm
+  // before we actually build one.
+  const isTestRequest = (msg) => {
+    const m = (msg || '').toLowerCase();
+    if (/\b(make|create|generate|build|give\s+me|start|simulate)\b.{0,30}\b(test|exam|midterm|final)\b/i.test(m)) return true;
+    if (/\bpractice\s+(test|exam)\b/i.test(m)) return true;
+    if (/^\s*(test|exam)\b/i.test(m) && /\b(question|short answer|multiple choice|on|about|over|chapter|module|lecture|syllabus|closed.book|practice)\b/i.test(m)) return true;
+    return false;
+  };
+  const extractTestTopic = (msg) => {
+    const patterns = [
+      /(?:test|exam|midterm|final).{0,15}(?:on|about|over|covering)\s+(.+)/i,
+      /(?:on|about|over|covering)\s+(.+?)\s+(?:test|exam|midterm|final)/i,
     ];
     for (const p of patterns) {
       const m = msg.match(p);
@@ -2008,6 +2051,115 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     try { await fetch(`${API}/student/flashcard-decks/${id}`, { method: 'DELETE', headers: jsonHeaders }); } catch {}
     setSavedDecks(prev => prev.filter(d => d.id !== id));
   };
+
+  // ── Tests CRUD + generation ─────────────────────────────────────────────
+  const fetchSavedTests = async () => {
+    try {
+      const res = await fetch(`${API}/student/tests?courseId=${course.id}`, { headers: jsonHeaders });
+      const data = await res.json();
+      setSavedTests(Array.isArray(data) ? data : []);
+    } catch {}
+  };
+  useEffect(() => { fetchSavedTests(); }, [course.id]);
+  const openSavedTest = async (id) => {
+    try {
+      const res = await fetch(`${API}/student/tests/${id}`, { headers: jsonHeaders });
+      const data = await res.json();
+      if (data?.questions?.length) {
+        setTestLoading(false);
+        setTestQuestions(data.questions);
+        setTestIndex(0);
+        setTestAnswers({});
+        setTestDone(false);
+        setTestTopic(data.topic || '');
+        setTestReviewIndex(null);
+        testRecordedRef.current = false;
+        setCurrentTestId(data.id);
+        testChatRef.current = { id: chatId, dbId: (chats.find(c => c.id === chatId) || {}).dbId || null };
+        setTestTaking(true);
+      }
+    } catch {}
+  };
+  const deleteSavedTest = async (id) => {
+    try { await fetch(`${API}/student/tests/${id}`, { method: 'DELETE', headers: jsonHeaders }); } catch {}
+    setSavedTests(prev => prev.filter(t => t.id !== id));
+  };
+  const generateTest = async (topic) => {
+    setTestLoading(true);
+    setTestQuestions([]);
+    setTestIndex(0);
+    setTestAnswers({});
+    setTestDone(false);
+    setTestTopic(topic);
+    setTestReviewIndex(null);
+    setCurrentTestId(null);
+    setTestGenState('generating');
+    testRecordedRef.current = false;
+    try {
+      const res = await fetch(`${API}/course/${course.id}/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${studentToken}` },
+        body: JSON.stringify({ topic }),
+      });
+      const data = await res.json();
+      if (data.questions?.length) setTestQuestions(data.questions);
+      else setTestQuestions([]);
+      if (data.id) {
+        setCurrentTestId(data.id);
+        fetchSavedTests();
+      }
+    } catch {
+      setTestQuestions([]);
+    }
+    setTestLoading(false);
+    setTestGenState('done');
+    setTimeout(() => setTestGenState('idle'), 1600);
+  };
+
+  // Test answer + scoring. Unlike quizzes, the option select doesn't reveal
+  // anything — just stores the choice and advances. The score and review
+  // are deferred to the final summary screen.
+  const handleTestAnswer = (questionIndex, optionIndex) => {
+    if (testAnswers[questionIndex] !== undefined) return;
+    setTestAnswers(prev => ({ ...prev, [questionIndex]: optionIndex }));
+  };
+  const testScore = Object.entries(testAnswers).filter(([qi, ai]) =>
+    testQuestions[parseInt(qi)]?.correct === ai
+  ).length;
+  const recordTestResult = async () => {
+    const total = testQuestions.length;
+    if (!total) return;
+    const pct = Math.round((testScore / total) * 100);
+    const content = `Practice test complete — you scored **${testScore}/${total}** (${pct}%)${testTopic ? ` on ${testTopic}` : ''}.`;
+    const { id: targetId, dbId } = testChatRef.current || {};
+    const chatLocalId = targetId || chatId;
+    setChats(prev => prev.map(c => c.id === chatLocalId
+      ? { ...c, messages: [...c.messages, { role: 'assistant', content, sources: [], ts: Date.now() }] }
+      : c));
+    if (dbId && !String(dbId).startsWith('local-')) {
+      try {
+        await fetch(`${API}/student/chats/${dbId}/messages`, {
+          method: 'POST', headers: jsonHeaders,
+          body: JSON.stringify({ role: 'assistant', content }),
+        });
+      } catch {}
+    }
+    if (currentTestId) {
+      try {
+        await fetch(`${API}/student/tests/${currentTestId}`, {
+          method: 'PATCH', headers: jsonHeaders,
+          body: JSON.stringify({ score: testScore }),
+        });
+        fetchSavedTests();
+      } catch {}
+    }
+  };
+  useEffect(() => {
+    if (testDone && testQuestions.length > 0 && !testRecordedRef.current) {
+      testRecordedRef.current = true;
+      recordTestResult();
+    }
+  }, [testDone]);
   const nextCard = () => { setCardsFlipped(false); setCardsIndex(i => Math.min(i + 1, cards.length - 1)); };
   const prevCard = () => { setCardsFlipped(false); setCardsIndex(i => Math.max(i - 1, 0)); };
 
@@ -2397,6 +2549,78 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     setIsTyping(false);
   };
 
+  // Run a generation directly — used by slash commands AND by the "Yes,
+  // build it" button on a natural-language confirmation chip. Pushes the
+  // request as a user message + a placeholder assistant message, then kicks
+  // off the actual generation. `opts.suppressUserMessage` skips the user
+  // bubble (used by confirmation chips, since the user's natural-language
+  // ask is already in the chat).
+  const runGeneration = async (kind, topic, originalMessage, opts = {}) => {
+    const currentChatId = chatId;
+    const currentActive = chats.find(c => c.id === currentChatId) || chats[0];
+    const currentChatDbId = currentActive?.dbId || null;
+    const refs = { cards: cardsChatRef, quiz: quizChatRef, test: testChatRef };
+    if (refs[kind]) refs[kind].current = { id: currentChatId, dbId: currentChatDbId };
+    const placeholder = kind === 'cards'
+      ? `Built a deck of flashcards${topic ? ` on **${topic}**` : ''} — open **Flashcards** in the sidebar to study them.`
+      : kind === 'test'
+      ? `Built an 8-question practice test${topic ? ` on **${topic}**` : ''} — open **Tests** in the sidebar to take it. (Answers reveal once you finish.)`
+      : `Built a 5-question quiz${topic ? ` on **${topic}**` : ''} — open **Quizzes** in the sidebar to take it.`;
+    const placeholderId = Date.now();
+    setChats(prev => prev.map(c => c.id === currentChatId ? {
+      ...c,
+      messages: [
+        ...c.messages,
+        ...(opts.suppressUserMessage ? [] : [{ role: 'user', content: originalMessage, ts: Date.now() }]),
+        { id: placeholderId, role: 'assistant', content: placeholder, sources: [], ts: Date.now(), streaming: false },
+      ],
+    } : c));
+    if (!opts.suppressUserMessage && currentChatDbId && !String(currentChatDbId).startsWith('local-')) {
+      try { await fetch(`${API}/student/chats/${currentChatDbId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'user', content: originalMessage }) }); } catch {}
+    }
+    if (kind === 'cards') generateFlashcards(topic);
+    else if (kind === 'test') generateTest(topic);
+    else generateQuiz(topic);
+  };
+
+  // Confirmation chip — pushed into the chat when natural language matches
+  // a generation intent (no slash command). The student presses Yes / No
+  // to decide; nothing happens automatically.
+  const askConfirmation = async (kind, topic, originalMessage) => {
+    const currentChatId = chatId;
+    const currentActive = chats.find(c => c.id === currentChatId) || chats[0];
+    const currentChatDbId = currentActive?.dbId || null;
+    setChats(prev => prev.map(c => c.id === currentChatId ? {
+      ...c,
+      messages: [
+        ...c.messages,
+        { role: 'user', content: originalMessage, ts: Date.now() },
+        { id: Date.now(), role: 'assistant', confirm: { kind, topic, originalMessage }, ts: Date.now() },
+      ],
+    } : c));
+    if (currentChatDbId && !String(currentChatDbId).startsWith('local-')) {
+      try { await fetch(`${API}/student/chats/${currentChatDbId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'user', content: originalMessage }) }); } catch {}
+    }
+  };
+
+  // Click handler for the Yes button on a confirmation chip — strips the
+  // chip from the assistant message and triggers the generation.
+  const acceptConfirmation = (msgId, kind, topic, originalMessage) => {
+    setChats(prev => prev.map(c => c.id === chatId ? {
+      ...c,
+      messages: c.messages.filter(m => (m.id || 0) !== msgId),
+    } : c));
+    runGeneration(kind, topic, originalMessage, { suppressUserMessage: true });
+  };
+  // No button — replace the chip with a plain "Got it" so the student can
+  // ask their question normally without the prompt lingering.
+  const declineConfirmation = (msgId) => {
+    setChats(prev => prev.map(c => c.id === chatId ? {
+      ...c,
+      messages: c.messages.map(m => (m.id || 0) === msgId ? { id: m.id, role: 'assistant', content: 'Got it — what would you like to know instead?', sources: [], ts: m.ts } : m),
+    } : c));
+  };
+
   const onSend = async (messageOverride) => {
     // If a slash command is active, expand the user's free-typed continuation
     // through the command's template and clear the chip. Otherwise send as-is.
@@ -2405,60 +2629,46 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     if (!message.trim() || isTyping) return;
     if (activeCmd) setSlashCmd(null);
 
-    // Slash commands that open dedicated panels always win, even if the
-    // expanded message wouldn't match the natural-language detectors below.
-    const forceCards = activeCmd?.name === 'cards';
-    const forceQuiz  = activeCmd?.name === 'quiz';
-
-    // Flashcards shortcut — same intercept pattern as quizzes: drop a
-    // placeholder bubble in the chat, open the panel, generate via endpoint.
-    if (forceCards || isFlashcardRequest(message)) {
-      const topic = extractFlashcardTopic(message);
+    // ── Slash commands that build saved artifacts always win — no
+    // confirmation needed; the slash itself is the confirmation.
+    if (activeCmd?.name === 'cards') {
       setInput('');
-      const currentChatId = chatId;
-      const currentActive = chats.find(c => c.id === currentChatId) || chats[0];
-      const currentChatDbId = currentActive?.dbId || null;
-      cardsChatRef.current = { id: currentChatId, dbId: currentChatDbId };
-      const streamingMsgId = Date.now();
-      setChats(prev => prev.map(c => c.id === currentChatId ? {
-        ...c,
-        messages: [
-          ...c.messages,
-          { role: 'user', content: message, ts: Date.now() },
-          { id: streamingMsgId, role: 'assistant', content: `Built a deck of flashcards${topic ? ` on **${topic}**` : ''} — open **Flashcards** in the sidebar to study them.`, sources: [], ts: Date.now(), streaming: false },
-        ],
-      } : c));
-      if (currentChatDbId && !String(currentChatDbId).startsWith('local-')) {
-        try { await fetch(`${API}/student/chats/${currentChatDbId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'user', content: message }) }); } catch {}
-      }
-      generateFlashcards(topic);
+      const topic = extractFlashcardTopic(message);
+      runGeneration('cards', topic, message);
+      return;
+    }
+    if (activeCmd?.name === 'quiz') {
+      setInput('');
+      const topic = extractQuizTopic(message);
+      runGeneration('quiz', topic, message);
+      return;
+    }
+    if (activeCmd?.name === 'test') {
+      setInput('');
+      const topic = extractTestTopic(message);
+      runGeneration('test', topic, message);
       return;
     }
 
-    // Quiz shortcut
-    if (forceQuiz || isFullQuizRequest(message)) {
-      const topic = extractQuizTopic(message);
-      setInput('');
-      const currentChatId = chatId;
-      const currentActive = chats.find(c => c.id === currentChatId) || chats[0];
-      const currentChatDbId = currentActive?.dbId || null;
-      quizChatRef.current = { id: currentChatId, dbId: currentChatDbId };
-      const streamingMsgId = Date.now();
-      setChats(prev => prev.map(c => c.id === currentChatId ? {
-        ...c,
-        messages: [
-          ...c.messages,
-          { role: 'user', content: message, ts: Date.now() },
-          { id: streamingMsgId, role: 'assistant', content: `Built a 5-question quiz${topic ? ` on **${topic}**` : ''} — open **Quizzes** in the sidebar to take it.`, sources: [], ts: Date.now(), streaming: false },
-        ],
-      } : c));
-      // Persist the request so the chat has context on reload — the result
-      // message is appended when the student finishes the quiz.
-      if (currentChatDbId && !String(currentChatDbId).startsWith('local-')) {
-        try { await fetch(`${API}/student/chats/${currentChatDbId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'user', content: message }) }); } catch {}
+    // ── Natural-language intent → confirmation chip. We never auto-build
+    // anymore — the student has to click Yes. (Tests checked first so
+    // "make me an exam" doesn't get swallowed by the quiz detector.)
+    if (!activeCmd) {
+      if (isTestRequest(message)) {
+        setInput('');
+        askConfirmation('test', extractTestTopic(message), message);
+        return;
       }
-      generateQuiz(topic);
-      return;
+      if (isFullQuizRequest(message)) {
+        setInput('');
+        askConfirmation('quiz', extractQuizTopic(message), message);
+        return;
+      }
+      if (isFlashcardRequest(message)) {
+        setInput('');
+        askConfirmation('cards', extractFlashcardTopic(message), message);
+        return;
+      }
     }
 
     // ── FIX 2: capture isFirstMessage BEFORE the optimistic state update ──
@@ -2604,7 +2814,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   // active-taking / studying states). Called from any sidebar action that
   // navigates somewhere else, so clicking a chat while you're in Quizzes
   // doesn't leave the overlay floating on top of the new chat.
-  const closeOverlays = () => { setNotesOpen(false); setQuizzesOpen(false); setDecksOpen(false); setQuizTaking(false); setDeckStudying(false); setAllChatsOpen(false); };
+  const closeOverlays = () => { setNotesOpen(false); setQuizzesOpen(false); setTestsOpen(false); setDecksOpen(false); setQuizTaking(false); setTestTaking(false); setDeckStudying(false); setAllChatsOpen(false); };
 
   const isEmpty = !active || active.messages.length === 0;
   // Shared composer — rendered centered with the greeting on an empty chat, or
@@ -2705,8 +2915,8 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         </div>
         <div className="px-3 pt-3 space-y-0.5">
           <button onClick={() => { createNewChat(); closeOverlays(); closeMobile(); }} className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-gray-700 text-[13px] font-medium hover:bg-gray-200/60 transition-colors"><Plus size={15} className="text-gray-500" />New chat</button>
-          <button onClick={() => { setNotesOpen(true); setAllChatsOpen(false); setQuizzesOpen(false); setDecksOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${notesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}><FolderOpen size={15} className="text-gray-500" />My Notes{myNotes.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{myNotes.length}</span>}</button>
-          <button onClick={() => { setQuizzesOpen(true); setQuizTaking(false); setAllChatsOpen(false); setNotesOpen(false); setDecksOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${quizzesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
+          <button onClick={() => { setNotesOpen(true); setAllChatsOpen(false); setQuizzesOpen(false); setTestsOpen(false); setDecksOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${notesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}><FolderOpen size={15} className="text-gray-500" />My Notes{myNotes.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{myNotes.length}</span>}</button>
+          <button onClick={() => { setQuizzesOpen(true); setQuizTaking(false); setAllChatsOpen(false); setNotesOpen(false); setTestsOpen(false); setDecksOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${quizzesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
             {quizGenState === 'generating' ? (
               <span className="w-[15px] h-[15px] inline-block border-[1.5px] border-gray-400 border-t-transparent rounded-full animate-spin" />
             ) : quizGenState === 'done' ? (
@@ -2717,7 +2927,18 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             Quizzes
             {savedQuizzes.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{savedQuizzes.length}</span>}
           </button>
-          <button onClick={() => { setDecksOpen(true); setDeckStudying(false); setAllChatsOpen(false); setNotesOpen(false); setQuizzesOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${decksOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
+          <button onClick={() => { setTestsOpen(true); setTestTaking(false); setAllChatsOpen(false); setNotesOpen(false); setQuizzesOpen(false); setDecksOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${testsOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
+            {testGenState === 'generating' ? (
+              <span className="w-[15px] h-[15px] inline-block border-[1.5px] border-gray-400 border-t-transparent rounded-full animate-spin" />
+            ) : testGenState === 'done' ? (
+              <Check size={15} className="text-emerald-500" />
+            ) : (
+              <GraduationCap size={15} className="text-gray-500" />
+            )}
+            Tests
+            {savedTests.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{savedTests.length}</span>}
+          </button>
+          <button onClick={() => { setDecksOpen(true); setDeckStudying(false); setAllChatsOpen(false); setNotesOpen(false); setQuizzesOpen(false); setTestsOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${decksOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
             {cardsGenState === 'generating' ? (
               <span className="w-[15px] h-[15px] inline-block border-[1.5px] border-gray-400 border-t-transparent rounded-full animate-spin" />
             ) : cardsGenState === 'done' ? (
@@ -2755,7 +2976,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                 />
               ) : (
                 <>
-                  <button onClick={() => { setChatId(c.id); closeOverlays(); closeMobile(); }} className={`flex items-center w-full text-left px-2.5 py-2 rounded-lg text-[13px] transition-colors pr-8 ${c.id === chatId && !notesOpen && !quizzesOpen && !decksOpen ? 'bg-gray-200 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-200/60'}`}>
+                  <button onClick={() => { setChatId(c.id); closeOverlays(); closeMobile(); }} className={`flex items-center w-full text-left px-2.5 py-2 rounded-lg text-[13px] transition-colors pr-8 ${c.id === chatId && !notesOpen && !quizzesOpen && !testsOpen && !decksOpen ? 'bg-gray-200 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-200/60'}`}>
                     <span className="truncate">{c.title || 'New Chat'}</span>
                   </button>
                   <button onClick={e => { e.stopPropagation(); setChatMenuId(chatMenuId === c.id ? null : c.id); }}
@@ -2992,6 +3213,189 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             </div>
           </div>
         )}
+        {testsOpen && (
+          <div className="absolute inset-0 z-40 bg-[#F6F6F4] flex flex-col">
+            {testTaking ? (
+              <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-gray-200/70 flex-shrink-0 gap-3" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
+                <div className="min-w-0 flex items-center gap-3">
+                  <button onClick={() => setTestTaking(false)} aria-label="Back to tests" className="p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors flex-shrink-0 -ml-2"><ChevronLeft size={18} /></button>
+                  <div className="min-w-0">
+                    <h2 className="serif text-xl text-gray-900 truncate">{testTopic || 'Practice test'}</h2>
+                    <p className="text-[11px] text-gray-400 mt-0.5 tracking-wide uppercase font-semibold">{testDone ? 'Review' : 'Closed book · ' + course.name}</p>
+                  </div>
+                </div>
+                <button onClick={() => { setTestsOpen(false); setTestTaking(false); }} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"><X size={16} /></button>
+              </header>
+            ) : (
+              <header className="flex items-start justify-between px-6 md:px-10 pt-8 md:pt-10 pb-6 border-b border-gray-200/70 flex-shrink-0 gap-4" style={{ paddingTop: 'max(2rem, env(safe-area-inset-top))' }}>
+                <div className="min-w-0 max-w-2xl">
+                  <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Exam Prep</div>
+                  <h2 className="serif text-3xl md:text-[40px] text-gray-900 leading-none tracking-tight">Tests<span className="italic">.</span></h2>
+                  <p className="text-[14.5px] text-gray-500 mt-3 leading-relaxed">Closed-book practice tests grounded in your professor's materials. Answers reveal only after you've finished — same pressure as the real thing.</p>
+                </div>
+                <button onClick={() => setTestsOpen(false)} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"><X size={18} /></button>
+              </header>
+            )}
+            {testTaking && testQuestions.length > 0 && !testDone && (
+              <div className="h-1 bg-gray-100 flex-shrink-0"><div className="h-full bg-gray-900 transition-all duration-300 ease-out" style={{ width: `${((testIndex + (testAnswers[testIndex] !== undefined ? 1 : 0)) / testQuestions.length) * 100}%` }} /></div>
+            )}
+            <div className="flex-1 overflow-y-auto">
+              {!testTaking ? (
+                <div className="max-w-3xl mx-auto w-full px-6 md:px-10 py-8">
+                  {savedTests.length === 0 ? (
+                    <div className="text-center py-20">
+                      <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#F3F2EF] mb-5"><GraduationCap size={22} className="text-gray-400" /></div>
+                      <h3 className="serif text-2xl text-gray-900 leading-none tracking-tight">No tests yet<span className="italic">.</span></h3>
+                      <p className="text-[14px] text-gray-500 mt-3 max-w-sm mx-auto leading-relaxed">Type <span className="font-mono text-[13px] text-[#2A4D8F] bg-[#2A4D8F]/[.06] px-1.5 py-0.5 rounded">/test</span> in the chat to generate a closed-book practice exam.</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2.5">
+                      {savedTests.map(t => (
+                        <div key={t.id} className="group flex items-center gap-4 px-5 py-4 rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04)] transition-all cursor-pointer" onClick={() => openSavedTest(t.id)}>
+                          <div className="w-11 h-11 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0"><GraduationCap size={17} className="text-gray-700" /></div>
+                          <div className="min-w-0 flex-1">
+                            <p className="serif text-[16px] text-gray-900 leading-tight truncate">{t.topic || 'Practice test'}</p>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <span className="text-[11px] text-gray-400 tracking-wide">{formatRelativeDate(t.created_at)}</span>
+                              {t.attempts > 0 && (
+                                <>
+                                  <span className="text-gray-300">·</span>
+                                  <span className="text-[11px] text-gray-400 tabular-nums">{t.attempts} attempt{t.attempts !== 1 ? 's' : ''}</span>
+                                </>
+                              )}
+                              {t.best_score != null && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100">
+                                  <span className="text-[10px] font-semibold tracking-[.1em] uppercase text-emerald-700">Best</span>
+                                  <span className="text-[11px] font-semibold text-emerald-800 tabular-nums">{t.best_score}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <button onClick={e => { e.stopPropagation(); deleteSavedTest(t.id); }} aria-label="Delete test" className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={14} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // ── Active test taking + review ──
+                <div className="max-w-2xl mx-auto w-full px-4 md:px-6 py-6 md:py-10 flex flex-col gap-6">
+                  {testQuestions.length === 0 ? (
+                    <div className="text-center py-16">
+                      <AlertCircle size={28} className="text-gray-200 mx-auto mb-3" />
+                      <p className="text-gray-500 text-sm font-medium mb-1">Couldn't load this test</p>
+                      <button onClick={() => setTestTaking(false)} className="mt-3 text-gray-500 hover:text-gray-900 text-sm">← Back to tests</button>
+                    </div>
+                  ) : testDone ? (() => {
+                    const total = testQuestions.length;
+                    const right = testQuestions.filter((q, i) => testAnswers[i] === q.correct).length;
+                    const wrong = testQuestions.filter((q, i) => { const a = testAnswers[i]; return a !== undefined && a !== -1 && a !== q.correct; }).length;
+                    const skipped = total - right - wrong;
+                    const pct = Math.round((right / total) * 100);
+                    const C = 2 * Math.PI * 50;
+                    return (
+                      <div className="flex flex-col gap-5">
+                        <div className="rounded-3xl bg-white border border-gray-200 p-7 md:p-9 flex flex-col md:flex-row items-center gap-7">
+                          <div className="relative w-36 h-36 flex-shrink-0">
+                            <svg className="w-36 h-36 -rotate-90" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="none" stroke="#111827" strokeWidth="9" /><circle cx="60" cy="60" r="50" fill="none" stroke="#22c55e" strokeWidth="9" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - right / total)} style={{ transition: 'stroke-dashoffset 0.7s ease' }} /></svg>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-3xl font-bold text-gray-900 leading-none">{right}/{total}</span><span className="text-sm text-gray-400 mt-1">{pct}%</span></div>
+                          </div>
+                          <div className="flex-1 flex flex-col gap-2.5 text-sm w-full">
+                            <div className="flex items-center justify-between"><span className="text-gray-500">Right</span><span className="font-semibold text-emerald-600 tabular-nums">{right}</span></div>
+                            <div className="flex items-center justify-between"><span className="text-gray-500">Wrong</span><span className="font-semibold text-gray-900 tabular-nums">{wrong}</span></div>
+                            <div className="flex items-center justify-between"><span className="text-gray-500">Skipped</span><span className="font-semibold text-gray-400 tabular-nums">{skipped}</span></div>
+                          </div>
+                        </div>
+                        {/* Per-question review — collapsed by default, tap to expand */}
+                        <div className="flex flex-col gap-2">
+                          <p className="text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-1">Review</p>
+                          {testQuestions.map((q, i) => {
+                            const a = testAnswers[i];
+                            const correct = a === q.correct;
+                            const skipped = a === undefined || a === -1;
+                            const expanded = testReviewIndex === i;
+                            return (
+                              <div key={i} className="rounded-2xl bg-white border border-gray-200 overflow-hidden">
+                                <button onClick={() => setTestReviewIndex(expanded ? null : i)} className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors">
+                                  <span className={`mt-0.5 inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-semibold flex-shrink-0 tabular-nums ${skipped ? 'bg-gray-100 text-gray-500' : correct ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{skipped ? '–' : correct ? '✓' : '✗'}</span>
+                                  <span className="flex-1 text-[14px] text-gray-900 leading-snug">{i + 1}. {q.question}</span>
+                                  <ChevronRight size={14} className={`text-gray-400 mt-1 flex-shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+                                </button>
+                                {expanded && (
+                                  <div className="px-4 pb-4 pt-1 border-t border-gray-100 flex flex-col gap-2">
+                                    {q.options.map((opt, oi) => {
+                                      const isCorrect = oi === q.correct;
+                                      const isYours = oi === a;
+                                      let cls = 'px-3 py-2 rounded-xl border text-[13.5px] flex items-start gap-2';
+                                      if (isCorrect) cls += ' border-emerald-300 bg-emerald-50 text-emerald-900';
+                                      else if (isYours) cls += ' border-red-300 bg-red-50 text-red-900';
+                                      else cls += ' border-gray-200 bg-white text-gray-600';
+                                      return (
+                                        <div key={oi} className={cls}>
+                                          <span className="font-semibold tabular-nums mt-0.5 text-[12px]">{String.fromCharCode(65 + oi)}.</span>
+                                          <span className="flex-1">{opt.replace(/^[A-D]\)\s*/, '')}</span>
+                                          {isCorrect && <span className="text-[10px] font-bold tracking-[.1em] uppercase text-emerald-700">Correct</span>}
+                                          {isYours && !isCorrect && <span className="text-[10px] font-bold tracking-[.1em] uppercase text-red-700">Your pick</span>}
+                                        </div>
+                                      );
+                                    })}
+                                    {q.explanation && <p className="text-[13px] text-gray-600 leading-relaxed mt-1 italic">{q.explanation}</p>}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex flex-col gap-2 mt-2">
+                          <button onClick={() => { setTestIndex(0); setTestAnswers({}); setTestDone(false); setTestReviewIndex(null); testRecordedRef.current = false; }} className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors"><RotateCcw size={14} />Retake test</button>
+                          <button onClick={() => { setTestTaking(false); }} className="w-full py-3 rounded-2xl bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 text-sm font-medium transition-colors">Back to tests</button>
+                        </div>
+                      </div>
+                    );
+                  })() : (() => {
+                    const q = testQuestions[testIndex];
+                    const answered = testAnswers[testIndex];
+                    const isAnswered = answered !== undefined && answered !== -1;
+                    const isLast = testIndex === testQuestions.length - 1;
+                    const advance = () => { if (isLast) setTestDone(true); else setTestIndex(i => i + 1); };
+                    const skip = () => { setTestAnswers(prev => (prev[testIndex] === undefined ? { ...prev, [testIndex]: -1 } : prev)); advance(); };
+                    const answeredCount = Object.keys(testAnswers).length;
+                    return (
+                      <div className="flex flex-col gap-6">
+                        <div className="flex items-center justify-between text-[12px] text-gray-400">
+                          <span className="font-medium tabular-nums">Question {testIndex + 1} of {testQuestions.length}</span>
+                          <span className="inline-flex items-center gap-1.5"><span className="block w-1.5 h-1.5 rounded-full bg-gray-300" />No feedback until you finish</span>
+                        </div>
+                        <p className="text-gray-900 text-lg md:text-xl font-semibold leading-snug">{q.question}</p>
+                        <div className="flex flex-col gap-3">
+                          {q.options.map((opt, oi) => {
+                            const isSel = answered === oi;
+                            // Tests: no right/wrong reveal during taking. Just selected vs not.
+                            let cls = 'group/opt text-left px-4 py-3.5 rounded-2xl border text-[15px] transition-all flex items-start gap-3 cursor-pointer';
+                            if (isSel) cls += ' border-gray-900 bg-gray-50';
+                            else cls += ' border-gray-200 bg-white hover:border-gray-400';
+                            return (
+                              <button key={oi} onClick={() => handleTestAnswer(testIndex, oi)} className={cls}>
+                                <span className={`text-xs font-semibold tabular-nums mt-1 ${isSel ? 'text-gray-900' : 'text-gray-400 group-hover/opt:text-gray-700'}`}>{String.fromCharCode(65 + oi)}.</span>
+                                <span className={isSel ? 'text-gray-900' : 'text-gray-900'}>{opt.replace(/^[A-D]\)\s*/, '')}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="flex items-center justify-between gap-3 mt-2">
+                          <button onClick={skip} disabled={isAnswered} className="text-sm text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:hover:text-gray-400 px-3 py-2">Skip</button>
+                          {isAnswered ? (
+                            <button onClick={advance} className="px-6 py-2.5 rounded-full bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">{isLast ? `Finish (${answeredCount}/${testQuestions.length} answered) →` : 'Next →'}</button>
+                          ) : <div />}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         {decksOpen && (
           <div className="absolute inset-0 z-40 bg-[#F6F6F4] flex flex-col">
             {deckStudying ? (
@@ -3131,17 +3535,38 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                 const msgId = m.id || i;
                 const isError = m.isError || m.content?.startsWith('error:');
                 const quizMatch = m.role === 'assistant' && !m.streaming && !isError
-                  ? /Quiz complete — you scored \*\*(\d+)\/(\d+)\*\* \((\d+)%\)(?: on (.+?))?\.?\s*$/.exec(m.content || '')
+                  ? /(?:Quiz|Practice test) complete — you scored \*\*(\d+)\/(\d+)\*\* \((\d+)%\)(?: on (.+?))?\.?\s*$/.exec(m.content || '')
                   : null;
+                const isTestResult = quizMatch && /Practice test/i.test(m.content || '');
                 return (
                   <div key={msgId} className={`group flex ${m.role === 'user' ? 'justify-end' : 'gap-3'}`}>
                     {m.role === 'assistant' && <div className="flex-shrink-0 mt-1.5"><AiMark thinking={m.streaming} /></div>}
                     <div className={`flex flex-col min-w-0 ${m.role === 'user' ? 'items-end max-w-[85%]' : 'items-start flex-1'}`}>
-                      {quizMatch ? (
+                      {m.confirm ? (() => {
+                        const c = m.confirm;
+                        const kindLabel = c.kind === 'cards' ? 'flashcard deck' : c.kind === 'test' ? 'practice test' : 'practice quiz';
+                        const KindIcon = c.kind === 'cards' ? Layers : c.kind === 'test' ? GraduationCap : ListChecks;
+                        return (
+                          <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-5 w-full max-w-md">
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0"><KindIcon size={17} className="text-gray-700" /></div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[11px] font-bold tracking-[.16em] uppercase text-gray-400">Confirm</p>
+                                <p className="serif text-[17px] text-gray-900 leading-snug mt-0.5">Want me to build you a {kindLabel}{c.topic ? <> on <span className="italic">{c.topic}</span></> : ''}?</p>
+                                <p className="text-[12.5px] text-gray-500 mt-1 leading-relaxed">It'll save to <span className="font-medium text-gray-700">{c.kind === 'cards' ? 'Flashcards' : c.kind === 'test' ? 'Tests' : 'Quizzes'}</span> in your sidebar. Or use <span className="font-mono text-[12px] text-[#2A4D8F]">/{c.kind === 'cards' ? 'cards' : c.kind}</span> next time to skip this prompt.</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 mt-4 pl-[52px]">
+                              <button onClick={() => acceptConfirmation(m.id, c.kind, c.topic, c.originalMessage)} className="px-4 py-2 rounded-full bg-gray-900 hover:bg-gray-800 text-white text-[13px] font-medium transition-colors">Yes, build it</button>
+                              <button onClick={() => declineConfirmation(m.id)} className="px-4 py-2 rounded-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 text-[13px] font-medium transition-colors">No, just answer</button>
+                            </div>
+                          </div>
+                        );
+                      })() : quizMatch ? (
                         <div className="inline-flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
-                          <div className="w-9 h-9 rounded-xl bg-gray-900 flex items-center justify-center flex-shrink-0"><ListChecks size={16} className="text-white" /></div>
+                          <div className="w-9 h-9 rounded-xl bg-gray-900 flex items-center justify-center flex-shrink-0">{isTestResult ? <GraduationCap size={16} className="text-white" /> : <ListChecks size={16} className="text-white" />}</div>
                           <div>
-                            <p className="text-[11px] text-gray-400">Practice quiz{quizMatch[4] ? ` · ${quizMatch[4]}` : ''}</p>
+                            <p className="text-[11px] text-gray-400">{isTestResult ? 'Practice test' : 'Practice quiz'}{quizMatch[4] ? ` · ${quizMatch[4]}` : ''}</p>
                             <p className="text-sm font-semibold text-gray-900">Scored {quizMatch[1]}/{quizMatch[2]} <span className="text-gray-400 font-normal">({quizMatch[3]}%)</span></p>
                           </div>
                         </div>
@@ -3160,7 +3585,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                           {m.role === 'user' && <span className="block text-[10px] mt-1.5 text-gray-400">{formatTime(m.ts)}</span>}
                         </div>
                       )}
-                      {m.role === 'assistant' && !m.streaming && m.content && !isError && !quizMatch && (
+                      {m.role === 'assistant' && !m.streaming && m.content && !isError && !quizMatch && !m.confirm && (
                         <div className="flex items-center gap-0.5 mt-1 overflow-hidden max-h-8 opacity-100 md:max-h-0 md:opacity-0 md:group-hover:max-h-8 md:group-hover:opacity-100 transition-all duration-200">
                           <button onClick={() => { navigator.clipboard.writeText(m.content.replace(/\nSOURCES:.*$/m, '').trim()); setCopiedId(msgId); setTimeout(() => setCopiedId(null), 2000); }} className={`p-1.5 rounded-lg transition-colors ${copiedId === msgId ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>{copiedId === msgId ? <Check size={12} /> : <Copy size={12} />}</button>
                           <button onClick={() => setFeedback(prev => ({ ...prev, [msgId]: prev[msgId] === 'up' ? null : 'up' }))} className={`p-1.5 rounded-lg transition-colors ${feedback[msgId] === 'up' ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}><ThumbsUp size={12} /></button>
