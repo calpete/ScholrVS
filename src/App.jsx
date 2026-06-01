@@ -373,7 +373,7 @@ function SmartSignIn({ onPickStudent, onPickProfessor, onBack }) {
       </div>
       <div className="ed-foot">
         <button type="button" className="ed-back" onClick={onBack}><ArrowLeft size={13} />Back</button>
-        <span className="ed-tagline">Scholr · Built for academic integrity</span>
+        <span className="ed-tagline">Scholr · Grounded in your course</span>
       </div>
     </div>
   );
@@ -3848,7 +3848,7 @@ function JoinCoursePage({ studentToken, studentUser, onStudentLogin, onEnterCour
       </div>
       <div className="ed-foot">
         <span />
-        <span className="ed-tagline">Scholr · Built for academic integrity</span>
+        <span className="ed-tagline">Scholr · Grounded in your course</span>
       </div>
     </div>
   );
