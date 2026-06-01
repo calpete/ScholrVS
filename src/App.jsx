@@ -2563,6 +2563,61 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     reader.readAsArrayBuffer(file);
   };
 
+  // ── Drag & drop / paste ─────────────────────────────────────────────────
+  // Claude / ChatGPT-style: drag a screenshot anywhere in the chat area
+  // → big "Drop to attach" overlay → on release it lands on whichever
+  // surface you'd expect:
+  //   - My Notes overlay open  → file uploads to the persistent folder
+  //   - anywhere else          → file becomes the ephemeral attachment
+  // Paste from clipboard works the same way (great for screenshots).
+  const [dragOver, setDragOver] = useState(false);
+  const dragDepthRef = useRef(0); // dragenter / leave fire on every child;
+                                  // track depth so the overlay doesn't flicker.
+  const handleDrop = (file) => {
+    if (!file) return;
+    if (notesOpen) handlePaperclipFile(file);
+    else handleComposerAttach(file);
+  };
+  const onDragEnter = (e) => {
+    const types = Array.from(e.dataTransfer?.types || []);
+    if (!types.includes('Files')) return;
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setDragOver(true);
+  };
+  const onDragOver = (e) => {
+    if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  };
+  const onDragLeave = (e) => {
+    if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+    e.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setDragOver(false);
+  };
+  const onDrop = (e) => {
+    e.preventDefault();
+    dragDepthRef.current = 0;
+    setDragOver(false);
+    const file = e.dataTransfer?.files?.[0];
+    handleDrop(file);
+  };
+  const onPaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.kind === 'file') {
+        const f = item.getAsFile();
+        if (f) {
+          e.preventDefault();
+          handleDrop(f);
+          return;
+        }
+      }
+    }
+  };
+
   const deleteNote = async (name) => {
     try { await fetch(`${API}/student/notes/${course.id}/${encodeURIComponent(name)}`, { method: 'DELETE', headers: authHeaders }); } catch {}
     setMyNotes(prev => prev.filter(d => d.name !== name));
@@ -2890,6 +2945,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             name="chat-input"
             value={input}
             onChange={e => setInput(e.target.value)}
+            onPaste={onPaste}
             onKeyDown={e => {
               if (showSlashPopover) {
                 if (e.key === 'ArrowDown') { e.preventDefault(); setSlashIdx(i => Math.min(i + 1, filteredCmds.length - 1)); return; }
@@ -2938,8 +2994,28 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   ) : null;
 
   return (
-    <div className="flex h-[100dvh] w-screen overflow-hidden fixed inset-0 bg-[#F6F6F4] page-enter">
+    <div
+      className="flex h-[100dvh] w-screen overflow-hidden fixed inset-0 bg-[#F6F6F4] page-enter"
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
       <style>{FONT}</style>
+
+      {/* Drag-over overlay — covers the whole viewport, tells you what's
+          about to happen based on which surface you're on. Pointer-events
+          stay off so the underlying onDrop on the wrapper still fires. */}
+      {dragOver && (
+        <div className="fixed inset-0 z-[60] bg-[#F6F6F4]/92 backdrop-blur-sm flex items-center justify-center pointer-events-none">
+          <div className="border-2 border-dashed border-gray-400 rounded-3xl px-12 py-10 max-w-md text-center bg-white shadow-[0_8px_32px_-8px_rgba(0,0,0,0.15)]">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#F3F2EF] mb-4"><UploadCloud size={26} className="text-gray-700" /></div>
+            <div className="flex items-center justify-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-2"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />{notesOpen ? 'Save to My Notes' : 'Attach to chat'}</div>
+            <p className="serif text-[26px] text-gray-900 leading-none tracking-tight">{notesOpen ? <>Drop to save<span className="italic">.</span></> : <>Drop to attach<span className="italic">.</span></>}</p>
+            <p className="text-[13.5px] text-gray-500 mt-3 leading-relaxed">{notesOpen ? <>PDF · JPG · PNG — added to <span className="font-medium text-gray-700">My Notes</span> and pinned to every chat in this course.</> : <>PDF · JPG · PNG — sent with your next message only. <span className="text-gray-400">Won't save to My Notes.</span></>}</p>
+          </div>
+        </div>
+      )}
 
       {/* Backdrop on mobile when drawer is open */}
       {mobileChatsOpen && <div onClick={closeMobile} className="md:hidden fixed inset-0 bg-black/40 z-30" />}
