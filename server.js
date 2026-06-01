@@ -1242,7 +1242,15 @@ Generate all 5 questions now:`;
       return { question, options, correct: correct === -1 ? 0 : correct, explanation };
     }).filter(q => q.question && q.options[0] !== 'A) ');
     if (questions.length === 0) return res.status(500).json({ error: 'Could not generate quiz questions' });
-    res.json({ questions });
+    // Persist so the student can revisit / retake from the Quizzes sidebar.
+    let savedId = null;
+    try {
+      const { data: saved } = await supabase.from('quizzes')
+        .insert({ student_id: req.user.id, course_id: courseId, topic: topic || null, questions })
+        .select('id').single();
+      savedId = saved?.id || null;
+    } catch (e) { console.error('Quiz save error:', e.message); }
+    res.json({ id: savedId, questions });
   } catch (err) {
     console.error('Quiz generation error:', err.message);
     res.status(500).json({ error: err.message });
@@ -1292,11 +1300,80 @@ Keep each side under two sentences. Use plain text, no markdown inside the FRONT
       return { front: get('FRONT:'), back: get('BACK:'), source: get('SOURCE:') };
     }).filter(c => c.front && c.back).slice(0, 12);
     if (cards.length === 0) return res.status(500).json({ error: 'Could not generate flashcards' });
-    res.json({ cards });
+    let savedId = null;
+    try {
+      const { data: saved } = await supabase.from('flashcard_decks')
+        .insert({ student_id: req.user.id, course_id: courseId, topic: topic || null, cards })
+        .select('id').single();
+      savedId = saved?.id || null;
+    } catch (e) { console.error('Deck save error:', e.message); }
+    res.json({ id: savedId, cards });
   } catch (err) {
     console.error('Flashcards generation error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── Saved quizzes + flashcard decks ────────────────────────────────────────────
+// Lightweight CRUD so the student-side sidebar can list, re-open, score, and
+// delete the artifacts that /course/:id/quiz and /course/:id/flashcards persist.
+
+app.get('/student/quizzes', requireAuth, async (req, res) => {
+  const { courseId } = req.query;
+  if (!courseId) return res.status(400).json({ error: 'courseId required' });
+  const { data } = await supabase.from('quizzes')
+    .select('id, topic, attempts, last_score, best_score, created_at')
+    .eq('student_id', req.user.id).eq('course_id', courseId)
+    .order('created_at', { ascending: false });
+  res.json(data || []);
+});
+
+app.get('/student/quizzes/:id', requireAuth, async (req, res) => {
+  const { data, error } = await supabase.from('quizzes')
+    .select('*').eq('student_id', req.user.id).eq('id', req.params.id).single();
+  if (error || !data) return res.status(404).json({ error: 'Not found' });
+  res.json(data);
+});
+
+app.patch('/student/quizzes/:id', requireAuth, async (req, res) => {
+  const { score } = req.body;
+  if (typeof score !== 'number') return res.status(400).json({ error: 'score required' });
+  const { data: cur } = await supabase.from('quizzes')
+    .select('best_score, attempts').eq('id', req.params.id).eq('student_id', req.user.id).single();
+  if (!cur) return res.status(404).json({ error: 'Not found' });
+  const best = Math.max(cur.best_score ?? 0, score);
+  const attempts = (cur.attempts ?? 0) + 1;
+  await supabase.from('quizzes')
+    .update({ last_score: score, best_score: best, attempts })
+    .eq('id', req.params.id).eq('student_id', req.user.id);
+  res.json({ success: true, attempts, last_score: score, best_score: best });
+});
+
+app.delete('/student/quizzes/:id', requireAuth, async (req, res) => {
+  await supabase.from('quizzes').delete().eq('id', req.params.id).eq('student_id', req.user.id);
+  res.json({ success: true });
+});
+
+app.get('/student/flashcard-decks', requireAuth, async (req, res) => {
+  const { courseId } = req.query;
+  if (!courseId) return res.status(400).json({ error: 'courseId required' });
+  const { data } = await supabase.from('flashcard_decks')
+    .select('id, topic, cards, created_at')
+    .eq('student_id', req.user.id).eq('course_id', courseId)
+    .order('created_at', { ascending: false });
+  res.json(data || []);
+});
+
+app.get('/student/flashcard-decks/:id', requireAuth, async (req, res) => {
+  const { data, error } = await supabase.from('flashcard_decks')
+    .select('*').eq('student_id', req.user.id).eq('id', req.params.id).single();
+  if (error || !data) return res.status(404).json({ error: 'Not found' });
+  res.json(data);
+});
+
+app.delete('/student/flashcard-decks/:id', requireAuth, async (req, res) => {
+  await supabase.from('flashcard_decks').delete().eq('id', req.params.id).eq('student_id', req.user.id);
+  res.json({ success: true });
 });
 
 // ── Legacy routes ─────────────────────────────────────────────────────────────

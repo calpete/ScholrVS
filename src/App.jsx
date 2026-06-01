@@ -5,7 +5,7 @@ import {
   ChevronRight, Users, AlertCircle, UploadCloud, BarChart2, Clock,
   CheckCircle2, Copy, Check, ThumbsUp, ThumbsDown, X,
   Lock, WifiOff, Paperclip, Square, ArrowLeft, ExternalLink, Hash, Menu,
-  ListChecks, RotateCcw, Sparkles, ChevronLeft, MoreHorizontal, Pencil, FolderOpen
+  ListChecks, RotateCcw, Sparkles, ChevronLeft, MoreHorizontal, Pencil, FolderOpen, Layers
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -1842,6 +1842,19 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const [cardsFlipped, setCardsFlipped] = useState(false);
   const [cardsTopic, setCardsTopic] = useState('');
   const cardsChatRef = useRef({ id: null, dbId: null });
+  // Saved quizzes + decks the student has generated for this course, plus the
+  // tiny sidebar-icon animation states ('idle' | 'generating' | 'done') that
+  // morph the icon while a generation is in flight + a brief checkmark on
+  // completion. currentQuizId / currentDeckId track which saved row the open
+  // panel maps to (used to PATCH the score on completion + highlight in list).
+  const [savedQuizzes, setSavedQuizzes] = useState([]);
+  const [savedDecks, setSavedDecks] = useState([]);
+  const [quizGenState, setQuizGenState] = useState('idle');
+  const [cardsGenState, setCardsGenState] = useState('idle');
+  const [quizzesOpen, setQuizzesOpen] = useState(false);
+  const [decksOpen, setDecksOpen] = useState(false);
+  const [currentQuizId, setCurrentQuizId] = useState(null);
+  const [currentDeckId, setCurrentDeckId] = useState(null);
   const [quizOpen, setQuizOpen] = useState(false);
   const [quizLoading, setQuizLoading] = useState(false);
   const [quizQuestions, setQuizQuestions] = useState([]);
@@ -1910,6 +1923,8 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     setCardsIndex(0);
     setCardsFlipped(false);
     setCardsTopic(topic);
+    setCurrentDeckId(null);
+    setCardsGenState('generating');
     try {
       const res = await fetch(`${API}/course/${course.id}/flashcards`, {
         method: 'POST',
@@ -1919,20 +1934,91 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       const data = await res.json();
       if (data.cards?.length) setCards(data.cards);
       else setCards([]);
+      if (data.id) {
+        setCurrentDeckId(data.id);
+        fetchSavedDecks();
+      }
     } catch { setCards([]); }
     setCardsLoading(false);
+    // Brief "done" check then back to idle so the sidebar icon doesn't get stuck.
+    setCardsGenState('done');
+    setTimeout(() => setCardsGenState('idle'), 1600);
+  };
+  // ── Saved quizzes + decks persistence ───────────────────────────────────
+  const fetchSavedQuizzes = async () => {
+    try {
+      const res = await fetch(`${API}/student/quizzes?courseId=${course.id}`, { headers: jsonHeaders });
+      const data = await res.json();
+      setSavedQuizzes(Array.isArray(data) ? data : []);
+    } catch {}
+  };
+  const fetchSavedDecks = async () => {
+    try {
+      const res = await fetch(`${API}/student/flashcard-decks?courseId=${course.id}`, { headers: jsonHeaders });
+      const data = await res.json();
+      setSavedDecks(Array.isArray(data) ? data : []);
+    } catch {}
+  };
+  useEffect(() => { fetchSavedQuizzes(); fetchSavedDecks(); }, [course.id]);
+  const openSavedQuiz = async (id) => {
+    setQuizzesOpen(false);
+    try {
+      const res = await fetch(`${API}/student/quizzes/${id}`, { headers: jsonHeaders });
+      const data = await res.json();
+      if (data?.questions?.length) {
+        setQuizOpen(true);
+        setCardsOpen(false);
+        setQuizLoading(false);
+        setQuizQuestions(data.questions);
+        setQuizIndex(0);
+        setQuizAnswers({});
+        setQuizDone(false);
+        setQuizTopic(data.topic || '');
+        quizRecordedRef.current = false;
+        setCurrentQuizId(data.id);
+        quizChatRef.current = { id: chatId, dbId: (chats.find(c => c.id === chatId) || {}).dbId || null };
+      }
+    } catch {}
+  };
+  const openSavedDeck = async (id) => {
+    setDecksOpen(false);
+    try {
+      const res = await fetch(`${API}/student/flashcard-decks/${id}`, { headers: jsonHeaders });
+      const data = await res.json();
+      if (data?.cards?.length) {
+        setCardsOpen(true);
+        setQuizOpen(false);
+        setCardsLoading(false);
+        setCards(data.cards);
+        setCardsIndex(0);
+        setCardsFlipped(false);
+        setCardsTopic(data.topic || '');
+        setCurrentDeckId(data.id);
+      }
+    } catch {}
+  };
+  const deleteSavedQuiz = async (id) => {
+    try { await fetch(`${API}/student/quizzes/${id}`, { method: 'DELETE', headers: jsonHeaders }); } catch {}
+    setSavedQuizzes(prev => prev.filter(q => q.id !== id));
+  };
+  const deleteSavedDeck = async (id) => {
+    try { await fetch(`${API}/student/flashcard-decks/${id}`, { method: 'DELETE', headers: jsonHeaders }); } catch {}
+    setSavedDecks(prev => prev.filter(d => d.id !== id));
   };
   const nextCard = () => { setCardsFlipped(false); setCardsIndex(i => Math.min(i + 1, cards.length - 1)); };
   const prevCard = () => { setCardsFlipped(false); setCardsIndex(i => Math.max(i - 1, 0)); };
 
   const generateQuiz = async (topic) => {
     setQuizOpen(true);
+    setCardsOpen(false);
     setQuizLoading(true);
     setQuizQuestions([]);
     setQuizIndex(0);
     setQuizAnswers({});
     setQuizDone(false);
     setQuizTopic(topic);
+    setCurrentQuizId(null);
+    setQuizGenState('generating');
     quizRecordedRef.current = false;
     try {
       const res = await fetch(`${API}/course/${course.id}/quiz`, {
@@ -1943,10 +2029,16 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       const data = await res.json();
       if (data.questions?.length) setQuizQuestions(data.questions);
       else setQuizQuestions([]);
+      if (data.id) {
+        setCurrentQuizId(data.id);
+        fetchSavedQuizzes();
+      }
     } catch {
       setQuizQuestions([]);
     }
     setQuizLoading(false);
+    setQuizGenState('done');
+    setTimeout(() => setQuizGenState('idle'), 1600);
   };
 
   const handleQuizAnswer = (questionIndex, optionIndex) => {
@@ -1977,6 +2069,17 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           method: 'POST', headers: jsonHeaders,
           body: JSON.stringify({ role: 'assistant', content }),
         });
+      } catch {}
+    }
+    // Persist the score onto the saved quiz so the Quizzes sidebar reflects
+    // best / last attempt without an extra refetch round-trip.
+    if (currentQuizId) {
+      try {
+        await fetch(`${API}/student/quizzes/${currentQuizId}`, {
+          method: 'PATCH', headers: jsonHeaders,
+          body: JSON.stringify({ score: quizScore }),
+        });
+        fetchSavedQuizzes();
       } catch {}
     }
   };
@@ -2594,7 +2697,29 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         </div>
         <div className="px-3 pt-3 space-y-0.5">
           <button onClick={() => { createNewChat(); setNotesOpen(false); closeMobile(); }} className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-gray-700 text-[13px] font-medium hover:bg-gray-200/60 transition-colors"><Plus size={15} className="text-gray-500" />New chat</button>
-          <button onClick={() => { setNotesOpen(true); setAllChatsOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${notesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}><FolderOpen size={15} className="text-gray-500" />My Notes{myNotes.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{myNotes.length}</span>}</button>
+          <button onClick={() => { setNotesOpen(true); setAllChatsOpen(false); setQuizzesOpen(false); setDecksOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${notesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}><FolderOpen size={15} className="text-gray-500" />My Notes{myNotes.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{myNotes.length}</span>}</button>
+          <button onClick={() => { setQuizzesOpen(true); setAllChatsOpen(false); setNotesOpen(false); setDecksOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${quizzesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
+            {quizGenState === 'generating' ? (
+              <span className="w-[15px] h-[15px] inline-block border-[1.5px] border-gray-400 border-t-transparent rounded-full animate-spin" />
+            ) : quizGenState === 'done' ? (
+              <Check size={15} className="text-emerald-500" />
+            ) : (
+              <ListChecks size={15} className="text-gray-500" />
+            )}
+            Quizzes
+            {savedQuizzes.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{savedQuizzes.length}</span>}
+          </button>
+          <button onClick={() => { setDecksOpen(true); setAllChatsOpen(false); setNotesOpen(false); setQuizzesOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${decksOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
+            {cardsGenState === 'generating' ? (
+              <span className="w-[15px] h-[15px] inline-block border-[1.5px] border-gray-400 border-t-transparent rounded-full animate-spin" />
+            ) : cardsGenState === 'done' ? (
+              <Check size={15} className="text-emerald-500" />
+            ) : (
+              <Layers size={15} className="text-gray-500" />
+            )}
+            Flashcards
+            {savedDecks.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{savedDecks.length}</span>}
+          </button>
           <input ref={paperclipRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e => { handlePaperclipFile(e.target.files[0]); e.target.value = ''; }} />
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-3">
@@ -2699,6 +2824,80 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                         <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"><FileText size={14} className="text-gray-500" /></div>
                         <span className="text-sm text-gray-800 flex-1 truncate">{cleanFileName(doc.name)}</span>
                         <button onClick={() => deleteNote(doc.name)} aria-label="Delete note" className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        {quizzesOpen && (
+          <div className="absolute inset-0 z-40 bg-[#F6F6F4] flex flex-col">
+            <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-gray-200/70 flex-shrink-0" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
+              <div className="min-w-0">
+                <h2 className="serif text-2xl text-gray-900">Quizzes</h2>
+                <p className="text-[12px] text-gray-400 mt-0.5 truncate">Practice quizzes you've generated for {course.name}. Tap one to retake.</p>
+              </div>
+              <button onClick={() => setQuizzesOpen(false)} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"><X size={16} /></button>
+            </header>
+            <div className="flex-1 overflow-y-auto">
+              <div className="max-w-3xl mx-auto w-full px-4 md:px-6 py-5">
+                {savedQuizzes.length === 0 ? (
+                  <div className="text-center py-16">
+                    <ListChecks size={28} className="text-gray-200 mx-auto mb-3" />
+                    <p className="text-gray-500 text-sm font-medium mb-1">No quizzes yet</p>
+                    <p className="text-gray-400 text-xs">Type <span className="font-mono text-gray-500">/quiz</span> in the chat to generate one.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {savedQuizzes.map(q => (
+                      <div key={q.id} className="group flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 transition-all cursor-pointer" onClick={() => openSavedQuiz(q.id)}>
+                        <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"><ListChecks size={15} className="text-gray-700" /></div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-gray-900 font-medium truncate">{q.topic || 'Practice quiz'}</p>
+                          <p className="text-[11px] text-gray-400 mt-0.5">
+                            {formatRelativeDate(q.created_at)}
+                            {q.attempts > 0 && <> · {q.attempts} attempt{q.attempts !== 1 ? 's' : ''}</>}
+                            {q.best_score != null && <> · best <span className="text-gray-700 font-medium">{q.best_score}</span></>}
+                          </p>
+                        </div>
+                        <button onClick={e => { e.stopPropagation(); deleteSavedQuiz(q.id); }} aria-label="Delete quiz" className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        {decksOpen && (
+          <div className="absolute inset-0 z-40 bg-[#F6F6F4] flex flex-col">
+            <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-gray-200/70 flex-shrink-0" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
+              <div className="min-w-0">
+                <h2 className="serif text-2xl text-gray-900">Flashcards</h2>
+                <p className="text-[12px] text-gray-400 mt-0.5 truncate">Decks you've generated for {course.name}. Tap one to study.</p>
+              </div>
+              <button onClick={() => setDecksOpen(false)} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"><X size={16} /></button>
+            </header>
+            <div className="flex-1 overflow-y-auto">
+              <div className="max-w-3xl mx-auto w-full px-4 md:px-6 py-5">
+                {savedDecks.length === 0 ? (
+                  <div className="text-center py-16">
+                    <Layers size={28} className="text-gray-200 mx-auto mb-3" />
+                    <p className="text-gray-500 text-sm font-medium mb-1">No decks yet</p>
+                    <p className="text-gray-400 text-xs">Type <span className="font-mono text-gray-500">/cards</span> in the chat to generate one.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {savedDecks.map(d => (
+                      <div key={d.id} className="group flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 transition-all cursor-pointer" onClick={() => openSavedDeck(d.id)}>
+                        <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"><Layers size={15} className="text-gray-700" /></div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-gray-900 font-medium truncate">{d.topic || 'Flashcard deck'}</p>
+                          <p className="text-[11px] text-gray-400 mt-0.5">{formatRelativeDate(d.created_at)} · {(d.cards || []).length} card{(d.cards || []).length !== 1 ? 's' : ''}</p>
+                        </div>
+                        <button onClick={e => { e.stopPropagation(); deleteSavedDeck(d.id); }} aria-label="Delete deck" className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
                       </div>
                     ))}
                   </div>
