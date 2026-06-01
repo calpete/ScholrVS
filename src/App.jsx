@@ -1869,6 +1869,9 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     if (/\bgive me a quiz\b/i.test(m)) return true;
     if (/\bstart a quiz\b/i.test(m)) return true;
     if (/\bquiz me\b.{0,30}\b(on|about|over|the|this)\b/i.test(m)) return true;
+    // Slash-command expansions ("Quiz on the syllabus…", "Quiz Chapter 4…")
+    // start with the bare verb. Match those too so the panel always opens.
+    if (/^\s*quiz\b/i.test(m) && /\b(question|short answer|multiple choice|on|about|over|chapter|module|lecture|syllabus)\b/i.test(m)) return true;
     return false;
   };
 
@@ -2296,9 +2299,14 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     if (!message.trim() || isTyping) return;
     if (activeCmd) setSlashCmd(null);
 
+    // Slash commands that open dedicated panels always win, even if the
+    // expanded message wouldn't match the natural-language detectors below.
+    const forceCards = activeCmd?.name === 'cards';
+    const forceQuiz  = activeCmd?.name === 'quiz';
+
     // Flashcards shortcut — same intercept pattern as quizzes: drop a
     // placeholder bubble in the chat, open the panel, generate via endpoint.
-    if (isFlashcardRequest(message)) {
+    if (forceCards || isFlashcardRequest(message)) {
       const topic = extractFlashcardTopic(message);
       setInput('');
       const currentChatId = chatId;
@@ -2322,7 +2330,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     }
 
     // Quiz shortcut
-    if (isFullQuizRequest(message)) {
+    if (forceQuiz || isFullQuizRequest(message)) {
       const topic = extractQuizTopic(message);
       setInput('');
       const currentChatId = chatId;
