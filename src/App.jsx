@@ -60,6 +60,21 @@ const FONT = `
   .cmd-row .cname { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; font-weight: 600; color: #2A4D8F; min-width: 92px; flex: none; }
   .cmd-row .cdesc { font-family: 'Newsreader', Georgia, serif; font-style: italic; font-size: 15px; color: #6B6E76; }
   .cmd-foot { border-top: 1px solid #EEEBE4; margin-top: 4px; padding: 9px 22px; font-size: 11px; color: #9A9CA3; display: flex; align-items: center; justify-content: space-between; letter-spacing: .04em; }
+  /* ---- flashcard panel: flip animation + faces ---- */
+  .fcard-wrap { perspective: 1400px; }
+  .fcard { position: relative; width: 100%; min-height: 240px; cursor: pointer; transform-style: preserve-3d; transition: transform .55s cubic-bezier(.2,.7,.2,1); border-radius: 18px; }
+  .fcard.flipped { transform: rotateY(180deg); }
+  .fcard .face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 18px; padding: 28px 24px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+  .fcard .face.front { background: #fff; border: 1px solid #E7E4DD; box-shadow: 0 1px 2px rgba(21,22,27,.04), 0 14px 34px -18px rgba(21,22,27,.12); color: #15161B; }
+  .fcard .face.back  { background: #15161B; color: #fff; transform: rotateY(180deg); box-shadow: 0 1px 2px rgba(21,22,27,.04), 0 14px 34px -18px rgba(21,22,27,.16); }
+  .fcard .face .ftag { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #9A9CA3; margin-bottom: 14px; }
+  .fcard .face.back .ftag { color: rgba(255,255,255,.5); }
+  .fcard .face .ftext { font-family: 'Instrument Serif', Georgia, serif; font-size: 24px; line-height: 1.18; letter-spacing: -.012em; }
+  .fcard .face.back .ftext { font-family: Inter, system-ui, sans-serif; font-size: 16px; line-height: 1.5; font-weight: 400; }
+  .fcard .face .fsrc { position: absolute; bottom: 18px; left: 0; right: 0; font-size: 11.5px; color: #9A9CA3; font-style: italic; padding: 0 22px; }
+  .fcard .face.back .fsrc { color: rgba(255,255,255,.5); }
+  .fcard .face .ftip { position: absolute; top: 14px; right: 16px; font-size: 10.5px; color: #C8C8C8; letter-spacing: .04em; }
+  .fcard .face.back .ftip { color: rgba(255,255,255,.35); }
 `;
 
 function formatTime(date) { return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
@@ -1818,6 +1833,15 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const [renameVal, setRenameVal] = useState('');
   const RECENT_LIMIT = 8;
 
+  // Flashcard panel state — mirrors the quiz panel below. Mutually exclusive
+  // with the quiz panel (only one opens at a time).
+  const [cardsOpen, setCardsOpen] = useState(false);
+  const [cardsLoading, setCardsLoading] = useState(false);
+  const [cards, setCards] = useState([]);
+  const [cardsIndex, setCardsIndex] = useState(0);
+  const [cardsFlipped, setCardsFlipped] = useState(false);
+  const [cardsTopic, setCardsTopic] = useState('');
+  const cardsChatRef = useRef({ id: null, dbId: null });
   const [quizOpen, setQuizOpen] = useState(false);
   const [quizLoading, setQuizLoading] = useState(false);
   const [quizQuestions, setQuizQuestions] = useState([]);
@@ -1860,6 +1884,43 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     }
     return '';
   };
+
+  // ── Flashcards ──────────────────────────────────────────────────────────
+  const isFlashcardRequest = (msg) => {
+    const m = (msg || '').toLowerCase();
+    return /\b(flash\s?cards?|flashcards?)\b/.test(m) && /\b(make|create|generate|build|give\s+me|deck|study)\b/.test(m);
+  };
+  const extractFlashcardTopic = (msg) => {
+    let topic = (msg || '').replace(/^\s*\/cards\s*/i, '').trim();
+    topic = topic.replace(/^(make|create|generate|build|give\s+me)\s+(me\s+)?(a\s+)?(deck\s+of\s+)?flash\s?cards?\s*/i, '');
+    topic = topic.replace(/\b(flash\s?cards?|deck)\b/gi, '').trim();
+    topic = topic.replace(/^(on|about|for|from|covering|of)\s+/i, '').trim();
+    topic = topic.replace(/\.\s*format.*$/is, '').trim();
+    topic = topic.replace(/[.!?]$/, '').trim();
+    return topic.slice(0, 120);
+  };
+  const generateFlashcards = async (topic) => {
+    setCardsOpen(true);
+    setQuizOpen(false);
+    setCardsLoading(true);
+    setCards([]);
+    setCardsIndex(0);
+    setCardsFlipped(false);
+    setCardsTopic(topic);
+    try {
+      const res = await fetch(`${API}/course/${course.id}/flashcards`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${studentToken}` },
+        body: JSON.stringify({ topic }),
+      });
+      const data = await res.json();
+      if (data.cards?.length) setCards(data.cards);
+      else setCards([]);
+    } catch { setCards([]); }
+    setCardsLoading(false);
+  };
+  const nextCard = () => { setCardsFlipped(false); setCardsIndex(i => Math.min(i + 1, cards.length - 1)); };
+  const prevCard = () => { setCardsFlipped(false); setCardsIndex(i => Math.max(i - 1, 0)); };
 
   const generateQuiz = async (topic) => {
     setQuizOpen(true);
@@ -2067,8 +2128,9 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
 
   const DEFAULT_QUESTIONS = ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
   const questions = suggestedQuestions?.length ? suggestedQuestions : DEFAULT_QUESTIONS;
-  // Mix slash-command hints into the rotating placeholder so people discover them.
-  const placeholders = [...questions, 'Type / for quick commands', '/quiz me on this week\'s lecture', '/cards from Chapter 4'];
+  // Just two rotating placeholders, alternating: one shows the slash discovery
+  // hint, the other shows the original ask-prompt. Keeps the input clean.
+  const placeholders = ['Type / for commands', 'Ask about your course...'];
   // Filter slash commands by what the user has typed after the leading slash.
   // The popover is only relevant when (a) no command is already picked and
   // (b) the input starts with a single slash (no spaces yet — once they hit
@@ -2231,6 +2293,31 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     const message = messageOverride || (activeCmd ? activeCmd.expand(input) : input);
     if (!message.trim() || isTyping) return;
     if (activeCmd) setSlashCmd(null);
+
+    // Flashcards shortcut — same intercept pattern as quizzes: drop a
+    // placeholder bubble in the chat, open the panel, generate via endpoint.
+    if (isFlashcardRequest(message)) {
+      const topic = extractFlashcardTopic(message);
+      setInput('');
+      const currentChatId = chatId;
+      const currentActive = chats.find(c => c.id === currentChatId) || chats[0];
+      const currentChatDbId = currentActive?.dbId || null;
+      cardsChatRef.current = { id: currentChatId, dbId: currentChatDbId };
+      const streamingMsgId = Date.now();
+      setChats(prev => prev.map(c => c.id === currentChatId ? {
+        ...c,
+        messages: [
+          ...c.messages,
+          { role: 'user', content: message, ts: Date.now() },
+          { id: streamingMsgId, role: 'assistant', content: `Building your flashcards${topic ? ` on **${topic}**` : ''} — see the panel on the right.`, sources: [], ts: Date.now(), streaming: false },
+        ],
+      } : c));
+      if (currentChatDbId && !String(currentChatDbId).startsWith('local-')) {
+        try { await fetch(`${API}/student/chats/${currentChatDbId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'user', content: message }) }); } catch {}
+      }
+      generateFlashcards(topic);
+      return;
+    }
 
     // Quiz shortcut
     if (isFullQuizRequest(message)) {
@@ -2626,6 +2713,11 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                 <X size={11} /><span className="hidden md:inline">Close quiz</span>
               </button>
             )}
+            {cardsOpen && (
+              <button onClick={() => setCardsOpen(false)} className="flex items-center gap-1.5 px-2 md:px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium transition-colors">
+                <X size={11} /><span className="hidden md:inline">Close cards</span>
+              </button>
+            )}
             <button type="button" onClick={onExit} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0" aria-label="Scholr home"><Logo size={20} /><span className="text-gray-900 font-semibold text-sm hidden sm:inline">Scholr</span></button>
           </div>
         </header>
@@ -2846,6 +2938,87 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                           </button>
                         )}
                       </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+
+          {/* ── Flashcards panel — same shape as the quiz panel ── */}
+          {cardsOpen && (
+            <div className="fixed md:static inset-0 md:inset-auto z-30 md:w-[360px] md:border-l border-gray-200 bg-white flex flex-col md:flex-shrink-0 overflow-hidden pt-[env(safe-area-inset-top)] md:pt-0">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-gray-900 flex items-center justify-center flex-shrink-0">
+                    <FolderOpen size={15} className="text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-gray-900 text-sm font-semibold leading-tight">Flashcards</p>
+                    <p className="text-gray-400 text-[11px] truncate">{cardsTopic || 'From your course materials'}</p>
+                  </div>
+                </div>
+                {!cardsLoading && cards.length > 0 && (
+                  <span className="text-[11px] font-medium text-gray-400 tabular-nums flex-shrink-0 ml-2">{cardsIndex + 1} / {cards.length}</span>
+                )}
+              </div>
+              {!cardsLoading && cards.length > 0 && (
+                <div className="h-1 bg-gray-100 flex-shrink-0">
+                  <div className="h-full bg-gray-900 transition-all duration-300 ease-out" style={{ width: `${((cardsIndex + 1) / cards.length) * 100}%` }} />
+                </div>
+              )}
+              <div className="flex-1 overflow-y-auto p-5 md:p-6 flex flex-col">
+                {cardsLoading && (
+                  <div className="flex flex-col items-center justify-center flex-1 gap-4">
+                    <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-gray-400 text-xs text-center">Generating your flashcards from course materials…</p>
+                  </div>
+                )}
+                {!cardsLoading && cards.length === 0 && (
+                  <div className="flex flex-col items-center justify-center flex-1 gap-3 text-center">
+                    <AlertCircle size={24} className="text-gray-200" />
+                    <p className="text-gray-500 text-sm font-medium">Couldn't generate flashcards</p>
+                    <p className="text-gray-400 text-xs">Try again with a specific topic</p>
+                  </div>
+                )}
+                {!cardsLoading && cards.length > 0 && (() => {
+                  const c = cards[cardsIndex];
+                  const isFirst = cardsIndex === 0;
+                  const isLast = cardsIndex === cards.length - 1;
+                  return (
+                    <div className="flex flex-col gap-5 flex-1">
+                      <div className="fcard-wrap flex-1 flex items-stretch">
+                        <div className={`fcard${cardsFlipped ? ' flipped' : ''} flex-1`} onClick={() => setCardsFlipped(f => !f)} role="button" aria-label="Flip flashcard">
+                          <div className="face front">
+                            <span className="ftip">Tap to flip</span>
+                            <span className="ftag">Front</span>
+                            <span className="ftext">{c.front}</span>
+                            {c.source && <span className="fsrc">— {c.source}</span>}
+                          </div>
+                          <div className="face back">
+                            <span className="ftip">Tap to flip</span>
+                            <span className="ftag">Back</span>
+                            <span className="ftext">{c.back}</span>
+                            {c.source && <span className="fsrc">— {c.source}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <button onClick={prevCard} disabled={isFirst} aria-label="Previous card"
+                          className="w-11 h-11 rounded-full border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-30 disabled:hover:bg-white disabled:cursor-not-allowed flex items-center justify-center text-gray-700 transition-colors">
+                          <ChevronLeft size={18} />
+                        </button>
+                        <button onClick={() => setCardsFlipped(f => !f)} className="flex-1 py-2.5 rounded-full bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">
+                          {cardsFlipped ? 'Show front' : 'Show back'}
+                        </button>
+                        <button onClick={isLast ? () => { setCardsIndex(0); setCardsFlipped(false); } : nextCard} aria-label={isLast ? 'Restart deck' : 'Next card'}
+                          className="w-11 h-11 rounded-full border border-gray-200 bg-white hover:bg-gray-50 flex items-center justify-center text-gray-700 transition-colors">
+                          {isLast ? <RotateCcw size={16} /> : <ChevronRight size={18} />}
+                        </button>
+                      </div>
+                      {isLast && (
+                        <button onClick={() => generateFlashcards(cardsTopic)} className="w-full py-2.5 rounded-xl bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 text-sm font-medium transition-colors">Generate a new deck</button>
+                      )}
                     </div>
                   );
                 })()}

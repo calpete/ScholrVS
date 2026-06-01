@@ -1249,6 +1249,56 @@ Generate all 5 questions now:`;
   }
 });
 
+// Flashcards — same pattern as /quiz: a one-shot generation grounded in the
+// course materials. Returns parsed cards with front/back/source so the
+// client can show them in a flippable panel.
+app.post('/course/:courseId/flashcards', requireAuth, requireCourseAccess, async (req, res) => {
+  const { courseId } = req.params;
+  const { topic } = req.body;
+  const docs = getCourseDocuments(courseId);
+  if (Object.keys(docs).length === 0) return res.status(400).json({ error: 'No documents uploaded yet' });
+
+  const docEntries = Object.entries(docs);
+  const docUris = await Promise.all(docEntries.map(([name, doc]) => getGeminiUri(courseId, name, doc)));
+  const docParts = [];
+  docEntries.forEach(([name, doc], i) => {
+    const uri = docUris[i];
+    if (uri) docParts.push({ fileData: { mimeType: doc.mimeType, fileUri: uri } });
+    else docParts.push({ inlineData: { mimeType: doc.mimeType, data: doc.buffer.toString('base64') } });
+    docParts.push({ text: `[Document: ${name}]` });
+  });
+
+  const prompt = `Read these course documents and generate 10 study flashcards${topic ? ` about: ${topic}` : ' covering the most exam-worthy concepts'}.
+
+For each card, write it in this EXACT format with no variations:
+FRONT: [a concise term, concept, or question]
+BACK: [the definition or answer in 1-2 sentences]
+SOURCE: [one short citation like "Lecture 6 · slide 14" or "Chapter 4 · p. 132"]
+---
+
+Keep each side under two sentences. Use plain text, no markdown inside the FRONT/BACK fields. Generate all 10 cards now:`;
+
+  try {
+    const result = await ai.models.generateContent({
+      model: MODEL,
+      contents: [{ role: 'user', parts: [...docParts, { text: prompt }] }],
+      config: { temperature: 0.4, maxOutputTokens: 3000 },
+    });
+    const text = result.text.trim();
+    const blocks = text.split(/---+|\n(?=FRONT:)/i).map(b => b.trim()).filter(b => b.length > 10);
+    const cards = blocks.map(block => {
+      const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+      const get = (prefix) => { const line = lines.find(l => l.toUpperCase().startsWith(prefix)); return line ? line.slice(prefix.length).trim() : ''; };
+      return { front: get('FRONT:'), back: get('BACK:'), source: get('SOURCE:') };
+    }).filter(c => c.front && c.back).slice(0, 12);
+    if (cards.length === 0) return res.status(500).json({ error: 'Could not generate flashcards' });
+    res.json({ cards });
+  } catch (err) {
+    console.error('Flashcards generation error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Legacy routes ─────────────────────────────────────────────────────────────
 app.post('/auth', (req, res) => {
   const { password } = req.body;
