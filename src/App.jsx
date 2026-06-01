@@ -2600,6 +2600,11 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   );
 
   const closeMobile = () => setMobileChatsOpen(false);
+  // Close every full-page overlay (notes / quizzes / decks, plus the
+  // active-taking / studying states). Called from any sidebar action that
+  // navigates somewhere else, so clicking a chat while you're in Quizzes
+  // doesn't leave the overlay floating on top of the new chat.
+  const closeOverlays = () => { setNotesOpen(false); setQuizzesOpen(false); setDecksOpen(false); setQuizTaking(false); setDeckStudying(false); setAllChatsOpen(false); };
 
   const isEmpty = !active || active.messages.length === 0;
   // Shared composer — rendered centered with the greeting on an empty chat, or
@@ -2699,7 +2704,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           <p className="text-gray-400 text-[11px] mt-1">{documents.length} doc{documents.length !== 1 ? 's' : ''} · {myNotes.length} note{myNotes.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="px-3 pt-3 space-y-0.5">
-          <button onClick={() => { createNewChat(); setNotesOpen(false); closeMobile(); }} className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-gray-700 text-[13px] font-medium hover:bg-gray-200/60 transition-colors"><Plus size={15} className="text-gray-500" />New chat</button>
+          <button onClick={() => { createNewChat(); closeOverlays(); closeMobile(); }} className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-gray-700 text-[13px] font-medium hover:bg-gray-200/60 transition-colors"><Plus size={15} className="text-gray-500" />New chat</button>
           <button onClick={() => { setNotesOpen(true); setAllChatsOpen(false); setQuizzesOpen(false); setDecksOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${notesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}><FolderOpen size={15} className="text-gray-500" />My Notes{myNotes.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{myNotes.length}</span>}</button>
           <button onClick={() => { setQuizzesOpen(true); setQuizTaking(false); setAllChatsOpen(false); setNotesOpen(false); setDecksOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${quizzesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
             {quizGenState === 'generating' ? (
@@ -2732,7 +2737,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             </button>
             {recentsOpen && (
               <button
-                onClick={() => { setAllChatsOpen(true); setNotesOpen(false); closeMobile(); }}
+                onClick={() => { closeOverlays(); setAllChatsOpen(true); closeMobile(); }}
                 className="flex items-center gap-0.5 text-[10px] text-gray-400 hover:text-gray-700 font-medium opacity-0 group-hover/recents:opacity-100 transition-opacity">
                 View all<ChevronRight size={10} />
               </button>
@@ -2750,7 +2755,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                 />
               ) : (
                 <>
-                  <button onClick={() => { setChatId(c.id); setNotesOpen(false); closeMobile(); }} className={`flex items-center w-full text-left px-2.5 py-2 rounded-lg text-[13px] transition-colors pr-8 ${c.id === chatId && !notesOpen ? 'bg-gray-200 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-200/60'}`}>
+                  <button onClick={() => { setChatId(c.id); closeOverlays(); closeMobile(); }} className={`flex items-center w-full text-left px-2.5 py-2 rounded-lg text-[13px] transition-colors pr-8 ${c.id === chatId && !notesOpen && !quizzesOpen && !decksOpen ? 'bg-gray-200 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-200/60'}`}>
                     <span className="truncate">{c.title || 'New Chat'}</span>
                   </button>
                   <button onClick={e => { e.stopPropagation(); setChatMenuId(chatMenuId === c.id ? null : c.id); }}
@@ -2802,31 +2807,35 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         )}
         {notesOpen && (
           <div className="absolute inset-0 z-40 bg-[#F6F6F4] flex flex-col">
-            <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-gray-200/70 flex-shrink-0" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
-              <div className="min-w-0">
-                <h2 className="serif text-2xl text-gray-900">My Notes</h2>
-                <p className="text-[12px] text-gray-400 mt-0.5 truncate">Uploaded here, read alongside your course materials.</p>
+            <header className="flex items-start justify-between px-6 md:px-10 pt-8 md:pt-10 pb-6 border-b border-gray-200/70 flex-shrink-0 gap-4" style={{ paddingTop: 'max(2rem, env(safe-area-inset-top))' }}>
+              <div className="min-w-0 max-w-2xl">
+                <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Your study notes</div>
+                <h2 className="serif text-3xl md:text-[40px] text-gray-900 leading-none tracking-tight">My Notes<span className="italic">.</span></h2>
+                <p className="text-[14.5px] text-gray-500 mt-3 leading-relaxed">Drop in your own slides, screenshots, or photos of handwritten notes — Scholr reads them alongside your professor's materials.</p>
               </div>
-              <button onClick={() => setNotesOpen(false)} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"><X size={16} /></button>
+              <button onClick={() => setNotesOpen(false)} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"><X size={18} /></button>
             </header>
             <div className="flex-1 overflow-y-auto">
-              <div className="max-w-3xl mx-auto w-full px-4 md:px-6 py-5">
-                <button onClick={() => paperclipRef.current?.click()} className="w-full flex flex-col items-center justify-center py-10 rounded-2xl border-2 border-dashed border-gray-200 hover:border-gray-300 bg-white/40 transition-colors cursor-pointer mb-5">
-                  <UploadCloud size={22} className="text-gray-300 mb-2" />
-                  <p className="text-sm text-gray-500 font-medium">Drop notes or photos</p>
-                  <p className="text-[11px] text-gray-400 mt-0.5">PDF, JPG or PNG · added to this course's AI context</p>
+              <div className="max-w-3xl mx-auto w-full px-6 md:px-10 py-7">
+                <button onClick={() => paperclipRef.current?.click()} className="group/drop w-full flex flex-col items-center justify-center py-12 rounded-2xl border-2 border-dashed border-gray-200 hover:border-gray-400 bg-white/50 hover:bg-white transition-all cursor-pointer mb-6">
+                  <UploadCloud size={26} className="text-gray-300 group-hover/drop:text-gray-500 mb-3 transition-colors" />
+                  <p className="serif text-lg text-gray-800">Drop notes or photos</p>
+                  <p className="text-[12px] text-gray-400 mt-1.5 tracking-wide">PDF · JPG · PNG  —  added to this course's AI context</p>
                 </button>
                 {notesLoading ? (
-                  <div className="flex items-center justify-center py-10"><div className="w-5 h-5 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" /></div>
+                  <div className="flex items-center justify-center py-12"><div className="w-5 h-5 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" /></div>
                 ) : myNotes.length === 0 ? (
-                  <p className="text-gray-400 text-sm text-center py-10">No notes yet — upload your own to ground answers in them.</p>
+                  <div className="text-center py-12">
+                    <p className="serif text-xl text-gray-700 mb-2">No notes <span className="italic">yet</span>.</p>
+                    <p className="text-[13.5px] text-gray-400 max-w-xs mx-auto leading-relaxed">Upload one to ground answers in your own work too.</p>
+                  </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     {myNotes.map((doc, i) => (
-                      <div key={i} className="group flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-200">
-                        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"><FileText size={14} className="text-gray-500" /></div>
-                        <span className="text-sm text-gray-800 flex-1 truncate">{cleanFileName(doc.name)}</span>
-                        <button onClick={() => deleteNote(doc.name)} aria-label="Delete note" className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
+                      <div key={i} className="group flex items-center gap-4 px-5 py-4 rounded-2xl bg-white border border-gray-200 hover:border-gray-400 hover:shadow-sm transition-all">
+                        <div className="w-11 h-11 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0"><FileText size={17} className="text-gray-700" /></div>
+                        <span className="text-[15px] text-gray-900 font-medium flex-1 truncate">{cleanFileName(doc.name)}</span>
+                        <button onClick={() => deleteNote(doc.name)} aria-label="Delete note" className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={14} /></button>
                       </div>
                     ))}
                   </div>
@@ -2837,44 +2846,63 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         )}
         {quizzesOpen && (
           <div className="absolute inset-0 z-40 bg-[#F6F6F4] flex flex-col">
-            <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-gray-200/70 flex-shrink-0 gap-3" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
-              <div className="min-w-0 flex items-center gap-3">
-                {quizTaking && (
+            {quizTaking ? (
+              <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-gray-200/70 flex-shrink-0 gap-3" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
+                <div className="min-w-0 flex items-center gap-3">
                   <button onClick={() => setQuizTaking(false)} aria-label="Back to quizzes" className="p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors flex-shrink-0 -ml-2"><ChevronLeft size={18} /></button>
-                )}
-                <div className="min-w-0">
-                  <h2 className="serif text-2xl text-gray-900">{quizTaking ? (quizTopic || 'Practice quiz') : 'Quizzes'}</h2>
-                  <p className="text-[12px] text-gray-400 mt-0.5 truncate">{quizTaking ? `From ${course.name}` : `Practice quizzes you've generated for ${course.name}. Tap one to retake.`}</p>
+                  <div className="min-w-0">
+                    <h2 className="serif text-xl text-gray-900 truncate">{quizTopic || 'Practice quiz'}</h2>
+                    <p className="text-[11px] text-gray-400 mt-0.5 tracking-wide uppercase font-semibold">From {course.name}</p>
+                  </div>
                 </div>
-              </div>
-              <button onClick={() => { setQuizzesOpen(false); setQuizTaking(false); }} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"><X size={16} /></button>
-            </header>
+                <button onClick={() => { setQuizzesOpen(false); setQuizTaking(false); }} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"><X size={16} /></button>
+              </header>
+            ) : (
+              <header className="flex items-start justify-between px-6 md:px-10 pt-8 md:pt-10 pb-6 border-b border-gray-200/70 flex-shrink-0 gap-4" style={{ paddingTop: 'max(2rem, env(safe-area-inset-top))' }}>
+                <div className="min-w-0 max-w-2xl">
+                  <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Practice</div>
+                  <h2 className="serif text-3xl md:text-[40px] text-gray-900 leading-none tracking-tight">Quizzes<span className="italic">.</span></h2>
+                  <p className="text-[14.5px] text-gray-500 mt-3 leading-relaxed">Every practice quiz Scholr has built for {course.name} from your professor's materials. Tap one to retake — your best score travels with it.</p>
+                </div>
+                <button onClick={() => setQuizzesOpen(false)} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"><X size={18} /></button>
+              </header>
+            )}
             {quizTaking && quizQuestions.length > 0 && !quizDone && (
               <div className="h-1 bg-gray-100 flex-shrink-0"><div className="h-full bg-gray-900 transition-all duration-300 ease-out" style={{ width: `${((quizIndex + (quizAnswers[quizIndex] !== undefined ? 1 : 0)) / quizQuestions.length) * 100}%` }} /></div>
             )}
             <div className="flex-1 overflow-y-auto">
               {!quizTaking ? (
-                <div className="max-w-3xl mx-auto w-full px-4 md:px-6 py-5">
+                <div className="max-w-3xl mx-auto w-full px-6 md:px-10 py-8">
                   {savedQuizzes.length === 0 ? (
-                    <div className="text-center py-16">
-                      <ListChecks size={28} className="text-gray-200 mx-auto mb-3" />
-                      <p className="text-gray-500 text-sm font-medium mb-1">No quizzes yet</p>
-                      <p className="text-gray-400 text-xs">Type <span className="font-mono text-gray-500">/quiz</span> in the chat to generate one.</p>
+                    <div className="text-center py-20">
+                      <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#F3F2EF] mb-5"><ListChecks size={22} className="text-gray-400" /></div>
+                      <h3 className="serif text-2xl text-gray-900 leading-none tracking-tight">No quizzes yet<span className="italic">.</span></h3>
+                      <p className="text-[14px] text-gray-500 mt-3 max-w-sm mx-auto leading-relaxed">Type <span className="font-mono text-[13px] text-[#2A4D8F] bg-[#2A4D8F]/[.06] px-1.5 py-0.5 rounded">/quiz</span> in the chat to generate one from your professor's materials.</p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="flex flex-col gap-2.5">
                       {savedQuizzes.map(q => (
-                        <div key={q.id} className="group flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 transition-all cursor-pointer" onClick={() => openSavedQuiz(q.id)}>
-                          <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"><ListChecks size={15} className="text-gray-700" /></div>
+                        <div key={q.id} className="group flex items-center gap-4 px-5 py-4 rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04)] transition-all cursor-pointer" onClick={() => openSavedQuiz(q.id)}>
+                          <div className="w-11 h-11 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0"><ListChecks size={17} className="text-gray-700" /></div>
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm text-gray-900 font-medium truncate">{q.topic || 'Practice quiz'}</p>
-                            <p className="text-[11px] text-gray-400 mt-0.5">
-                              {formatRelativeDate(q.created_at)}
-                              {q.attempts > 0 && <> · {q.attempts} attempt{q.attempts !== 1 ? 's' : ''}</>}
-                              {q.best_score != null && <> · best <span className="text-gray-700 font-medium">{q.best_score}</span></>}
-                            </p>
+                            <p className="serif text-[16px] text-gray-900 leading-tight truncate">{q.topic || 'Practice quiz'}</p>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <span className="text-[11px] text-gray-400 tracking-wide">{formatRelativeDate(q.created_at)}</span>
+                              {q.attempts > 0 && (
+                                <>
+                                  <span className="text-gray-300">·</span>
+                                  <span className="text-[11px] text-gray-400 tabular-nums">{q.attempts} attempt{q.attempts !== 1 ? 's' : ''}</span>
+                                </>
+                              )}
+                              {q.best_score != null && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100">
+                                  <span className="text-[10px] font-semibold tracking-[.1em] uppercase text-emerald-700">Best</span>
+                                  <span className="text-[11px] font-semibold text-emerald-800 tabular-nums">{q.best_score}</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <button onClick={e => { e.stopPropagation(); deleteSavedQuiz(q.id); }} aria-label="Delete quiz" className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
+                          <button onClick={e => { e.stopPropagation(); deleteSavedQuiz(q.id); }} aria-label="Delete quiz" className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={14} /></button>
                         </div>
                       ))}
                     </div>
@@ -2966,45 +2994,64 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         )}
         {decksOpen && (
           <div className="absolute inset-0 z-40 bg-[#F6F6F4] flex flex-col">
-            <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-gray-200/70 flex-shrink-0 gap-3" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
-              <div className="min-w-0 flex items-center gap-3">
-                {deckStudying && (
+            {deckStudying ? (
+              <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-gray-200/70 flex-shrink-0 gap-3" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
+                <div className="min-w-0 flex items-center gap-3">
                   <button onClick={() => setDeckStudying(false)} aria-label="Back to decks" className="p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors flex-shrink-0 -ml-2"><ChevronLeft size={18} /></button>
-                )}
-                <div className="min-w-0">
-                  <h2 className="serif text-2xl text-gray-900">{deckStudying ? (cardsTopic || 'Flashcard deck') : 'Flashcards'}</h2>
-                  <p className="text-[12px] text-gray-400 mt-0.5 truncate">{deckStudying ? `From ${course.name}` : `Decks you've generated for ${course.name}. Tap one to study.`}</p>
+                  <div className="min-w-0">
+                    <h2 className="serif text-xl text-gray-900 truncate">{cardsTopic || 'Flashcard deck'}</h2>
+                    <p className="text-[11px] text-gray-400 mt-0.5 tracking-wide uppercase font-semibold">From {course.name}</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                {deckStudying && cards.length > 0 && <span className="text-[11px] font-medium text-gray-400 tabular-nums">{cardsIndex + 1} / {cards.length}</span>}
-                <button onClick={() => { setDecksOpen(false); setDeckStudying(false); }} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={16} /></button>
-              </div>
-            </header>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {cards.length > 0 && <span className="text-[11px] font-medium text-gray-400 tabular-nums">{cardsIndex + 1} / {cards.length}</span>}
+                  <button onClick={() => { setDecksOpen(false); setDeckStudying(false); }} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={16} /></button>
+                </div>
+              </header>
+            ) : (
+              <header className="flex items-start justify-between px-6 md:px-10 pt-8 md:pt-10 pb-6 border-b border-gray-200/70 flex-shrink-0 gap-4" style={{ paddingTop: 'max(2rem, env(safe-area-inset-top))' }}>
+                <div className="min-w-0 max-w-2xl">
+                  <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Study Decks</div>
+                  <h2 className="serif text-3xl md:text-[40px] text-gray-900 leading-none tracking-tight">Flashcards<span className="italic">.</span></h2>
+                  <p className="text-[14.5px] text-gray-500 mt-3 leading-relaxed">Every deck Scholr has built for {course.name} from your professor's materials. Tap one to study — flip, advance, repeat.</p>
+                </div>
+                <button onClick={() => setDecksOpen(false)} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"><X size={18} /></button>
+              </header>
+            )}
             {deckStudying && cards.length > 0 && (
               <div className="h-1 bg-gray-100 flex-shrink-0"><div className="h-full bg-gray-900 transition-all duration-300 ease-out" style={{ width: `${((cardsIndex + 1) / cards.length) * 100}%` }} /></div>
             )}
             <div className="flex-1 overflow-y-auto">
               {!deckStudying ? (
-                <div className="max-w-3xl mx-auto w-full px-4 md:px-6 py-5">
+                <div className="max-w-3xl mx-auto w-full px-6 md:px-10 py-8">
                   {savedDecks.length === 0 ? (
-                    <div className="text-center py-16">
-                      <Layers size={28} className="text-gray-200 mx-auto mb-3" />
-                      <p className="text-gray-500 text-sm font-medium mb-1">No decks yet</p>
-                      <p className="text-gray-400 text-xs">Type <span className="font-mono text-gray-500">/cards</span> in the chat to generate one.</p>
+                    <div className="text-center py-20">
+                      <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#F3F2EF] mb-5"><Layers size={22} className="text-gray-400" /></div>
+                      <h3 className="serif text-2xl text-gray-900 leading-none tracking-tight">No decks yet<span className="italic">.</span></h3>
+                      <p className="text-[14px] text-gray-500 mt-3 max-w-sm mx-auto leading-relaxed">Type <span className="font-mono text-[13px] text-[#2A4D8F] bg-[#2A4D8F]/[.06] px-1.5 py-0.5 rounded">/cards</span> in the chat to generate a deck from your professor's materials.</p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      {savedDecks.map(d => (
-                        <div key={d.id} className="group flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 transition-all cursor-pointer" onClick={() => openSavedDeck(d.id)}>
-                          <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"><Layers size={15} className="text-gray-700" /></div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm text-gray-900 font-medium truncate">{d.topic || 'Flashcard deck'}</p>
-                            <p className="text-[11px] text-gray-400 mt-0.5">{formatRelativeDate(d.created_at)} · {(d.cards || []).length} card{(d.cards || []).length !== 1 ? 's' : ''}</p>
+                    <div className="flex flex-col gap-2.5">
+                      {savedDecks.map(d => {
+                        const cardCount = (d.cards || []).length;
+                        return (
+                          <div key={d.id} className="group flex items-center gap-4 px-5 py-4 rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04)] transition-all cursor-pointer" onClick={() => openSavedDeck(d.id)}>
+                            <div className="w-11 h-11 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0"><Layers size={17} className="text-gray-700" /></div>
+                            <div className="min-w-0 flex-1">
+                              <p className="serif text-[16px] text-gray-900 leading-tight truncate">{d.topic || 'Flashcard deck'}</p>
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <span className="text-[11px] text-gray-400 tracking-wide">{formatRelativeDate(d.created_at)}</span>
+                                <span className="text-gray-300">·</span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#2A4D8F]/[.06] border border-[#2A4D8F]/15">
+                                  <span className="text-[11px] font-semibold text-[#2A4D8F] tabular-nums">{cardCount}</span>
+                                  <span className="text-[10px] font-semibold tracking-[.1em] uppercase text-[#2A4D8F]">Card{cardCount !== 1 ? 's' : ''}</span>
+                                </span>
+                              </div>
+                            </div>
+                            <button onClick={e => { e.stopPropagation(); deleteSavedDeck(d.id); }} aria-label="Delete deck" className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={14} /></button>
                           </div>
-                          <button onClick={e => { e.stopPropagation(); deleteSavedDeck(d.id); }} aria-label="Delete deck" className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
