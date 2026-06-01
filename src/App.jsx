@@ -349,6 +349,7 @@ function SmartSignIn({ onPickStudent, onPickProfessor, onBack }) {
       <style>{AUTH_CSS}</style>
       <div className="choose-wrap">
         <button type="button" className="auth-brand choose-brand" onClick={onBack} aria-label="Scholr home"><LandingLogo s={32} />Scholr</button>
+        <div className="choose-eyebrow"><span className="dash" /> Sign in <span className="dash" /></div>
         <h1 className="choose-h">Welcome back.</h1>
         <p className="choose-sub">Sign in to the portal you signed up for.</p>
         <div className="choose-cards">
@@ -364,6 +365,7 @@ function SmartSignIn({ onPickStudent, onPickProfessor, onBack }) {
           </button>
         </div>
         <button type="button" className="choose-back" onClick={onBack}><ArrowLeft size={13} />Back</button>
+        <div className="theme-foot"><Lock size={12} /> FERPA aligned <span className="sep" /> Powered by Google Vertex AI</div>
       </div>
     </div>
   );
@@ -480,6 +482,30 @@ const AUTH_CSS = `
 .scholr-auth .choose-card:hover svg:last-child{color:var(--ink);transform:translateX(3px);}
 .scholr-auth .choose-back{display:inline-flex;align-items:center;gap:6px;margin:24px auto 0;background:none;border:none;font-family:var(--font-body);font-size:13px;color:var(--muted-2);cursor:pointer;}
 .scholr-auth .choose-back:hover{color:var(--ink);}
+.scholr-auth .choose-eyebrow{display:inline-flex;align-items:center;gap:9px;font-size:12px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);justify-content:center;margin-bottom:18px;}
+.scholr-auth .choose-eyebrow .dash{width:22px;height:1.5px;border-radius:2px;background:currentColor;opacity:.55;}
+.scholr-auth .theme-foot{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:30px;font-size:12.5px;color:var(--muted-2);}
+.scholr-auth .theme-foot svg{width:12px;height:12px;}
+.scholr-auth .theme-foot .sep{width:3px;height:3px;border-radius:999px;background:currentColor;opacity:.6;flex:none;}
+/* ---- invite (join-code landing) ---- */
+.scholr-auth.invite{display:flex;grid-template-columns:none;flex-direction:column;align-items:center;justify-content:center;padding:32px 22px;background:var(--bg);}
+.scholr-auth .invite-wrap{width:100%;max-width:440px;display:flex;flex-direction:column;align-items:center;}
+.scholr-auth .invite-brand{justify-content:center;margin-bottom:0;}
+.scholr-auth .invite-card{position:relative;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:40px 36px;box-shadow:var(--shadow-float);margin-top:28px;}
+.scholr-auth .invite-ic{width:52px;height:52px;border-radius:14px;background:var(--ink);color:#fff;display:grid;place-items:center;margin-bottom:24px;}
+.scholr-auth .invite-eyebrow{font-size:12px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted-2);margin-bottom:6px;}
+.scholr-auth .invite-course{font-family:var(--font-display);font-weight:500;font-size:34px;letter-spacing:-.02em;line-height:1.04;color:var(--ink);margin-bottom:16px;}
+.scholr-auth .invite-code{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:10px;background:var(--bg-2);border:1px solid var(--line);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;font-weight:600;color:var(--ink-2);letter-spacing:.06em;margin-bottom:30px;}
+.scholr-auth .invite-btn{width:100%;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:14px;border-radius:13px;border:none;background:var(--ink);color:#fff;font-family:var(--font-body);font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 1px 2px rgba(21,22,27,.3);transition:background .2s,transform .15s,box-shadow .2s;}
+.scholr-auth .invite-btn:hover:not(:disabled){background:#000;transform:translateY(-1px);box-shadow:0 8px 22px -10px rgba(21,22,27,.5);}
+.scholr-auth .invite-btn:disabled{opacity:.5;cursor:default;}
+.scholr-auth .invite-alt{display:block;width:100%;text-align:center;margin-top:14px;background:none;border:none;font-family:var(--font-body);font-size:13.5px;color:var(--muted);cursor:pointer;}
+.scholr-auth .invite-alt b{font-weight:700;color:var(--ink);}
+.scholr-auth .invite-alt:hover{color:var(--ink);}
+.scholr-auth .invite-err{text-align:center;width:100%;}
+.scholr-auth .invite-err h1{font-family:var(--font-display);font-weight:500;font-size:30px;letter-spacing:-.02em;color:var(--ink);margin-bottom:10px;}
+.scholr-auth .invite-err p{font-size:15px;color:var(--muted);margin-bottom:20px;}
+@media (max-width:480px){.scholr-auth .invite-card{padding:30px 24px;}.scholr-auth .invite-course{font-size:28px;}}
 `;
 
 // Full-page split shell shared by all four auth screens. Left = branded
@@ -3612,47 +3638,35 @@ function JoinCoursePage({ studentToken, studentUser, onStudentLogin, onEnterCour
   if (loading) return <LoadingScreen label="Loading your course..." />;
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col page-enter">
-      <style>{FONT}</style>
-      <nav className="flex items-center justify-between px-4 md:px-8 py-3 md:py-4 border-b border-gray-200 bg-white" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
-        <button type="button" onClick={() => navigate('/')} className="flex items-center gap-3 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={24} /><span className="text-gray-900 font-semibold">Scholr</span></button>
-        {studentUser && <span className="text-gray-400 text-sm truncate ml-3">{studentUser.name || studentUser.email}</span>}
-      </nav>
-      <div className="flex-1 flex items-center justify-center px-4">
-        <div className="w-full max-w-md">
-          {error ? (
-            <div className="text-center">
-              <h1 className="text-gray-900 font-semibold text-lg mb-2">Course not found</h1>
-              <p className="text-gray-400 text-sm mb-6">This course may no longer be available. Contact your professor for a new link.</p>
-              <button onClick={() => navigate('/')} className="text-gray-500 text-sm hover:text-gray-800 transition-colors">← Back to Scholr</button>
-            </div>
-          ) : (
-            <div className="fade-up">
-              <div className="bg-white rounded-3xl border border-gray-200 p-8 shadow-sm mb-4">
-                <div className="w-12 h-12 rounded-2xl bg-gray-900 flex items-center justify-center mb-6"><BookOpen size={20} className="text-white" /></div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">You've been invited to join</p>
-                <h1 className="serif text-3xl text-gray-900 mb-1">{course?.name}</h1>
-                <div className="flex items-center gap-2 mb-8 px-3 py-2 bg-gray-50 rounded-xl border border-gray-200 w-fit">
-                  <span className="text-xs font-mono text-gray-500">{code}</span>
-                </div>
-                <button onClick={handleJoinNow} disabled={joining}
-                  className="w-full py-4 rounded-2xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-semibold transition-colors">
-                  {joining ? 'Joining...' : studentToken ? 'Join class now →' : 'Sign up to join class →'}
+    <div className="scholr-auth invite">
+      <style>{AUTH_CSS}</style>
+      <div className="invite-wrap">
+        <button type="button" className="auth-brand invite-brand" onClick={() => navigate('/')} aria-label="Scholr home"><LandingLogo s={32} />Scholr</button>
+        {error ? (
+          <div className="invite-card invite-err">
+            <h1>Course not found</h1>
+            <p>This course may no longer be available. Contact your professor for a new link.</p>
+            <button type="button" className="invite-btn" onClick={() => navigate('/')}>Back to Scholr</button>
+          </div>
+        ) : (
+          <>
+            <div className="invite-card">
+              <div className="invite-ic"><BookOpen size={20} /></div>
+              <p className="invite-eyebrow">You've been invited to join</p>
+              <h1 className="invite-course">{course?.name}</h1>
+              <div className="invite-code">{code}</div>
+              <button type="button" className="invite-btn" onClick={handleJoinNow} disabled={joining}>
+                {joining ? 'Joining…' : studentToken ? <>Join class now <Ic name="arrow-right" s={16} /></> : <>Sign up to join class <Ic name="arrow-right" s={16} /></>}
+              </button>
+              {!studentToken && (
+                <button type="button" className="invite-alt" onClick={() => { sessionStorage.setItem('scholr_pending_join', code); navigate('/student/login'); }}>
+                  Already have an account? <b>Sign in</b>
                 </button>
-                {!studentToken && (
-                  <p className="text-center text-xs text-gray-400 mt-3">
-                    Already have an account?{' '}
-                    <button onClick={() => { sessionStorage.setItem('scholr_pending_join', code); navigate('/student/login'); }}
-                      className="text-gray-700 font-medium hover:underline">Sign in</button>
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center justify-center gap-6 text-xs text-gray-400">
-                <span className="flex items-center gap-1"><Lock size={11} />FERPA aligned</span><span className="w-1 h-1 rounded-full bg-gray-300" /><span>Powered by Google Vertex AI</span>
-              </div>
+              )}
             </div>
-          )}
-        </div>
+            <div className="theme-foot"><Lock size={12} /> FERPA aligned <span className="sep" /> Powered by Google Vertex AI</div>
+          </>
+        )}
       </div>
     </div>
   );
