@@ -1855,6 +1855,11 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const [decksOpen, setDecksOpen] = useState(false);
   const [currentQuizId, setCurrentQuizId] = useState(null);
   const [currentDeckId, setCurrentDeckId] = useState(null);
+  // The overlays have two modes: a list of saved items, and the active
+  // taking/studying view. Sidebar clicks always land on the list; tapping a
+  // saved row flips the flag to true.
+  const [quizTaking, setQuizTaking] = useState(false);
+  const [deckStudying, setDeckStudying] = useState(false);
   const [quizOpen, setQuizOpen] = useState(false);
   const [quizLoading, setQuizLoading] = useState(false);
   const [quizQuestions, setQuizQuestions] = useState([]);
@@ -1916,8 +1921,9 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     return topic.slice(0, 120);
   };
   const generateFlashcards = async (topic) => {
-    setCardsOpen(true);
-    setQuizOpen(false);
+    // No side-panel anymore — the deck saves quietly to the Flashcards folder
+    // in the sidebar. The icon morphs to a spinner → green check → idle as
+    // visible feedback that something just landed.
     setCardsLoading(true);
     setCards([]);
     setCardsIndex(0);
@@ -1961,13 +1967,11 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   };
   useEffect(() => { fetchSavedQuizzes(); fetchSavedDecks(); }, [course.id]);
   const openSavedQuiz = async (id) => {
-    setQuizzesOpen(false);
+    // Don't close the overlay — the taking UI lives inside it.
     try {
       const res = await fetch(`${API}/student/quizzes/${id}`, { headers: jsonHeaders });
       const data = await res.json();
       if (data?.questions?.length) {
-        setQuizOpen(true);
-        setCardsOpen(false);
         setQuizLoading(false);
         setQuizQuestions(data.questions);
         setQuizIndex(0);
@@ -1977,23 +1981,22 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         quizRecordedRef.current = false;
         setCurrentQuizId(data.id);
         quizChatRef.current = { id: chatId, dbId: (chats.find(c => c.id === chatId) || {}).dbId || null };
+        setQuizTaking(true);
       }
     } catch {}
   };
   const openSavedDeck = async (id) => {
-    setDecksOpen(false);
     try {
       const res = await fetch(`${API}/student/flashcard-decks/${id}`, { headers: jsonHeaders });
       const data = await res.json();
       if (data?.cards?.length) {
-        setCardsOpen(true);
-        setQuizOpen(false);
         setCardsLoading(false);
         setCards(data.cards);
         setCardsIndex(0);
         setCardsFlipped(false);
         setCardsTopic(data.topic || '');
         setCurrentDeckId(data.id);
+        setDeckStudying(true);
       }
     } catch {}
   };
@@ -2009,8 +2012,8 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const prevCard = () => { setCardsFlipped(false); setCardsIndex(i => Math.max(i - 1, 0)); };
 
   const generateQuiz = async (topic) => {
-    setQuizOpen(true);
-    setCardsOpen(false);
+    // Same as decks — no side-panel. Saves to the Quizzes folder so the
+    // student takes it from there, not in the middle of a chat.
     setQuizLoading(true);
     setQuizQuestions([]);
     setQuizIndex(0);
@@ -2422,7 +2425,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         messages: [
           ...c.messages,
           { role: 'user', content: message, ts: Date.now() },
-          { id: streamingMsgId, role: 'assistant', content: `Building your flashcards${topic ? ` on **${topic}**` : ''} — see the panel on the right.`, sources: [], ts: Date.now(), streaming: false },
+          { id: streamingMsgId, role: 'assistant', content: `Built a deck of flashcards${topic ? ` on **${topic}**` : ''} — open **Flashcards** in the sidebar to study them.`, sources: [], ts: Date.now(), streaming: false },
         ],
       } : c));
       if (currentChatDbId && !String(currentChatDbId).startsWith('local-')) {
@@ -2446,7 +2449,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         messages: [
           ...c.messages,
           { role: 'user', content: message, ts: Date.now() },
-          { id: streamingMsgId, role: 'assistant', content: `Generating your quiz${topic ? ` on **${topic}**` : ''} — see the panel on the right.`, sources: [], ts: Date.now(), streaming: false },
+          { id: streamingMsgId, role: 'assistant', content: `Built a 5-question quiz${topic ? ` on **${topic}**` : ''} — open **Quizzes** in the sidebar to take it.`, sources: [], ts: Date.now(), streaming: false },
         ],
       } : c));
       // Persist the request so the chat has context on reload — the result
@@ -2698,7 +2701,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         <div className="px-3 pt-3 space-y-0.5">
           <button onClick={() => { createNewChat(); setNotesOpen(false); closeMobile(); }} className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-gray-700 text-[13px] font-medium hover:bg-gray-200/60 transition-colors"><Plus size={15} className="text-gray-500" />New chat</button>
           <button onClick={() => { setNotesOpen(true); setAllChatsOpen(false); setQuizzesOpen(false); setDecksOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${notesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}><FolderOpen size={15} className="text-gray-500" />My Notes{myNotes.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{myNotes.length}</span>}</button>
-          <button onClick={() => { setQuizzesOpen(true); setAllChatsOpen(false); setNotesOpen(false); setDecksOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${quizzesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
+          <button onClick={() => { setQuizzesOpen(true); setQuizTaking(false); setAllChatsOpen(false); setNotesOpen(false); setDecksOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${quizzesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
             {quizGenState === 'generating' ? (
               <span className="w-[15px] h-[15px] inline-block border-[1.5px] border-gray-400 border-t-transparent rounded-full animate-spin" />
             ) : quizGenState === 'done' ? (
@@ -2709,7 +2712,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             Quizzes
             {savedQuizzes.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{savedQuizzes.length}</span>}
           </button>
-          <button onClick={() => { setDecksOpen(true); setAllChatsOpen(false); setNotesOpen(false); setQuizzesOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${decksOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
+          <button onClick={() => { setDecksOpen(true); setDeckStudying(false); setAllChatsOpen(false); setNotesOpen(false); setQuizzesOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${decksOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
             {cardsGenState === 'generating' ? (
               <span className="w-[15px] h-[15px] inline-block border-[1.5px] border-gray-400 border-t-transparent rounded-full animate-spin" />
             ) : cardsGenState === 'done' ? (
@@ -2834,75 +2837,212 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         )}
         {quizzesOpen && (
           <div className="absolute inset-0 z-40 bg-[#F6F6F4] flex flex-col">
-            <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-gray-200/70 flex-shrink-0" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
-              <div className="min-w-0">
-                <h2 className="serif text-2xl text-gray-900">Quizzes</h2>
-                <p className="text-[12px] text-gray-400 mt-0.5 truncate">Practice quizzes you've generated for {course.name}. Tap one to retake.</p>
-              </div>
-              <button onClick={() => setQuizzesOpen(false)} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"><X size={16} /></button>
-            </header>
-            <div className="flex-1 overflow-y-auto">
-              <div className="max-w-3xl mx-auto w-full px-4 md:px-6 py-5">
-                {savedQuizzes.length === 0 ? (
-                  <div className="text-center py-16">
-                    <ListChecks size={28} className="text-gray-200 mx-auto mb-3" />
-                    <p className="text-gray-500 text-sm font-medium mb-1">No quizzes yet</p>
-                    <p className="text-gray-400 text-xs">Type <span className="font-mono text-gray-500">/quiz</span> in the chat to generate one.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {savedQuizzes.map(q => (
-                      <div key={q.id} className="group flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 transition-all cursor-pointer" onClick={() => openSavedQuiz(q.id)}>
-                        <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"><ListChecks size={15} className="text-gray-700" /></div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm text-gray-900 font-medium truncate">{q.topic || 'Practice quiz'}</p>
-                          <p className="text-[11px] text-gray-400 mt-0.5">
-                            {formatRelativeDate(q.created_at)}
-                            {q.attempts > 0 && <> · {q.attempts} attempt{q.attempts !== 1 ? 's' : ''}</>}
-                            {q.best_score != null && <> · best <span className="text-gray-700 font-medium">{q.best_score}</span></>}
-                          </p>
-                        </div>
-                        <button onClick={e => { e.stopPropagation(); deleteSavedQuiz(q.id); }} aria-label="Delete quiz" className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
-                      </div>
-                    ))}
-                  </div>
+            <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-gray-200/70 flex-shrink-0 gap-3" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
+              <div className="min-w-0 flex items-center gap-3">
+                {quizTaking && (
+                  <button onClick={() => setQuizTaking(false)} aria-label="Back to quizzes" className="p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors flex-shrink-0 -ml-2"><ChevronLeft size={18} /></button>
                 )}
+                <div className="min-w-0">
+                  <h2 className="serif text-2xl text-gray-900">{quizTaking ? (quizTopic || 'Practice quiz') : 'Quizzes'}</h2>
+                  <p className="text-[12px] text-gray-400 mt-0.5 truncate">{quizTaking ? `From ${course.name}` : `Practice quizzes you've generated for ${course.name}. Tap one to retake.`}</p>
+                </div>
               </div>
+              <button onClick={() => { setQuizzesOpen(false); setQuizTaking(false); }} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"><X size={16} /></button>
+            </header>
+            {quizTaking && quizQuestions.length > 0 && !quizDone && (
+              <div className="h-1 bg-gray-100 flex-shrink-0"><div className="h-full bg-gray-900 transition-all duration-300 ease-out" style={{ width: `${((quizIndex + (quizAnswers[quizIndex] !== undefined ? 1 : 0)) / quizQuestions.length) * 100}%` }} /></div>
+            )}
+            <div className="flex-1 overflow-y-auto">
+              {!quizTaking ? (
+                <div className="max-w-3xl mx-auto w-full px-4 md:px-6 py-5">
+                  {savedQuizzes.length === 0 ? (
+                    <div className="text-center py-16">
+                      <ListChecks size={28} className="text-gray-200 mx-auto mb-3" />
+                      <p className="text-gray-500 text-sm font-medium mb-1">No quizzes yet</p>
+                      <p className="text-gray-400 text-xs">Type <span className="font-mono text-gray-500">/quiz</span> in the chat to generate one.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {savedQuizzes.map(q => (
+                        <div key={q.id} className="group flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 transition-all cursor-pointer" onClick={() => openSavedQuiz(q.id)}>
+                          <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"><ListChecks size={15} className="text-gray-700" /></div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm text-gray-900 font-medium truncate">{q.topic || 'Practice quiz'}</p>
+                            <p className="text-[11px] text-gray-400 mt-0.5">
+                              {formatRelativeDate(q.created_at)}
+                              {q.attempts > 0 && <> · {q.attempts} attempt{q.attempts !== 1 ? 's' : ''}</>}
+                              {q.best_score != null && <> · best <span className="text-gray-700 font-medium">{q.best_score}</span></>}
+                            </p>
+                          </div>
+                          <button onClick={e => { e.stopPropagation(); deleteSavedQuiz(q.id); }} aria-label="Delete quiz" className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // ── Active quiz, taken in the overlay ──
+                <div className="max-w-2xl mx-auto w-full px-4 md:px-6 py-6 md:py-10 flex flex-col gap-6">
+                  <div className="flex items-center justify-between text-[12px] text-gray-400">
+                    <span className="font-medium tabular-nums">Question {quizIndex + 1} of {quizQuestions.length}</span>
+                    {quizDone ? null : <span>Tap an option to lock it in</span>}
+                  </div>
+                  {quizQuestions.length === 0 ? (
+                    <div className="text-center py-16">
+                      <AlertCircle size={28} className="text-gray-200 mx-auto mb-3" />
+                      <p className="text-gray-500 text-sm font-medium mb-1">Couldn't load this quiz</p>
+                      <button onClick={() => setQuizTaking(false)} className="mt-3 text-gray-500 hover:text-gray-900 text-sm">← Back to quizzes</button>
+                    </div>
+                  ) : quizDone ? (() => {
+                    const total = quizQuestions.length;
+                    const right = quizQuestions.filter((q, i) => quizAnswers[i] === q.correct).length;
+                    const wrong = quizQuestions.filter((q, i) => { const a = quizAnswers[i]; return a !== undefined && a !== -1 && a !== q.correct; }).length;
+                    const skipped = total - right - wrong;
+                    const pct = Math.round((right / total) * 100);
+                    const C = 2 * Math.PI * 50;
+                    return (
+                      <div className="flex flex-col gap-5">
+                        <div className="rounded-3xl bg-white border border-gray-200 p-7 md:p-9 flex flex-col md:flex-row items-center gap-7">
+                          <div className="relative w-36 h-36 flex-shrink-0">
+                            <svg className="w-36 h-36 -rotate-90" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="none" stroke="#111827" strokeWidth="9" /><circle cx="60" cy="60" r="50" fill="none" stroke="#22c55e" strokeWidth="9" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - right / total)} style={{ transition: 'stroke-dashoffset 0.7s ease' }} /></svg>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-3xl font-bold text-gray-900 leading-none">{right}/{total}</span><span className="text-sm text-gray-400 mt-1">{pct}%</span></div>
+                          </div>
+                          <div className="flex-1 flex flex-col gap-2.5 text-sm w-full">
+                            <div className="flex items-center justify-between"><span className="text-gray-500">Right</span><span className="font-semibold text-emerald-600 tabular-nums">{right}</span></div>
+                            <div className="flex items-center justify-between"><span className="text-gray-500">Wrong</span><span className="font-semibold text-gray-900 tabular-nums">{wrong}</span></div>
+                            <div className="flex items-center justify-between"><span className="text-gray-500">Skipped</span><span className="font-semibold text-gray-400 tabular-nums">{skipped}</span></div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <button onClick={() => { setQuizIndex(0); setQuizAnswers({}); setQuizDone(false); }} className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors"><RotateCcw size={14} />Retake quiz</button>
+                          <button onClick={() => { setQuizTaking(false); }} className="w-full py-3 rounded-2xl bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 text-sm font-medium transition-colors">Back to quizzes</button>
+                        </div>
+                      </div>
+                    );
+                  })() : (() => {
+                    const q = quizQuestions[quizIndex];
+                    const answered = quizAnswers[quizIndex];
+                    const isAnswered = answered !== undefined && answered !== -1;
+                    const isCorrect = answered === q.correct;
+                    const isLast = quizIndex === quizQuestions.length - 1;
+                    const advance = () => { if (isLast) setQuizDone(true); else setQuizIndex(i => i + 1); };
+                    const skip = () => { setQuizAnswers(prev => (prev[quizIndex] === undefined ? { ...prev, [quizIndex]: -1 } : prev)); advance(); };
+                    return (
+                      <div className="flex flex-col gap-6">
+                        <p className="text-gray-900 text-lg md:text-xl font-semibold leading-snug">{q.question}</p>
+                        <div className="flex flex-col gap-3">
+                          {q.options.map((opt, oi) => {
+                            const isSel = answered === oi;
+                            const isRight = oi === q.correct;
+                            let cls = 'group/opt text-left px-4 py-3.5 rounded-2xl border text-[15px] transition-all flex items-start gap-3';
+                            if (!isAnswered) cls += ' border-gray-200 bg-white hover:border-gray-400 cursor-pointer';
+                            else if (isRight) cls += ' border-emerald-300 bg-emerald-50';
+                            else if (isSel) cls += ' border-red-300 bg-red-50';
+                            else cls += ' border-gray-200 bg-gray-50 opacity-60';
+                            return (
+                              <button key={oi} disabled={isAnswered} onClick={() => handleQuizAnswer(quizIndex, oi)} className={cls}>
+                                <span className={`text-xs font-semibold tabular-nums mt-1 ${isAnswered ? (isRight ? 'text-emerald-700' : isSel ? 'text-red-700' : 'text-gray-400') : 'text-gray-400 group-hover/opt:text-gray-700'}`}>{String.fromCharCode(65 + oi)}.</span>
+                                <span className={isAnswered ? (isRight ? 'text-emerald-900' : isSel ? 'text-red-900' : 'text-gray-700') : 'text-gray-900'}>{opt.replace(/^[A-D]\)\s*/, '')}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {isAnswered && q.explanation && (
+                          <div className={`rounded-2xl border p-4 text-sm leading-relaxed ${isCorrect ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-gray-200 bg-white text-gray-700'}`}>{isCorrect ? '✓ ' : ''}{q.explanation}</div>
+                        )}
+                        <div className="flex items-center justify-between gap-3 mt-2">
+                          <button onClick={skip} disabled={isAnswered} className="text-sm text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:hover:text-gray-400 px-3 py-2">Skip</button>
+                          {isAnswered ? (
+                            <button onClick={() => { if (isLast) { setQuizDone(true); quizRecordedRef.current || recordQuizResult(); quizRecordedRef.current = true; } else advance(); }} className="px-6 py-2.5 rounded-full bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">{isLast ? 'See results' : 'Next →'}</button>
+                          ) : <div />}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           </div>
         )}
         {decksOpen && (
           <div className="absolute inset-0 z-40 bg-[#F6F6F4] flex flex-col">
-            <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-gray-200/70 flex-shrink-0" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
-              <div className="min-w-0">
-                <h2 className="serif text-2xl text-gray-900">Flashcards</h2>
-                <p className="text-[12px] text-gray-400 mt-0.5 truncate">Decks you've generated for {course.name}. Tap one to study.</p>
-              </div>
-              <button onClick={() => setDecksOpen(false)} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"><X size={16} /></button>
-            </header>
-            <div className="flex-1 overflow-y-auto">
-              <div className="max-w-3xl mx-auto w-full px-4 md:px-6 py-5">
-                {savedDecks.length === 0 ? (
-                  <div className="text-center py-16">
-                    <Layers size={28} className="text-gray-200 mx-auto mb-3" />
-                    <p className="text-gray-500 text-sm font-medium mb-1">No decks yet</p>
-                    <p className="text-gray-400 text-xs">Type <span className="font-mono text-gray-500">/cards</span> in the chat to generate one.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {savedDecks.map(d => (
-                      <div key={d.id} className="group flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 transition-all cursor-pointer" onClick={() => openSavedDeck(d.id)}>
-                        <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"><Layers size={15} className="text-gray-700" /></div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm text-gray-900 font-medium truncate">{d.topic || 'Flashcard deck'}</p>
-                          <p className="text-[11px] text-gray-400 mt-0.5">{formatRelativeDate(d.created_at)} · {(d.cards || []).length} card{(d.cards || []).length !== 1 ? 's' : ''}</p>
-                        </div>
-                        <button onClick={e => { e.stopPropagation(); deleteSavedDeck(d.id); }} aria-label="Delete deck" className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
-                      </div>
-                    ))}
-                  </div>
+            <header className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-gray-200/70 flex-shrink-0 gap-3" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
+              <div className="min-w-0 flex items-center gap-3">
+                {deckStudying && (
+                  <button onClick={() => setDeckStudying(false)} aria-label="Back to decks" className="p-2 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors flex-shrink-0 -ml-2"><ChevronLeft size={18} /></button>
                 )}
+                <div className="min-w-0">
+                  <h2 className="serif text-2xl text-gray-900">{deckStudying ? (cardsTopic || 'Flashcard deck') : 'Flashcards'}</h2>
+                  <p className="text-[12px] text-gray-400 mt-0.5 truncate">{deckStudying ? `From ${course.name}` : `Decks you've generated for ${course.name}. Tap one to study.`}</p>
+                </div>
               </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                {deckStudying && cards.length > 0 && <span className="text-[11px] font-medium text-gray-400 tabular-nums">{cardsIndex + 1} / {cards.length}</span>}
+                <button onClick={() => { setDecksOpen(false); setDeckStudying(false); }} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><X size={16} /></button>
+              </div>
+            </header>
+            {deckStudying && cards.length > 0 && (
+              <div className="h-1 bg-gray-100 flex-shrink-0"><div className="h-full bg-gray-900 transition-all duration-300 ease-out" style={{ width: `${((cardsIndex + 1) / cards.length) * 100}%` }} /></div>
+            )}
+            <div className="flex-1 overflow-y-auto">
+              {!deckStudying ? (
+                <div className="max-w-3xl mx-auto w-full px-4 md:px-6 py-5">
+                  {savedDecks.length === 0 ? (
+                    <div className="text-center py-16">
+                      <Layers size={28} className="text-gray-200 mx-auto mb-3" />
+                      <p className="text-gray-500 text-sm font-medium mb-1">No decks yet</p>
+                      <p className="text-gray-400 text-xs">Type <span className="font-mono text-gray-500">/cards</span> in the chat to generate one.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {savedDecks.map(d => (
+                        <div key={d.id} className="group flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-200 hover:border-gray-300 transition-all cursor-pointer" onClick={() => openSavedDeck(d.id)}>
+                          <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0"><Layers size={15} className="text-gray-700" /></div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm text-gray-900 font-medium truncate">{d.topic || 'Flashcard deck'}</p>
+                            <p className="text-[11px] text-gray-400 mt-0.5">{formatRelativeDate(d.created_at)} · {(d.cards || []).length} card{(d.cards || []).length !== 1 ? 's' : ''}</p>
+                          </div>
+                          <button onClick={e => { e.stopPropagation(); deleteSavedDeck(d.id); }} aria-label="Delete deck" className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // ── Active deck, studied in the overlay ──
+                <div className="max-w-2xl mx-auto w-full px-4 md:px-6 py-6 md:py-10 flex flex-col gap-6 h-full">
+                  {cards.length > 0 && (() => {
+                    const c = cards[cardsIndex];
+                    const isFirst = cardsIndex === 0;
+                    const isLast = cardsIndex === cards.length - 1;
+                    return (
+                      <>
+                        <div className="fcard-wrap flex-1 flex items-stretch min-h-[340px]">
+                          <div className={`fcard${cardsFlipped ? ' flipped' : ''} flex-1`} onClick={() => setCardsFlipped(f => !f)} role="button" aria-label="Flip flashcard">
+                            <div className="face front" style={{ padding: '40px 36px' }}>
+                              <span className="ftip">Tap to flip</span>
+                              <span className="ftag">Front</span>
+                              <span className="ftext" style={{ fontSize: 28 }}>{c.front}</span>
+                              {c.source && <span className="fsrc">— {c.source}</span>}
+                            </div>
+                            <div className="face back" style={{ padding: '40px 36px' }}>
+                              <span className="ftip">Tap to flip</span>
+                              <span className="ftag">Back</span>
+                              <span className="ftext" style={{ fontSize: 18 }}>{c.back}</span>
+                              {c.source && <span className="fsrc">— {c.source}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <button onClick={prevCard} disabled={isFirst} aria-label="Previous card" className="w-12 h-12 rounded-full border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-30 disabled:hover:bg-white disabled:cursor-not-allowed flex items-center justify-center text-gray-700 transition-colors"><ChevronLeft size={20} /></button>
+                          <button onClick={() => setCardsFlipped(f => !f)} className="flex-1 py-3 rounded-full bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">{cardsFlipped ? 'Show front' : 'Show back'}</button>
+                          <button onClick={isLast ? () => { setCardsIndex(0); setCardsFlipped(false); } : nextCard} aria-label={isLast ? 'Restart deck' : 'Next card'} className="w-12 h-12 rounded-full border border-gray-200 bg-white hover:bg-gray-50 flex items-center justify-center text-gray-700 transition-colors">{isLast ? <RotateCcw size={18} /> : <ChevronRight size={20} />}</button>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -2917,16 +3057,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             </div>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
-            {quizOpen && (
-              <button onClick={() => setQuizOpen(false)} className="flex items-center gap-1.5 px-2 md:px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium transition-colors">
-                <X size={11} /><span className="hidden md:inline">Close quiz</span>
-              </button>
-            )}
-            {cardsOpen && (
-              <button onClick={() => setCardsOpen(false)} className="flex items-center gap-1.5 px-2 md:px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium transition-colors">
-                <X size={11} /><span className="hidden md:inline">Close cards</span>
-              </button>
-            )}
+            {/* Quizzes & flashcards live in the sidebar folder now — no more chat-side panels. */}
             <button type="button" onClick={onExit} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0" aria-label="Scholr home"><Logo size={20} /><span className="text-gray-900 font-semibold text-sm hidden sm:inline">Scholr</span></button>
           </div>
         </header>
