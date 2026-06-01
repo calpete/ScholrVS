@@ -609,6 +609,116 @@ function AuthLayout({ variant, onBack, shake, children }) {
   );
 }
 
+// Editorial portal theme — student dashboard + professor dashboard. Reuses
+// the exact same tokens as the landing/auth so the whole product reads as
+// one piece. Scoped under .scholr-portal so it never leaks into the chat
+// view or anything else.
+const PORTAL_CSS = `
+.scholr-portal{--font-display:"Newsreader",Georgia,serif;--font-body:"Hanken Grotesk",system-ui,sans-serif;--bg:#FBFBF9;--bg-2:#F3F2EF;--bg-3:#EFEEEA;--surface:#FFF;--ink:#15161B;--ink-2:#2A2C33;--muted:#6B6E76;--muted-2:#9A9CA3;--line:#E7E4DD;--radius-lg:22px;--shadow-sm:0 1px 2px rgba(21,22,27,.04),0 1px 3px rgba(21,22,27,.05);--shadow-card:0 1px 2px rgba(21,22,27,.04),0 14px 34px -18px rgba(21,22,27,.16);min-height:100dvh;background:var(--bg);color:var(--ink);font-family:var(--font-body);-webkit-font-smoothing:antialiased;}
+.scholr-portal *{box-sizing:border-box;margin:0;padding:0;}
+.scholr-portal .serif{font-family:var(--font-display);font-weight:500;letter-spacing:-.012em;}
+.scholr-portal .ital{font-style:italic;}
+.scholr-portal .pb-top{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;padding:16px 32px;background:color-mix(in srgb,var(--bg) 80%,transparent);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border-bottom:1px solid transparent;transition:border-color .2s ease;}
+.scholr-portal .pb-top.scrolled{border-bottom-color:var(--line);}
+.scholr-portal .pb-brand{display:inline-flex;align-items:center;gap:11px;background:none;border:none;cursor:pointer;font-family:var(--font-body);font-weight:700;font-size:18px;letter-spacing:-.02em;color:var(--ink);min-width:0;}
+.scholr-portal .pb-brand .mark{width:30px;height:30px;flex:none;}
+.scholr-portal .pb-brand .sep{color:var(--muted-2);font-weight:400;margin:0 2px;}
+.scholr-portal .pb-brand .who{font-weight:500;font-size:14.5px;color:var(--muted);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.scholr-portal .pb-signout{display:inline-flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;font-family:var(--font-body);font-size:13px;color:var(--muted);padding:7px 12px;border-radius:8px;transition:color .15s,background .15s;flex:none;}
+.scholr-portal .pb-signout:hover{color:var(--ink);background:var(--bg-2);}
+.scholr-portal .pb-signout svg{width:13px;height:13px;}
+.scholr-portal .pb-wrap{max-width:1100px;margin:0 auto;padding:40px 32px 100px;}
+.scholr-portal .pb-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:22px;flex-wrap:wrap;padding-bottom:36px;border-bottom:1px solid var(--line);margin-bottom:36px;}
+.scholr-portal .pb-hero h1{font-family:var(--font-display);font-weight:500;font-size:clamp(38px,5.5vw,68px);line-height:1;letter-spacing:-.024em;color:var(--ink);margin-bottom:14px;}
+.scholr-portal .pb-hero h1 .ital{font-style:italic;}
+.scholr-portal .pb-hero .sub{font-size:14.5px;color:var(--muted);}
+.scholr-portal .pb-hero .sub b{font-family:var(--font-display);font-style:italic;font-weight:500;color:var(--ink);}
+.scholr-portal .pb-cta{display:inline-flex;align-items:center;gap:9px;padding:13px 22px;border-radius:999px;border:none;background:var(--ink);color:#fff;font-family:var(--font-body);font-size:14.5px;font-weight:600;cursor:pointer;box-shadow:0 1px 2px rgba(21,22,27,.3);transition:background .2s,transform .15s,box-shadow .2s;white-space:nowrap;}
+.scholr-portal .pb-cta:hover{background:#000;transform:translateY(-1px);box-shadow:0 8px 22px -10px rgba(21,22,27,.5);}
+.scholr-portal .pb-cta svg{width:14px;height:14px;}
+.scholr-portal .pb-grid{display:grid;grid-template-columns:1fr;gap:18px;}
+.scholr-portal .pb-grid.cols-2{grid-template-columns:repeat(2,1fr);}
+@media (max-width:780px){.scholr-portal .pb-grid.cols-2{grid-template-columns:1fr;}}
+.scholr-portal .pb-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-sm);transition:transform .2s ease,box-shadow .2s ease,border-color .2s;display:flex;flex-direction:column;}
+.scholr-portal .pb-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-card);border-color:var(--ink);}
+.scholr-portal .pb-cover{position:relative;}
+.scholr-portal .pb-cover.editable{cursor:pointer;}
+.scholr-portal .pb-cover-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0);transition:background .2s;color:#fff;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;opacity:0;}
+.scholr-portal .pb-cover.editable:hover .pb-cover-overlay{background:rgba(0,0,0,.4);opacity:1;}
+.scholr-portal .pb-card-body{padding:22px 24px;display:flex;flex-direction:column;gap:14px;}
+.scholr-portal .pb-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;}
+.scholr-portal .pb-card-name{font-family:var(--font-display);font-weight:500;font-size:26px;letter-spacing:-.02em;line-height:1.06;color:var(--ink);}
+.scholr-portal .pb-card-prof{font-size:13px;color:var(--muted);margin-top:6px;letter-spacing:.04em;text-transform:uppercase;font-weight:600;}
+.scholr-portal .pb-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.scholr-portal .pb-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:8px;background:var(--bg-2);border:1px solid var(--line);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;font-weight:600;color:var(--ink-2);letter-spacing:.06em;cursor:pointer;transition:border-color .15s,background .15s;font-variant-numeric:tabular-nums;}
+.scholr-portal .pb-chip svg{width:11px;height:11px;}
+.scholr-portal .pb-chip:hover{border-color:var(--ink);background:var(--surface);}
+.scholr-portal .pb-chip.link{font-family:var(--font-body);text-transform:none;letter-spacing:.01em;}
+.scholr-portal .pb-chip.live{font-family:var(--font-body);text-transform:none;letter-spacing:.02em;color:var(--muted);cursor:default;background:transparent;border-color:transparent;padding-left:0;padding-right:0;}
+.scholr-portal .pb-chip.live:hover{background:transparent;border-color:transparent;}
+.scholr-portal .pb-chip .dot{width:6px;height:6px;border-radius:999px;background:#22b07d;flex:none;position:relative;}
+.scholr-portal .pb-chip .dot::after{content:"";position:absolute;inset:-3px;border-radius:999px;border:1.5px solid #22b07d;opacity:.4;animation:pb-ping 2.4s cubic-bezier(0,0,.2,1) infinite;}
+@keyframes pb-ping{0%{transform:scale(.6);opacity:.5;}80%,100%{transform:scale(1.7);opacity:0;}}
+.scholr-portal .pb-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.scholr-portal .pb-manage{display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border-radius:999px;border:none;background:var(--ink);color:#fff;font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer;transition:background .2s,transform .15s;}
+.scholr-portal .pb-manage:hover{background:#000;transform:translateY(-1px);}
+.scholr-portal .pb-manage svg{width:12px;height:12px;}
+.scholr-portal .pb-trash{background:none;border:none;cursor:pointer;padding:9px;border-radius:8px;color:var(--muted-2);transition:color .15s,background .15s;display:inline-grid;place-items:center;}
+.scholr-portal .pb-trash:hover{color:#c0392b;background:#fde8e6;}
+.scholr-portal .pb-trash svg{width:14px;height:14px;}
+.scholr-portal .pb-confirm{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border-radius:999px;background:var(--bg-2);border:1px solid var(--line);font-size:12px;color:var(--muted);}
+.scholr-portal .pb-confirm .yes{color:#c0392b;font-weight:700;background:none;border:none;cursor:pointer;font-family:var(--font-body);font-size:12px;padding:0;}
+.scholr-portal .pb-confirm .no{color:var(--muted-2);background:none;border:none;cursor:pointer;font-family:var(--font-body);font-size:12px;padding:0;}
+.scholr-portal .pb-open{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;font-weight:600;color:var(--ink);margin-left:auto;opacity:0;transition:opacity .2s,transform .2s;}
+.scholr-portal .pb-card:hover .pb-open{opacity:1;transform:translateX(2px);}
+.scholr-portal .pb-open svg{width:13px;height:13px;}
+.scholr-portal .pb-card.clickable{cursor:pointer;}
+.scholr-portal .pb-panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:24px 26px;margin-bottom:24px;box-shadow:var(--shadow-sm);}
+.scholr-portal .pb-panel-h{font-family:var(--font-display);font-weight:500;font-size:22px;letter-spacing:-.018em;margin-bottom:4px;}
+.scholr-portal .pb-panel-p{font-size:13.5px;color:var(--muted);margin-bottom:18px;}
+.scholr-portal .pb-panel form,.scholr-portal .pb-panel .row{display:flex;gap:10px;flex-wrap:wrap;}
+.scholr-portal .pb-input{flex:1;min-width:200px;font-family:var(--font-body);font-size:14.5px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:11px 14px;outline:none;transition:border-color .15s,background .15s;}
+.scholr-portal .pb-input.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.08em;}
+.scholr-portal .pb-input:focus{border-color:var(--ink);background:var(--surface);}
+.scholr-portal .pb-input::placeholder{color:var(--muted-2);}
+.scholr-portal .pb-btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:12px;border:none;font-family:var(--font-body);font-size:14px;font-weight:600;cursor:pointer;transition:transform .15s,background .15s,border-color .15s;}
+.scholr-portal .pb-btn.primary{background:var(--ink);color:#fff;box-shadow:0 1px 2px rgba(21,22,27,.3);}
+.scholr-portal .pb-btn.primary:hover:not(:disabled){background:#000;transform:translateY(-1px);}
+.scholr-portal .pb-btn.primary:disabled{opacity:.4;cursor:default;}
+.scholr-portal .pb-btn.subtle{background:var(--bg-2);color:var(--ink);border:1px solid var(--line);}
+.scholr-portal .pb-btn.subtle:hover{background:var(--bg);border-color:var(--ink);}
+.scholr-portal .pb-err{color:#c0392b;font-size:12.5px;margin-top:10px;}
+.scholr-portal .pb-empty{padding:60px 24px;text-align:center;}
+.scholr-portal .pb-empty h2{font-family:var(--font-display);font-weight:500;font-size:clamp(30px,4vw,46px);letter-spacing:-.022em;line-height:1.06;margin-bottom:14px;}
+.scholr-portal .pb-empty h2 .ital{font-style:italic;}
+.scholr-portal .pb-empty p{font-size:15.5px;color:var(--muted);line-height:1.55;max-width:460px;margin:0 auto 28px;}
+.scholr-portal .pb-skel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;}
+.scholr-portal .pb-skel-cover{height:80px;background:linear-gradient(90deg,var(--bg-2) 25%,#ECEAE3 50%,var(--bg-2) 75%);background-size:200% 100%;animation:pb-pulse 1.6s ease-in-out infinite;}
+.scholr-portal .pb-skel-body{padding:22px 24px;display:flex;flex-direction:column;gap:10px;}
+.scholr-portal .pb-skel-line{height:14px;background:linear-gradient(90deg,var(--bg-2) 25%,#ECEAE3 50%,var(--bg-2) 75%);background-size:200% 100%;animation:pb-pulse 1.6s ease-in-out infinite;border-radius:6px;}
+@keyframes pb-pulse{0%,100%{background-position:200% 0;}50%{background-position:0 0;}}
+.scholr-portal .pb-toast{position:fixed;bottom:24px;right:24px;z-index:60;display:flex;align-items:center;gap:9px;padding:12px 18px;border-radius:12px;font-family:var(--font-body);font-size:13px;font-weight:500;color:#fff;background:var(--ink);box-shadow:0 14px 34px -10px rgba(21,22,27,.35);}
+.scholr-portal .pb-toast.error{background:#c0392b;}
+.scholr-portal .pb-toast svg{width:14px;height:14px;}
+.scholr-portal .pb-modal{position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(21,22,27,.5);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);}
+.scholr-portal .pb-modal-card{position:relative;width:100%;max-width:420px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:28px 30px;box-shadow:0 40px 90px -38px rgba(21,22,27,.34);}
+.scholr-portal .pb-modal-x{position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:999px;border:none;background:var(--bg-2);color:var(--muted);display:grid;place-items:center;cursor:pointer;transition:background .15s,color .15s;}
+.scholr-portal .pb-modal-x:hover{background:var(--bg);color:var(--ink);}
+.scholr-portal .pb-modal-h{font-family:var(--font-display);font-weight:500;font-size:22px;letter-spacing:-.018em;margin-bottom:4px;}
+.scholr-portal .pb-modal-p{font-size:13.5px;color:var(--muted);margin-bottom:20px;}
+.scholr-portal .pb-pattern-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.scholr-portal .pb-pattern{border-radius:10px;overflow:hidden;border:2px solid transparent;transition:transform .15s,border-color .15s;cursor:pointer;background:none;padding:0;}
+.scholr-portal .pb-pattern:hover{transform:scale(1.03);border-color:var(--line);}
+.scholr-portal .pb-pattern.selected{border-color:var(--ink);}
+@media (max-width:680px){
+.scholr-portal .pb-top{padding:14px 22px;}
+.scholr-portal .pb-wrap{padding:28px 22px 80px;}
+.scholr-portal .pb-hero{padding-bottom:26px;margin-bottom:24px;}
+.scholr-portal .pb-card-name{font-size:22px;}
+.scholr-portal .pb-brand .who{display:none;}
+}
+`;
+
 function ProfessorLogin({ onLogin, onGoSignup, onBack }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -909,76 +1019,79 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
   const firstName = (user.name || user.email).split(' ')[0];
 
   return (
-    <div className="min-h-[100dvh] bg-[#F6F6F4] page-enter" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      <style>{FONT}</style>
-      <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between gap-3">
-        <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-2 md:gap-3 min-w-0 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={24} /><span className="text-gray-900 font-semibold text-sm">Scholr</span><span className="text-gray-300 hidden sm:inline">·</span><span className="text-gray-500 text-sm truncate hidden sm:inline">{user.name || user.email}</span></button>
-        <button onClick={onLogout} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs flex-shrink-0"><LogOut size={12} />Sign out</button>
+    <div className="scholr-portal page-enter" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <style>{PORTAL_CSS}</style>
+      <div className="pb-top">
+        <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="pb-brand" aria-label="Scholr home">
+          <LandingLogo s={30} />Scholr
+          <span className="sep">·</span><span className="who">{user.name || user.email}</span>
+        </button>
+        <button onClick={onLogout} className="pb-signout"><LogOut size={13} />Sign out</button>
       </div>
-      <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 md:py-10">
-        <div className="flex items-start justify-between mb-6 md:mb-8 gap-3">
-          <div className="min-w-0">
-            <h1 className="text-xl md:text-2xl font-semibold text-gray-900">{greeting}, {firstName}</h1>
-            <p className="text-gray-400 text-xs md:text-sm mt-1">{enrolledCourses.length} course{enrolledCourses.length !== 1 ? 's' : ''} · your AI tutor is ready</p>
+      <div className="pb-wrap">
+        <div className="pb-hero">
+          <div style={{ minWidth: 0 }}>
+            <h1>{greeting}<span className="ital">, {firstName}.</span></h1>
+            <p className="sub">{enrolledCourses.length} {enrolledCourses.length === 1 ? 'course' : 'courses'} <span style={{ margin: '0 6px', color: 'var(--muted-2)' }}>·</span> <b>your AI tutor is ready</b></p>
           </div>
-          <button onClick={() => setShowJoinInput(true)} className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs md:text-sm font-medium transition-colors flex-shrink-0"><Plus size={14} />Join a course</button>
+          <button onClick={() => setShowJoinInput(true)} className="pb-cta"><Plus size={14} />Join a course</button>
         </div>
+
         {showJoinInput && (
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-5">
-            <h3 className="text-sm font-semibold text-gray-900 mb-1">Join a course</h3>
-            <p className="text-xs text-gray-400 mb-4">Enter the join code your professor shared with you</p>
-            <div className="flex gap-3">
-              <input autoFocus id="join-code" name="join-code" type="text" value={joiningCode} onChange={e => { setJoiningCode(e.target.value.toUpperCase()); setJoinError(''); }}
-                onKeyDown={e => e.key === 'Enter' && handleJoin()} placeholder="e.g. A306-UCB2"
-                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300 font-mono uppercase tracking-wider" />
-              <button onClick={() => handleJoin()} disabled={!joiningCode.trim() || joining}
-                className="px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">{joining ? 'Joining...' : 'Join'}</button>
-              <button onClick={() => { setShowJoinInput(false); setJoiningCode(''); setJoinError(''); }}
-                className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm transition-colors">Cancel</button>
+          <div className="pb-panel">
+            <div className="pb-panel-h">Join a class</div>
+            <div className="pb-panel-p">Enter the join code your professor shared with you.</div>
+            <div className="row">
+              <input autoFocus id="join-code" name="join-code" type="text" value={joiningCode} onChange={e => { setJoiningCode(e.target.value.toUpperCase()); setJoinError(''); }} onKeyDown={e => e.key === 'Enter' && handleJoin()} placeholder="e.g. A306-UCB2" className="pb-input code" />
+              <button onClick={() => handleJoin()} disabled={!joiningCode.trim() || joining} className="pb-btn primary">{joining ? 'Joining…' : 'Join'}</button>
+              <button onClick={() => { setShowJoinInput(false); setJoiningCode(''); setJoinError(''); }} className="pb-btn subtle">Cancel</button>
             </div>
-            {joinError && <p className="text-red-500 text-xs mt-2">{joinError}</p>}
+            {joinError && <p className="pb-err">{joinError}</p>}
           </div>
         )}
+
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[0, 1].map(i => <SkeletonCourseCard key={i} />)}
+          <div className="pb-grid cols-2">
+            {[0, 1].map(i => (
+              <div key={i} className="pb-skel"><div className="pb-skel-cover" /><div className="pb-skel-body"><div className="pb-skel-line" style={{ width: '70%' }} /><div className="pb-skel-line" style={{ width: '45%' }} /></div></div>
+            ))}
           </div>
         ) : enrolledCourses.length === 0 ? (
-          <div className="text-center py-20">
-            <BookOpen size={32} className="text-gray-200 mx-auto mb-4" />
-            <p className="text-gray-500 font-medium mb-1">No courses yet</p>
-            <p className="text-gray-400 text-sm mb-6">Ask your professor for a join code to get started</p>
-            <button onClick={() => setShowJoinInput(true)} className="px-5 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">Join a course</button>
+          <div className="pb-empty">
+            <h2>No classes <span className="ital">— yet.</span></h2>
+            <p>Ask your professor for a join code and you'll drop straight into your AI tutor.</p>
+            <button onClick={() => setShowJoinInput(true)} className="pb-cta"><Plus size={14} />Join a course</button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="pb-grid cols-2">
             {enrolledCourses.map(course => (
-              <button key={course.id} onClick={() => handleEnterCourse(course)}
-                className="group text-left bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-gray-300 hover:shadow-md transition-all">
-                <div className="w-full">
+              <div key={course.id} className="pb-card clickable" onClick={() => handleEnterCourse(course)}>
+                <div className="pb-cover">
                   {course.cover_image?.startsWith('http')
-                    ? <img src={course.cover_image} alt="" className="w-full object-cover" style={{height:80}} />
-                    : <CoursePattern courseId={course.id} patternId={coverPatternId(course)} height={80} />}
+                    ? <img src={course.cover_image} alt="" style={{ width: '100%', display: 'block', height: 88, objectFit: 'cover' }} />
+                    : <CoursePattern courseId={course.id} patternId={coverPatternId(course)} height={88} />}
                 </div>
-                <div className="p-5">
-                  <div className="flex items-start justify-between mb-1">
-                    <h3 className="text-gray-900 font-semibold text-base leading-snug">{course.name}</h3>
-                    <div className="flex items-center gap-1.5 flex-shrink-0 ml-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-[10px] text-gray-400">AI Active</span></div>
+                <div className="pb-card-body">
+                  <div className="pb-card-head">
+                    <div style={{ minWidth: 0 }}>
+                      <div className="pb-card-name">{course.name}</div>
+                      <div className="pb-card-prof">{course.professor_name || 'Instructor'}</div>
+                    </div>
+                    <span className="pb-chip live"><span className="dot" /> AI Active</span>
                   </div>
-                  <p className="text-gray-400 text-xs mb-3">{course.professor_name || 'Instructor'}</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-mono text-gray-300">{course.join_code || course.code}</span>
-                    <div className="flex items-center gap-1 text-gray-900 text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">Open <ChevronRight size={12} /></div>
+                  <div className="pb-meta">
+                    <span className="pb-chip" style={{ cursor: 'default' }}>{course.join_code || course.code}</span>
+                    <span className="pb-open">Open <Ic name="arrow-right" s={13} /></span>
                   </div>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}
       </div>
       {toast && (
-        <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-xl text-white text-xs font-medium shadow-xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
-          {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle2 size={13} />}{toast.msg}
+        <div className={`pb-toast${toast.type === 'error' ? ' error' : ''}`}>
+          {toast.type === 'error' ? <AlertCircle size={14} /> : <CheckCircle2 size={14} />}{toast.msg}
         </div>
       )}
     </div>
@@ -1110,80 +1223,78 @@ function ProfessorDashboard({ token, user, onLogout }) {
   if (selectedCourse) return <CourseManager token={token} course={selectedCourse} onBack={() => setSelectedCourse(null)} authHeaders={authHeaders} />;
 
   return (
-    <div className="min-h-[100dvh] bg-[#F6F6F4] page-enter" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      <style>{FONT}</style>
-      <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between gap-3">
-        <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-2 md:gap-3 min-w-0 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={24} /><span className="text-gray-900 font-semibold text-sm">Scholr</span><span className="text-gray-300 hidden sm:inline">·</span><span className="text-gray-500 text-sm truncate hidden sm:inline">{user.name || user.email}</span></button>
-        <button onClick={onLogout} className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 transition-colors text-xs flex-shrink-0"><LogOut size={12} />Sign out</button>
+    <div className="scholr-portal page-enter" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <style>{PORTAL_CSS}</style>
+      <div className="pb-top">
+        <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="pb-brand" aria-label="Scholr home">
+          <LandingLogo s={30} />Scholr
+          <span className="sep">·</span><span className="who">{user.name || user.email}</span>
+        </button>
+        <button onClick={onLogout} className="pb-signout"><LogOut size={13} />Sign out</button>
       </div>
-      <div className="max-w-4xl mx-auto px-4 md:px-8 py-6 md:py-10">
-        <div className="flex items-start justify-between mb-6 md:mb-8 gap-3">
-          <div className="min-w-0">
-            <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Your Courses</h1>
-            <p className="text-gray-400 text-xs md:text-sm mt-1">{courses.length} course{courses.length !== 1 ? 's' : ''} · Each gets its own AI tutor and student portal</p>
+      <div className="pb-wrap">
+        <div className="pb-hero">
+          <div style={{ minWidth: 0 }}>
+            <h1>Your<span className="ital"> courses.</span></h1>
+            <p className="sub">{courses.length} {courses.length === 1 ? 'course' : 'courses'} <span style={{ margin: '0 6px', color: 'var(--muted-2)' }}>·</span> <b>each gets its own AI tutor and student portal</b></p>
           </div>
-          <button onClick={() => setCreating(true)} className="flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs md:text-sm font-medium transition-colors flex-shrink-0"><Plus size={14} />New course</button>
+          <button onClick={() => setCreating(true)} className="pb-cta"><Plus size={14} />New course</button>
         </div>
+
         {creating && (
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-5">
-            <h3 className="text-sm font-semibold text-gray-900 mb-4">New course</h3>
-            <form onSubmit={createCourse} className="flex gap-3">
-              <input autoFocus id="new-course-name" name="course-name" type="text" value={newCourseName} onChange={e => setNewCourseName(e.target.value)} placeholder="e.g. BUS-A 306 Management Accounting"
-                className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-gray-400 placeholder-gray-300" />
-              <button type="submit" disabled={!newCourseName.trim()} className="px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:opacity-40 text-white text-sm font-medium transition-colors">Create</button>
-              <button type="button" onClick={() => { setCreating(false); setNewCourseName(''); }} className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm transition-colors">Cancel</button>
+          <div className="pb-panel">
+            <div className="pb-panel-h">New course</div>
+            <div className="pb-panel-p">A name students will recognize.</div>
+            <form onSubmit={createCourse}>
+              <input autoFocus id="new-course-name" name="course-name" type="text" value={newCourseName} onChange={e => setNewCourseName(e.target.value)} placeholder="e.g. BUS-A 306 Management Accounting" className="pb-input" />
+              <button type="submit" disabled={!newCourseName.trim()} className="pb-btn primary">Create</button>
+              <button type="button" onClick={() => { setCreating(false); setNewCourseName(''); }} className="pb-btn subtle">Cancel</button>
             </form>
           </div>
         )}
+
         {loading ? (
-          <div className="space-y-4">
-            {[0, 1].map(i => <SkeletonCourseCard key={i} />)}
+          <div className="pb-grid">
+            {[0, 1].map(i => (
+              <div key={i} className="pb-skel"><div className="pb-skel-cover" /><div className="pb-skel-body"><div className="pb-skel-line" style={{ width: '60%' }} /><div className="pb-skel-line" style={{ width: '40%' }} /></div></div>
+            ))}
           </div>
         ) : courses.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-200 px-6 py-12 text-center max-w-lg mx-auto">
-            <div className="w-12 h-12 rounded-2xl bg-gray-900 mx-auto mb-4 flex items-center justify-center"><BookOpen size={20} className="text-white" /></div>
-            <h2 className="serif text-2xl text-gray-900 mb-2">Set up your first course</h2>
-            <p className="text-gray-500 text-sm mb-1 max-w-sm mx-auto leading-relaxed">Create a course, upload your syllabus, and share the join code. Your students can start asking questions in minutes.</p>
-            <button onClick={() => setCreating(true)} className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors"><Plus size={14} />Create your first course</button>
+          <div className="pb-empty">
+            <h2>Set up your <span className="ital">first course.</span></h2>
+            <p>Create a course, upload your syllabus, and share the join code. Your class can start asking questions in minutes.</p>
+            <button onClick={() => setCreating(true)} className="pb-cta"><Plus size={14} />Create your first course</button>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="pb-grid">
             {courses.map(course => (
-              <div key={course.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-gray-300 hover:shadow-sm transition-all">
-                <div className="group/cover relative cursor-pointer" onClick={() => setPatternPicker(course)}>
+              <div key={course.id} className="pb-card">
+                <div className="pb-cover editable" onClick={() => setPatternPicker(course)}>
                   {course.cover_image?.startsWith('http')
-                    ? <img src={course.cover_image} alt="" className="w-full object-cover" style={{height:60}} />
-                    : <CoursePattern courseId={course.id} patternId={coverPatternId(course)} height={60} />}
-                  <div className="absolute inset-0 bg-black/0 group-hover/cover:bg-black/20 transition-colors flex items-center justify-center">
-                    <span className="text-white text-xs font-medium opacity-0 group-hover/cover:opacity-100">Change cover</span>
-                  </div>
+                    ? <img src={course.cover_image} alt="" style={{ width: '100%', display: 'block', height: 76, objectFit: 'cover' }} />
+                    : <CoursePattern courseId={course.id} patternId={coverPatternId(course)} height={76} />}
+                  <div className="pb-cover-overlay">Change cover</div>
                 </div>
-                <div className="p-4 md:p-5">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-gray-900 font-semibold text-base mb-2">{course.name}</h3>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <button onClick={() => copyCode(course)} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors text-xs font-mono text-gray-600">
-                          {copied === course.code ? <Check size={10} className="text-emerald-500" /> : <Hash size={10} />}{course.join_code || course.code}
-                        </button>
-                        <button onClick={() => copyLink(course)} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors text-xs text-gray-600">
-                          {copied === course.id ? <Check size={10} className="text-emerald-500" /> : <ExternalLink size={10} />}{copied === course.id ? 'Copied!' : 'Invite link'}
-                        </button>
-                        <div className="flex items-center gap-1 text-[10px] text-gray-400"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />AI Active</div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
-                      <button onClick={() => setSelectedCourse(course)} className="px-4 py-2 rounded-lg bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium transition-colors">Manage</button>
+                <div className="pb-card-body">
+                  <div className="pb-card-head">
+                    <div className="pb-card-name" style={{ minWidth: 0 }}>{course.name}</div>
+                    <div className="pb-actions">
+                      <button onClick={() => setSelectedCourse(course)} className="pb-manage">Manage <Ic name="arrow-right" s={12} /></button>
                       {confirmDelete === course.id ? (
-                        <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2 py-1">
-                          <span className="text-xs text-gray-500">Delete?</span>
-                          <button onClick={() => deleteCourse(course.id)} className="text-xs text-red-500 font-medium hover:text-red-600 px-1">Yes</button>
-                          <button onClick={() => setConfirmDelete(null)} className="text-xs text-gray-400 hover:text-gray-600 px-1">No</button>
-                        </div>
+                        <span className="pb-confirm">Delete? <button className="yes" onClick={() => deleteCourse(course.id)}>Yes</button> <button className="no" onClick={() => setConfirmDelete(null)}>No</button></span>
                       ) : (
-                        <button onClick={() => setConfirmDelete(course.id)} className="p-2 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400 transition-colors"><Trash2 size={13} /></button>
+                        <button onClick={() => setConfirmDelete(course.id)} className="pb-trash" aria-label="Delete course"><Trash2 size={14} /></button>
                       )}
                     </div>
+                  </div>
+                  <div className="pb-meta">
+                    <button onClick={() => copyCode(course)} className="pb-chip">
+                      {copied === course.code ? <Check size={11} /> : <Hash size={11} />}{course.join_code || course.code}
+                    </button>
+                    <button onClick={() => copyLink(course)} className="pb-chip link">
+                      {copied === course.id ? <Check size={11} /> : <ExternalLink size={11} />}{copied === course.id ? 'Copied!' : 'Invite link'}
+                    </button>
+                    <span className="pb-chip live"><span className="dot" /> AI Active</span>
                   </div>
                 </div>
               </div>
@@ -1192,25 +1303,22 @@ function ProfessorDashboard({ token, user, onLogout }) {
         )}
       </div>
       {toast && (
-        <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-xl text-white text-xs font-medium shadow-xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
-          {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle2 size={13} />}{toast.msg}
+        <div className={`pb-toast${toast.type === 'error' ? ' error' : ''}`}>
+          {toast.type === 'error' ? <AlertCircle size={14} /> : <CheckCircle2 size={14} />}{toast.msg}
         </div>
       )}
       {patternPicker && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 fade-up" onClick={() => setPatternPicker(null)}>
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-gray-900 font-semibold text-base">Choose a cover</h3>
-              <button onClick={() => setPatternPicker(null)} className="text-gray-400 hover:text-gray-700 transition-colors"><X size={18} /></button>
-            </div>
-            <p className="text-gray-400 text-xs mb-4">Students see this on their course card too.</p>
-            <div className="grid grid-cols-3 gap-3">
+        <div className="pb-modal" onClick={() => setPatternPicker(null)}>
+          <div className="pb-modal-card" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setPatternPicker(null)} className="pb-modal-x" aria-label="Close"><X size={16} /></button>
+            <div className="pb-modal-h">Choose a cover</div>
+            <p className="pb-modal-p">Students see this on their course card too.</p>
+            <div className="pb-pattern-grid">
               {[0,1,2,3,4,5,6,7,8].map(i => {
                 const selected = coverPatternId(patternPicker) === i;
                 return (
-                  <button key={i} onClick={() => savePattern(patternPicker.id, i)}
-                    className={`rounded-xl overflow-hidden border-2 transition-all hover:scale-[1.03] ${selected ? 'border-gray-900' : 'border-transparent hover:border-gray-300'}`}>
-                    <CoursePattern patternId={i} height={56} />
+                  <button key={i} onClick={() => savePattern(patternPicker.id, i)} className={`pb-pattern${selected ? ' selected' : ''}`}>
+                    <CoursePattern patternId={i} height={60} />
                   </button>
                 );
               })}
