@@ -1536,23 +1536,71 @@ function CourseManager({ token, course, onBack, authHeaders }) {
 
         {activeTab === 'materials' ? (
           <div className="flex-1 overflow-y-auto bg-[#FBFBF9]">
-            {/* Operational strip — single thin row with status + Upload.
-                No giant masthead — the top header already named the page. */}
-            <div className="px-6 md:px-12 py-5 border-b border-gray-200/70 bg-[#F6F6F4]/40">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-3 min-w-0 flex-wrap">
-                  <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100">
-                    <span className="block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-[10px] font-bold tracking-[.14em] uppercase text-emerald-700">Live</span>
+            {/* ── COMMAND BAR ──
+                Dark editorial nameplate that says "this is the teacher's
+                view." Course name as the serif centerpiece, today's date
+                and join code in the gutters, live stats stacked on the
+                right. Two soft indigo glows in the corners give it depth
+                without committing to a gradient. A thin indigo→fade rule
+                at the bottom edge is the Scholr brand signature. */}
+            <div className="relative overflow-hidden bg-[#15161B] text-white">
+              <div className="absolute -top-32 -right-24 w-[420px] h-[420px] rounded-full bg-[#2A4D8F] opacity-[0.18] blur-[100px] pointer-events-none" />
+              <div className="absolute -bottom-24 -left-32 w-[340px] h-[340px] rounded-full bg-[#2A4D8F] opacity-[0.10] blur-[90px] pointer-events-none" />
+              {/* Subtle paper-grain texture (CSS dot pattern, very faint) */}
+              <div className="absolute inset-0 pointer-events-none opacity-[0.025]" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px)', backgroundSize: '14px 14px' }} />
+
+              <div className="relative px-6 md:px-12 pt-8 pb-7">
+                {/* top row — kicker + date + live */}
+                <div className="flex items-center justify-between text-[10px] tracking-[.20em] uppercase text-white/45 font-bold mb-6 gap-3 flex-wrap">
+                  <span className="flex items-center gap-2.5"><span className="block w-7 h-[1.5px] bg-current opacity-70 rounded-sm" />Course command</span>
+                  <span className="flex items-center gap-3 text-white/40 normal-case tracking-normal text-[11px]">
+                    <span className="italic">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</span>
+                    <span className="text-white/20">·</span>
+                    <span className="inline-flex items-center gap-1.5 uppercase tracking-[.16em] font-bold text-[10px] text-emerald-300/90"><span className="block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />Live</span>
                   </span>
-                  <span className="text-[12.5px] text-gray-700"><span className="font-semibold tabular-nums">{mods.length}</span> <span className="text-gray-500">file{mods.length !== 1 ? 's' : ''} indexed</span></span>
+                </div>
+
+                {/* Nameplate row — big serif course name + right-rail stats */}
+                <div className="flex items-end justify-between gap-8 flex-wrap">
+                  <div className="min-w-0">
+                    <h2 className="serif text-[44px] md:text-[68px] text-white leading-[0.95] tracking-tight truncate">{course.name}<span className="italic">.</span></h2>
+                    <p className="text-[12.5px] text-white/45 mt-3.5 italic">
+                      Join code <span className="not-italic font-mono text-white/70 tracking-wide ml-1">{course.join_code || course.code}</span>
+                      <span className="text-white/25 mx-2">·</span>
+                      <span className="not-italic">Indexed and live for every enrolled student.</span>
+                    </p>
+                  </div>
+                  <div className="flex items-end gap-7 md:gap-9">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] tracking-[.20em] uppercase text-white/40 font-bold mb-1">Files</span>
+                      <span className="serif text-[36px] md:text-[44px] text-white leading-none tabular-nums">{mods.length}<span className="italic text-white/60">.</span></span>
+                    </div>
+                    <div className="hidden md:flex flex-col">
+                      <span className="text-[10px] tracking-[.20em] uppercase text-white/40 font-bold mb-1">Status</span>
+                      <span className="serif text-[28px] text-emerald-300 leading-none italic">Live<span className="not-italic text-white/60">.</span></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* signature accent rule — indigo fade */}
+              <div className="h-[2px] w-full bg-gradient-to-r from-[#2A4D8F] via-[#2A4D8F]/40 to-transparent" />
+            </div>
+
+            {/* Operational strip — slim, just the time signal + Upload pill.
+                The command bar above already declares "LIVE / # files / course." */}
+            <div className="px-6 md:px-12 py-4 border-b border-gray-200/70 bg-white/40">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-2.5 min-w-0 text-[12px] text-gray-500">
+                  <span className="text-gray-400">Last upload</span>
+                  <span className="font-medium text-gray-800">{mods.length > 0 ? formatRelativeDate(mods[0].uploaded) : 'never'}</span>
                   <span className="text-gray-300">·</span>
-                  <span className="text-[12.5px] text-gray-500">Available to every student in <span className="font-medium text-gray-700">{course.name}</span></span>
+                  <span>{mods.length} file{mods.length !== 1 ? 's' : ''} indexed</span>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <input type="file" ref={fileRef} onChange={e => { handleFile(e.target.files[0]); e.target.value = ''; }} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" />
                   <button onClick={() => fileRef.current.click()} disabled={uploading}
-                    className="inline-flex items-center gap-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-[13px] font-medium px-4 py-2 rounded-full transition-colors">
+                    className="inline-flex items-center gap-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-[13px] font-medium px-4 py-2 rounded-full transition-colors shadow-[0_4px_14px_-4px_rgba(15,15,15,0.35)]">
                     <UploadCloud size={14} />{uploading ? `${uploadProgress}%` : 'Upload'}
                   </button>
                 </div>
@@ -1658,24 +1706,33 @@ function CourseManager({ token, course, onBack, authHeaders }) {
                     })}
                   </div>
 
-                  {/* Quick actions — small editorial action chips at the bottom.
-                      Gives the page a "this is a tool I use" feeling vs. a static
-                      file list. Pure presentation for now — buttons can wire up later. */}
-                  <div className="mt-10 pt-7 border-t border-gray-200/70">
+                  {/* Quick actions — elevated cards. Each card carries a
+                      colored icon tile and an arrow chevron that animates
+                      on hover, giving the page a "I do things from here"
+                      feel without losing the editorial discipline. */}
+                  <div className="mt-12 pt-8 border-t border-gray-200/70">
                     <div className="flex items-center gap-3 text-[10px] font-bold tracking-[.18em] uppercase text-gray-400 mb-4"><span className="block w-5 h-[1.5px] bg-current opacity-60 rounded-sm" />Quick actions</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                      <button onClick={copyLink} className="text-left rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04)] transition-all px-5 py-4">
-                        <div className="flex items-center gap-2 mb-1.5"><ExternalLink size={14} className="text-gray-500" /><span className="serif text-[15px] text-gray-900 leading-tight">Share with class</span></div>
-                        <p className="text-[12px] text-gray-500 italic leading-snug">Copy a join link for {course.join_code || course.code}.</p>
-                      </button>
-                      <button onClick={() => setActiveTab('insights')} className="text-left rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04)] transition-all px-5 py-4">
-                        <div className="flex items-center gap-2 mb-1.5"><BarChart2 size={14} className="text-gray-500" /><span className="serif text-[15px] text-gray-900 leading-tight">See what students ask</span></div>
-                        <p className="text-[12px] text-gray-500 italic leading-snug">Jump to live insights and the morning debrief.</p>
-                      </button>
-                      <button onClick={() => fileRef.current.click()} className="text-left rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04)] transition-all px-5 py-4">
-                        <div className="flex items-center gap-2 mb-1.5"><UploadCloud size={14} className="text-gray-500" /><span className="serif text-[15px] text-gray-900 leading-tight">Add another file</span></div>
-                        <p className="text-[12px] text-gray-500 italic leading-snug">Slides, readings, problem sets — any PDF or image.</p>
-                      </button>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {[
+                        { onClick: copyLink, icon: ExternalLink, title: 'Share with class', dek: `Copy a join link for ${course.join_code || course.code}.`, tint: 'bg-[#2A4D8F]', accent: '#2A4D8F' },
+                        { onClick: () => setActiveTab('insights'), icon: BarChart2, title: 'See what students ask', dek: 'Jump to live insights and the morning debrief.', tint: 'bg-[#15161B]', accent: '#15161B' },
+                        { onClick: () => fileRef.current.click(), icon: UploadCloud, title: 'Add another file', dek: 'Slides, readings, problem sets — any PDF or image.', tint: 'bg-[#3F6B57]', accent: '#3F6B57' },
+                      ].map((a, i) => (
+                        <button key={i} onClick={a.onClick} className="group/qa relative overflow-hidden text-left rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_8px_28px_-12px_rgba(15,15,15,0.18)] transition-all px-5 py-5">
+                          {/* tinted corner glow on hover */}
+                          <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-0 group-hover/qa:opacity-100 blur-2xl transition-opacity duration-300" style={{ background: a.accent }} />
+                          <div className="relative">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className={`w-10 h-10 rounded-xl ${a.tint} flex items-center justify-center flex-shrink-0 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.2)]`}>
+                                <a.icon size={15} className="text-white" />
+                              </div>
+                              <ChevronRight size={14} className="text-gray-300 group-hover/qa:text-gray-700 group-hover/qa:translate-x-0.5 transition-all mt-1.5" />
+                            </div>
+                            <p className="serif text-[16px] text-gray-900 leading-tight">{a.title}</p>
+                            <p className="text-[12px] text-gray-500 italic leading-snug mt-1.5">{a.dek}</p>
+                          </div>
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </>
