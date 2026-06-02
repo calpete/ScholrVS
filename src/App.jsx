@@ -1131,6 +1131,59 @@ function coverPatternId(course) {
   const m = /^pattern:(\d+)$/.exec(course?.cover_image || '');
   return m ? parseInt(m[1], 10) : null;
 }
+// Resolve the cover identity for a course — uses the explicitly-picked
+// pattern if there is one, otherwise hashes the course id so each course
+// gets a stable look even before its professor opens the picker.
+function resolveCourseCover(course) {
+  let idx = coverPatternId(course);
+  if (idx == null) {
+    const id = course?.id || '';
+    idx = Math.abs(id.split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0)) % COURSE_PATTERN_BGS.length;
+  }
+  return { idx, bg: COURSE_PATTERN_BGS[idx % COURSE_PATTERN_BGS.length], type: idx % 3 };
+}
+// Banner-scale pattern. Same 3 SVG variants as CoursePattern but stretched
+// to fill a header on any aspect ratio — preserveAspectRatio="slice" makes
+// it cover regardless of how tall the banner ends up being.
+function BannerPattern({ type }) {
+  const VBW = 1600, VBH = 500;
+  return (
+    <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="xMidYMid slice" viewBox={`0 0 ${VBW} ${VBH}`}>
+      {type === 0 && (
+        <>
+          <circle cx="240" cy="40" r="340" fill="none" stroke="#fff" strokeWidth="1" opacity="0.10" />
+          <circle cx="240" cy="40" r="220" fill="none" stroke="#fff" strokeWidth="1" opacity="0.08" />
+          <circle cx="240" cy="40" r="110" fill="none" stroke="#fff" strokeWidth="1" opacity="0.13" />
+          <line x1="0" y1={VBH} x2={VBW} y2="0" stroke="#fff" strokeWidth="1" opacity="0.06" />
+          <line x1="0" y1={VBH * 0.72} x2={VBW} y2={VBH * -0.28} stroke="#fff" strokeWidth="1" opacity="0.05" />
+          <rect x={VBW - 240} y="-40" width="340" height="340" rx="22" fill="none" stroke="#fff" strokeWidth="1" opacity="0.09" transform={`rotate(20 ${VBW - 70} 130)`} />
+        </>
+      )}
+      {type === 1 && (
+        <>
+          {Array.from({ length: 12 }).map((_, i) => (
+            <rect key={i} x={i * 150 - 30} y="-30" width="170" height="170" rx="14" fill="none" stroke="#fff" strokeWidth="1" opacity="0.10" transform={`rotate(15 ${i * 150 + 55} 55)`} />
+          ))}
+          {Array.from({ length: 12 }).map((_, i) => (
+            <rect key={i + 'b'} x={i * 150 + 60} y="180" width="130" height="130" rx="12" fill="none" stroke="#fff" strokeWidth="1" opacity="0.07" transform={`rotate(15 ${i * 150 + 125} 245)`} />
+          ))}
+        </>
+      )}
+      {type === 2 && (
+        <>
+          {Array.from({ length: 15 }).map((_, i) => (
+            <line key={i} x1={i * 120} y1="0" x2={i * 120 + 70} y2={VBH} stroke="#fff" strokeWidth="1" opacity="0.08" />
+          ))}
+          {Array.from({ length: 6 }).map((_, i) => (
+            <line key={i + 'h'} x1="0" y1={i * 90} x2={VBW} y2={i * 90} stroke="#fff" strokeWidth="1" opacity="0.05" />
+          ))}
+          <circle cx={VBW - 220} cy={VBH / 2} r="170" fill="none" stroke="#fff" strokeWidth="1" opacity="0.11" />
+          <circle cx={VBW - 220} cy={VBH / 2} r="95" fill="none" stroke="#fff" strokeWidth="1" opacity="0.08" />
+        </>
+      )}
+    </svg>
+  );
+}
 // Renders a chosen pattern (patternId 0–8) or, if none, a deterministic one
 // derived from the courseId.
 function CoursePattern({ courseId = '', patternId = null, height = 80 }) {
@@ -1464,6 +1517,11 @@ function CourseManager({ token, course, onBack, authHeaders }) {
     if (file) handleFile(file);
   };
 
+  // Banner identity follows whichever cover pattern + color the professor
+  // picked for this course (or a stable hash if they haven't picked one).
+  // Used by the mobile top bar AND the dark hero so they read as one piece.
+  const cover = resolveCourseCover(course);
+
   return (
     <div className="flex h-[100dvh] w-screen overflow-hidden bg-[#F6F6F4] fixed inset-0 page-enter"
       onDragOver={onPageDragOver} onDragLeave={onPageDragLeave} onDrop={onPageDrop}>
@@ -1481,9 +1539,9 @@ function CourseManager({ token, course, onBack, authHeaders }) {
         </div>
       )}
 
-      {/* Mobile top bar — simplified. No sidebar to open anymore;
-          just an All-courses back arrow + the Scholr lockup. */}
-      <div className="md:hidden fixed top-0 inset-x-0 z-20 bg-[#15161B] border-b border-white/5 flex items-center gap-3 px-4 h-14 pt-[env(safe-area-inset-top)]" style={{ height: 'calc(3.5rem + env(safe-area-inset-top))' }}>
+      {/* Mobile top bar — color follows the chosen course cover so it
+          flows continuously into the banner below. */}
+      <div className="md:hidden fixed top-0 inset-x-0 z-20 border-b border-white/5 flex items-center gap-3 px-4 h-14 pt-[env(safe-area-inset-top)]" style={{ height: 'calc(3.5rem + env(safe-area-inset-top))', background: cover.bg }}>
         <button onClick={onBack} aria-label="All courses" className="p-2 -ml-2 text-white/70"><ArrowLeft size={18} /></button>
         <div className="flex flex-col leading-tight min-w-0 flex-1">
           <p className="text-[10px] tracking-[.18em] uppercase text-white/50 font-bold">{activeTab === 'materials' ? 'Materials' : 'Insights'}</p>
@@ -1504,11 +1562,18 @@ function CourseManager({ token, course, onBack, authHeaders }) {
           no top bar so the hero sits flush at the very top. */}
       <main className="flex-1 flex flex-col overflow-hidden relative" style={isDesktop ? undefined : { paddingTop: 'calc(3.5rem + env(safe-area-inset-top))' }}>
         <div className="flex-1 overflow-y-auto bg-[#FBFBF9]">
-          {/* ── UNIFIED DARK HERO with tab switcher in the middle ── */}
-          <div className="relative overflow-hidden bg-[#15161B] text-white">
-            <div className="absolute -top-40 -right-32 w-[520px] h-[520px] rounded-full bg-[#2A4D8F] opacity-[0.22] blur-[120px] pointer-events-none" />
-            <div className="absolute -bottom-32 -left-40 w-[420px] h-[420px] rounded-full bg-[#2A4D8F] opacity-[0.12] blur-[100px] pointer-events-none" />
-            <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px)', backgroundSize: '14px 14px' }} />
+          {/* ── UNIFIED HERO ──
+              Background color + line pattern follow whichever cover the
+              professor picked for this course, so the banner reads as a
+              continuation of the course card from the all-courses screen.
+              Three layers stacked over the cover color: the BannerPattern
+              SVG (the editorial line work), a faint white→transparent
+              radial glow top-right for depth, and the faint dot grain. */}
+          <div className="relative overflow-hidden text-white" style={{ background: cover.bg }}>
+            <BannerPattern type={cover.type} />
+            <div className="absolute -top-40 -right-32 w-[520px] h-[520px] rounded-full bg-white opacity-[0.05] blur-[120px] pointer-events-none" />
+            <div className="absolute -bottom-32 -left-40 w-[420px] h-[420px] rounded-full bg-white opacity-[0.025] blur-[100px] pointer-events-none" />
+            <div className="absolute inset-0 pointer-events-none opacity-[0.025]" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px)', backgroundSize: '14px 14px' }} />
 
             {/* Top bar — All courses back / breadcrumb left, Copy link + Scholr right */}
             <div className="relative flex items-center justify-between px-6 md:px-12 pt-6 pb-3 gap-3 flex-wrap">
