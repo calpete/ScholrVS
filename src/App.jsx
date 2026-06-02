@@ -1481,87 +1481,47 @@ function CourseManager({ token, course, onBack, authHeaders }) {
         </div>
       )}
 
-      {/* Mobile top bar */}
-      <div className="md:hidden fixed top-0 inset-x-0 z-20 bg-[#F6F6F4] border-b border-gray-200/70 flex items-center gap-3 px-4 h-14 pt-[env(safe-area-inset-top)]" style={{ height: 'calc(3.5rem + env(safe-area-inset-top))' }}>
-        <button onClick={() => setMobileNavOpen(true)} aria-label="Open menu" className="p-2 -ml-2 text-gray-700">
-          <Menu size={20} />
-        </button>
+      {/* Mobile top bar — simplified. No sidebar to open anymore;
+          just an All-courses back arrow + the Scholr lockup. */}
+      <div className="md:hidden fixed top-0 inset-x-0 z-20 bg-[#15161B] border-b border-white/5 flex items-center gap-3 px-4 h-14 pt-[env(safe-area-inset-top)]" style={{ height: 'calc(3.5rem + env(safe-area-inset-top))' }}>
+        <button onClick={onBack} aria-label="All courses" className="p-2 -ml-2 text-white/70"><ArrowLeft size={18} /></button>
         <div className="flex flex-col leading-tight min-w-0 flex-1">
-          <h2 className="text-gray-900 text-sm font-medium truncate">{activeTab === 'materials' ? 'Materials' : 'Insights'}</h2>
-          <p className="text-[11px] text-gray-400 truncate">{course.name}</p>
+          <p className="text-[10px] tracking-[.18em] uppercase text-white/50 font-bold">{activeTab === 'materials' ? 'Materials' : 'Insights'}</p>
+          <p className="text-[11px] text-white/35 truncate">{course.name}</p>
         </div>
-        <button type="button" onClick={onBack} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0" aria-label="Scholr home"><Logo size={20} /><span className="text-gray-900 font-semibold text-sm hidden sm:inline">Scholr</span></button>
+        <button type="button" onClick={onBack} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0" aria-label="Scholr home">
+          <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
+            <rect width="28" height="28" rx="7" fill="#FBFBF9" />
+            <path d="M8 10h8M8 14h12M8 18h6" stroke="#15161B" strokeWidth="1.75" strokeLinecap="round" />
+          </svg>
+        </button>
       </div>
-      {mobileNavOpen && <div onClick={closeMobileNav} className="md:hidden fixed inset-0 bg-black/40 z-30" />}
-
-      {/* ── Sidebar — editorial, mirrors the student side ── */}
-      <aside style={isDesktop ? { width: sidebarW } : undefined} className={`fixed md:relative inset-y-0 left-0 z-40 w-72 bg-[#F6F6F4] border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
-        <ResizeHandle onMouseDown={startSidebarDrag} />
-        <div className="px-4 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-2">
-            <button onClick={onBack} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 text-[11px] transition-colors -ml-0.5"><ArrowLeft size={11} />All courses</button>
-            <button onClick={closeMobileNav} aria-label="Close menu" className="md:hidden p-1 text-gray-400"><X size={16} /></button>
-          </div>
-          <p className="text-gray-900 text-[15px] font-bold truncate leading-tight">{course.name}</p>
-          <p className="text-gray-400 text-[11px] mt-1">{mods.length} file{mods.length !== 1 ? 's' : ''} indexed · <span className="font-mono text-gray-500">{course.join_code || course.code}</span></p>
-        </div>
-        <div className="px-3 pt-3 space-y-0.5">
-          {[{ id: 'materials', label: 'Materials', icon: FolderOpen, count: mods.length }, { id: 'insights', label: 'Insights', icon: BarChart2, count: null }].map(({ id, label, icon: Icon, count }) => (
-            <button key={id} onClick={() => { setActiveTab(id); closeMobileNav(); }}
-              className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${activeTab === id ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
-              <Icon size={15} className="text-gray-500" />{label}
-              {count != null && count > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{count}</span>}
-            </button>
-          ))}
-        </div>
-        <div className="flex-1" />
-        <div className="p-4 border-t border-gray-200 space-y-2.5">
-          <button onClick={copyLink} className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-white border border-gray-200/80 hover:border-gray-300 text-gray-700 text-[12px] font-medium transition-colors">
-            {copied ? <Check size={12} className="text-emerald-500" /> : <ExternalLink size={12} className="text-gray-400" />}{copied ? 'Copied!' : 'Copy student link'}
-          </button>
-          <div className="flex items-center gap-2 px-1"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-[10px] text-gray-400">Vertex AI connected</span></div>
-        </div>
-      </aside>
 
       {/* ── Main ──
-          Mobile gets pushed below the fixed mobile top bar (3.5rem + safe
-          area inset). Desktop has no mobile top bar, so no offset — the
-          dark hero sits flush at the very top. */}
+          Single overflow container. Dark hero (with tabs in the middle)
+          always at the top; active tab's body renders below it.
+          Mobile gets pushed below the fixed mobile top bar; desktop has
+          no top bar so the hero sits flush at the very top. */}
       <main className="flex-1 flex flex-col overflow-hidden relative" style={isDesktop ? undefined : { paddingTop: 'calc(3.5rem + env(safe-area-inset-top))' }}>
-        {/* Thin top header — kept for the Insights tab only. The Materials
-            tab uses the dark hero below as its own top of page. */}
-        {activeTab === 'insights' && (
-          <header className="hidden md:flex bg-[#F6F6F4] border-b border-gray-200/70 items-center justify-between px-4 md:px-8 py-2 md:h-12 flex-shrink-0 gap-3">
-            <div className="flex flex-col min-w-0 leading-tight">
-              <h2 className="text-gray-900 text-sm font-medium truncate">Student Insights</h2>
-              <p className="text-[11px] text-gray-400 truncate">{course.name}</p>
-            </div>
-            <button type="button" onClick={onBack} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0" aria-label="Scholr home"><Logo size={20} /><span className="text-gray-900 font-semibold text-sm hidden sm:inline">Scholr</span></button>
-          </header>
-        )}
+        <div className="flex-1 overflow-y-auto bg-[#FBFBF9]">
+          {/* ── UNIFIED DARK HERO with tab switcher in the middle ── */}
+          <div className="relative overflow-hidden bg-[#15161B] text-white">
+            <div className="absolute -top-40 -right-32 w-[520px] h-[520px] rounded-full bg-[#2A4D8F] opacity-[0.22] blur-[120px] pointer-events-none" />
+            <div className="absolute -bottom-32 -left-40 w-[420px] h-[420px] rounded-full bg-[#2A4D8F] opacity-[0.12] blur-[100px] pointer-events-none" />
+            <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px)', backgroundSize: '14px 14px' }} />
 
-        {activeTab === 'materials' ? (
-          <div className="flex-1 overflow-y-auto bg-[#FBFBF9]">
-            {/* ── DARK HERO ──
-                The top of the page is now a single editorial nameplate
-                that swallows the breadcrumb + the Scholr logo + the big
-                course name + the live stats. No competing thin header.
-                Two soft indigo halos in opposite corners + a faint dot
-                grain give the dark canvas depth. Bottom edge wears the
-                Scholr signature indigo→fade rule. */}
-            <div className="relative overflow-hidden bg-[#15161B] text-white">
-              <div className="absolute -top-40 -right-32 w-[520px] h-[520px] rounded-full bg-[#2A4D8F] opacity-[0.22] blur-[120px] pointer-events-none" />
-              <div className="absolute -bottom-32 -left-40 w-[420px] h-[420px] rounded-full bg-[#2A4D8F] opacity-[0.12] blur-[100px] pointer-events-none" />
-              <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px)', backgroundSize: '14px 14px' }} />
-
-              {/* Top bar — breadcrumb on the left, Scholr lockup on the right */}
-              <div className="relative flex items-center justify-between px-6 md:px-12 pt-6 pb-3">
-                <div className="flex flex-col min-w-0 leading-tight">
-                  <p className="text-[10px] tracking-[.22em] uppercase text-white/55 font-bold">Course Materials</p>
-                  <p className="text-[11px] text-white/40 mt-0.5 truncate">{course.name}</p>
-                </div>
+            {/* Top bar — All courses back / breadcrumb left, Copy link + Scholr right */}
+            <div className="relative flex items-center justify-between px-6 md:px-12 pt-6 pb-3 gap-3 flex-wrap">
+              <div className="hidden md:flex flex-col min-w-0 leading-tight">
+                <button onClick={onBack} className="text-[10px] tracking-[.20em] uppercase text-white/55 font-bold hover:text-white transition-colors text-left inline-flex items-center gap-1.5"><ArrowLeft size={11} />All courses</button>
+                <p className="text-[11px] text-white/40 mt-1 truncate">{course.name}</p>
+              </div>
+              <div className="flex items-center gap-2 ml-auto">
+                <button onClick={copyLink} className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/85 hover:text-white text-[12px] font-medium transition-colors">
+                  {copied ? <Check size={12} className="text-emerald-300" /> : <ExternalLink size={12} />}
+                  {copied ? 'Copied!' : 'Copy student link'}
+                </button>
                 <button type="button" onClick={onBack} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0" aria-label="Scholr home">
-                  {/* Inverted Scholr mark for dark backgrounds */}
                   <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
                     <rect width="28" height="28" rx="7" fill="#FBFBF9" />
                     <path d="M8 10h8M8 14h12M8 18h6" stroke="#15161B" strokeWidth="1.75" strokeLinecap="round" />
@@ -1569,35 +1529,54 @@ function CourseManager({ token, course, onBack, authHeaders }) {
                   <span className="text-white font-semibold text-sm hidden sm:inline tracking-tight">Scholr</span>
                 </button>
               </div>
+            </div>
 
-              {/* Nameplate */}
-              <div className="relative px-6 md:px-12 pt-7 pb-10">
-                <div className="flex items-center gap-2.5 text-[10px] tracking-[.20em] uppercase text-white/45 font-bold mb-5"><span className="block w-7 h-[1.5px] bg-current opacity-70 rounded-sm" />Course command</div>
-                <div className="flex items-end justify-between gap-10 flex-wrap">
-                  <div className="min-w-0">
-                    <h2 className="serif text-[52px] md:text-[88px] text-white leading-[0.94] tracking-tight">{course.name}<span className="italic">.</span></h2>
-                    <p className="text-[13px] text-white/45 mt-5 italic">
-                      Join code <span className="not-italic font-mono text-white/75 tracking-wide ml-1">{course.join_code || course.code}</span>
-                      <span className="text-white/25 mx-2">·</span>
-                      <span className="not-italic">Indexed and live for every enrolled student.</span>
-                    </p>
+            {/* Tab switcher — centered pill, white-on-dark for active */}
+            <div className="relative flex justify-center pt-5 pb-1">
+              <div className="inline-flex items-center bg-white/[0.06] border border-white/10 rounded-full p-1 backdrop-blur-sm">
+                {[
+                  { id: 'materials', label: 'Materials', icon: FolderOpen },
+                  { id: 'insights',  label: 'Insights',  icon: BarChart2 },
+                ].map(({ id, label, icon: Icon }) => (
+                  <button key={id} onClick={() => setActiveTab(id)}
+                    className={`inline-flex items-center gap-2 px-5 py-2 rounded-full text-[12.5px] font-semibold tracking-wide transition-all ${activeTab === id ? 'bg-white text-[#15161B] shadow-[0_2px_10px_-2px_rgba(255,255,255,0.15)]' : 'text-white/55 hover:text-white'}`}>
+                    <Icon size={13} />{label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Nameplate */}
+            <div className="relative px-6 md:px-12 pt-7 pb-10">
+              <div className="flex items-center gap-2.5 text-[10px] tracking-[.20em] uppercase text-white/45 font-bold mb-5"><span className="block w-7 h-[1.5px] bg-current opacity-70 rounded-sm" />Course command</div>
+              <div className="flex items-end justify-between gap-10 flex-wrap">
+                <div className="min-w-0">
+                  <h2 className="serif text-[52px] md:text-[88px] text-white leading-[0.94] tracking-tight">{course.name}<span className="italic">.</span></h2>
+                  <p className="text-[13px] text-white/45 mt-5 italic">
+                    Join code <span className="not-italic font-mono text-white/75 tracking-wide ml-1">{course.join_code || course.code}</span>
+                    <span className="text-white/25 mx-2">·</span>
+                    <span className="not-italic">{activeTab === 'materials' ? 'Indexed and live for every enrolled student.' : 'Live look at what your class is wrestling with.'}</span>
+                  </p>
+                </div>
+                <div className="flex items-end gap-8 md:gap-12">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] tracking-[.20em] uppercase text-white/40 font-bold mb-1.5">{activeTab === 'materials' ? 'Files' : 'This week'}</span>
+                    <span className="serif text-[44px] md:text-[56px] text-white leading-none tabular-nums">{activeTab === 'materials' ? mods.length : '—'}<span className="italic text-white/60">.</span></span>
                   </div>
-                  <div className="flex items-end gap-8 md:gap-12">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] tracking-[.20em] uppercase text-white/40 font-bold mb-1.5">Files</span>
-                      <span className="serif text-[44px] md:text-[56px] text-white leading-none tabular-nums">{mods.length}<span className="italic text-white/60">.</span></span>
-                    </div>
-                    <div className="hidden md:flex flex-col">
-                      <span className="text-[10px] tracking-[.20em] uppercase text-white/40 font-bold mb-1.5">Status</span>
-                      <span className="serif text-[40px] text-emerald-300 leading-none italic">Live<span className="not-italic text-white/60">.</span></span>
-                    </div>
+                  <div className="hidden md:flex flex-col">
+                    <span className="text-[10px] tracking-[.20em] uppercase text-white/40 font-bold mb-1.5">Status</span>
+                    <span className="serif text-[40px] text-emerald-300 leading-none italic">Live<span className="not-italic text-white/60">.</span></span>
                   </div>
                 </div>
               </div>
-
-              {/* Signature indigo→fade rule */}
-              <div className="h-[2px] w-full bg-gradient-to-r from-[#2A4D8F] via-[#2A4D8F]/40 to-transparent" />
             </div>
+
+            <div className="h-[2px] w-full bg-gradient-to-r from-[#2A4D8F] via-[#2A4D8F]/40 to-transparent" />
+          </div>
+
+          {activeTab === 'materials' ? (
+            <>
+            {/* Materials body wrapped here */}
 
             {/* Upload progress strip */}
             {uploading && uploadingFile && (
@@ -1739,10 +1718,11 @@ function CourseManager({ token, course, onBack, authHeaders }) {
                 </div>
               )}
             </div>
-          </div>
-        ) : (
-          <CourseInsights course={course} token={token} onSwitchToMaterials={() => setActiveTab('materials')} />
-        )}
+            </>
+          ) : (
+            <CourseInsights course={course} token={token} onSwitchToMaterials={() => setActiveTab('materials')} />
+          )}
+        </div>
       </main>
 
       {toast && (
@@ -1977,21 +1957,18 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
   // Fetch the AI summary once on mount and again whenever total question count crosses a threshold
   useEffect(() => { if (insights?.totalQuestions > 0 && !summary) fetchSummary(); }, [insights?.totalQuestions]);
 
+  // CourseInsights now renders headless — the parent (CourseManager)
+  // provides the scroll container, the dark hero, and the tab switcher.
+  // We render only the body sections / loading / empty state, never an
+  // outer wrapper or our own masthead.
   if (loading) return (
-    <div className="flex-1 flex flex-col bg-[#F6F6F4]">
-      <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 md:py-5 flex-shrink-0">
-        <Skeleton className="h-4 w-32 mb-2" />
+    <div className="px-6 md:px-12 py-16">
+      <div className="max-w-3xl mx-auto space-y-4">
         <Skeleton className="h-3 w-40" />
-      </div>
-      <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 md:space-y-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+        <Skeleton className="h-[180px] w-full" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <SkeletonStatCard dark />
           <SkeletonStatCard />
-        </div>
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          <Skeleton className="h-3 w-32 mb-2" />
-          <Skeleton className="h-3 w-44 mb-5" />
-          <Skeleton className="h-[180px] w-full" />
         </div>
       </div>
     </div>
@@ -2000,36 +1977,30 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
   const isEmpty = !insights || insights.totalQuestions === 0;
   if (isEmpty) {
     return (
-      <div className="flex-1 flex flex-col bg-[#F6F6F4]">
-        <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 md:py-5 flex-shrink-0">
-          <h2 className="text-gray-900 font-semibold text-sm">Student Insights</h2>
-          <div className="flex items-center gap-2 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><p className="text-gray-400 text-xs">Live · updates every 10s</p></div>
-        </div>
-        <div className="flex-1 flex items-center justify-center px-4 md:px-8 py-6">
-          <div className="bg-white rounded-2xl border border-gray-200 px-6 py-10 text-center max-w-lg w-full">
-            <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4"><BarChart2 size={20} className="text-gray-400" /></div>
-            <h3 className="serif text-2xl text-gray-900 mb-2">No questions yet</h3>
-            <p className="text-gray-500 text-sm mb-6 max-w-sm mx-auto leading-relaxed">Share your join code with students — once they start asking the AI questions, you'll see what topics they're focused on right here.</p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
-              <button
-                onClick={() => {
-                  const url = `${window.location.origin}/join/${joinCode}`;
-                  navigator.clipboard.writeText(url);
-                  setCopiedJoin(true);
-                  setTimeout(() => setCopiedJoin(false), 2000);
-                }}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium transition-colors">
-                {copiedJoin ? <><Check size={14} />Copied!</> : <><Copy size={14} />Copy student link</>}
+      <div className="px-6 md:px-12 py-14 flex items-center justify-center">
+        <div className="bg-white rounded-3xl border border-gray-200/80 px-8 py-12 text-center max-w-lg w-full">
+          <div className="w-14 h-14 rounded-2xl bg-[#F3F2EF] flex items-center justify-center mx-auto mb-5"><BarChart2 size={22} className="text-gray-400" /></div>
+          <h3 className="serif text-[26px] text-gray-900 leading-none tracking-tight">No questions yet<span className="italic">.</span></h3>
+          <p className="text-[14px] text-gray-500 mt-3 mb-7 max-w-sm mx-auto leading-relaxed">Share your join code with students — once they start asking the AI questions, you'll see what topics they're focused on right here.</p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/join/${joinCode}`;
+                navigator.clipboard.writeText(url);
+                setCopiedJoin(true);
+                setTimeout(() => setCopiedJoin(false), 2000);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-gray-900 hover:bg-gray-800 text-white text-[13px] font-medium transition-colors">
+              {copiedJoin ? <><Check size={14} />Copied!</> : <><Copy size={14} />Copy student link</>}
+            </button>
+            {(!insights || insights.totalQuestions === 0) && onSwitchToMaterials && (
+              <button onClick={onSwitchToMaterials}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-white border border-gray-200 hover:border-gray-300 text-gray-700 text-[13px] font-medium transition-colors">
+                Manage materials <ChevronRight size={14} />
               </button>
-              {(!insights || insights.totalQuestions === 0) && onSwitchToMaterials && (
-                <button onClick={onSwitchToMaterials}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-200 hover:border-gray-300 text-gray-700 text-sm font-medium transition-colors">
-                  Manage materials <ChevronRight size={14} />
-                </button>
-              )}
-            </div>
-            <p className="text-[11px] text-gray-400 mt-4 font-mono">{joinCode}</p>
+            )}
           </div>
+          <p className="text-[11px] text-gray-400 mt-4 font-mono">{joinCode}</p>
         </div>
       </div>
     );
@@ -2105,29 +2076,18 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-[#FBFBF9]">
-      {/* editorial masthead */}
-      <div className="border-b border-gray-200/70 px-6 md:px-12 pt-8 md:pt-10 pb-7 flex-shrink-0">
-        <div className="flex items-start justify-between gap-6 flex-wrap">
-          <div className="min-w-0">
-            <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />What your class is asking</div>
-            <h2 className="serif text-[40px] md:text-[56px] text-gray-900 leading-[1.02] tracking-tight">Student Insights<span className="italic">.</span></h2>
-            <p className="text-[13.5px] text-gray-500 mt-3 flex flex-wrap items-center gap-2">
-              <span>{course.name}</span>
-              <span className="text-gray-300">·</span>
-              <span>{d.estimatedStudents} students</span>
-              <span className="text-gray-300">·</span>
-              <span className="inline-flex items-center gap-1.5"><span className="block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />Live · updates every 10s</span>
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {newCount > 0 && <button onClick={() => { setNewCount(0); fetchInsights(); }} className="px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">↑ {newCount} new</button>}
-            <button onClick={clearData} className="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:border-red-300 hover:text-red-600 text-gray-500 text-xs font-medium transition-colors">Clear data</button>
-          </div>
+    <>
+      {/* Tiny action strip — replaces the old masthead. Just newCount + Clear data,
+          since the page identity is provided by the dark hero above. */}
+      <div className="px-6 md:px-12 py-3 border-b border-gray-200/70 flex items-center justify-between gap-2 bg-white/40">
+        <p className="text-[11.5px] text-gray-400 italic">Updates every 10 seconds — refreshing the morning debrief once a day.</p>
+        <div className="flex items-center gap-2">
+          {newCount > 0 && <button onClick={() => { setNewCount(0); fetchInsights(); }} className="px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">↑ {newCount} new</button>}
+          <button onClick={clearData} className="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:border-red-300 hover:text-red-600 text-gray-500 text-xs font-medium transition-colors">Clear data</button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div>
         {/* PULSE STRIP */}
         <section className="px-6 md:px-12 pt-7 pb-6 border-b border-gray-200/70">
           <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
@@ -2225,7 +2185,7 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
         onCancel={clearing ? undefined : () => { setConfirmingClear(false); setClearError(''); }}
       />
       <ToastBanner message={clearError} type="error" onClose={() => setClearError('')} />
-    </div>
+    </>
   );
 }
 
