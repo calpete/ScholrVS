@@ -1739,10 +1739,9 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
   const [clearing, setClearing] = useState(false);
   const [clearError, setClearError] = useState('');
   const [copiedJoin, setCopiedJoin] = useState(false);
-  // Modern preview toggle — flips the body between the existing dashboard
-  // and the new editorial layout. Default to 'modern' so the new design
-  // greets you first.
-  const [viewMode, setViewMode] = useState('modern');
+  // Toast for the "Share with TA" button — shows a brief confirmation when
+  // the mailto opens (since the actual send happens in the user's mail app).
+  const [sharedToast, setSharedToast] = useState(false);
 
   const fetchInsights = async () => {
     try {
@@ -1910,10 +1909,24 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
   const courseHealth = Math.round((d.confidenceRate * 0.45) + (breadth * 0.25) + (volume * 0.30));
   const healthDescriptor = courseHealth >= 85 ? 'Strong' : courseHealth >= 70 ? 'Steady' : courseHealth >= 55 ? 'Watch' : 'Needs attention';
 
-  // ── MODERN VIEW ──────────────────────────────────────────────────────
-  if (viewMode === 'modern') return (
+  // Build the Share-with-TA payload — a clean editorial plain-text email
+  // the professor can fire to a teaching assistant in two clicks.
+  const buildSharePayload = () => {
+    const subject = `Scholr Morning Debrief — ${course.name} — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    const briefBody = summary || `Tuesday's class is stuck on DCF.\n\nFourteen questions about discounted cash flow this week — up from three last week. Students grasp the formula but stall at terminal-value assumptions; three asked the same question within 90 minutes Tuesday night.\n\nThe income statement thread is healthy. Accrual-vs-cash questions dropped ~40% week-over-week, which suggests the Sunday review worked.\n\nWorth front-loading: weighted average cost of capital. Eight asks already, and the exam is in twelve days.`;
+    const body = `Morning Debrief — ${course.name}\n${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}\n\n${briefBody}\n\n—\nQuestions this week: ${d.weekQuestions}\nHours freed up: ${timeSaved}\nTop topic: ${topTopic}\n\nSent from Scholr · scholr.study`;
+    return { subject, body };
+  };
+  const shareWithTA = () => {
+    const { subject, body } = buildSharePayload();
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    setSharedToast(true);
+    setTimeout(() => setSharedToast(false), 2400);
+  };
+
+  return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#FBFBF9]">
-      {/* sticky-feeling masthead */}
+      {/* editorial masthead */}
       <div className="border-b border-gray-200/70 px-6 md:px-12 pt-8 md:pt-10 pb-7 flex-shrink-0">
         <div className="flex items-start justify-between gap-6 flex-wrap">
           <div className="min-w-0">
@@ -1929,10 +1942,6 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {newCount > 0 && <button onClick={() => { setNewCount(0); fetchInsights(); }} className="px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">↑ {newCount} new</button>}
-            <div className="inline-flex items-center bg-white border border-gray-200 rounded-full p-0.5 text-[11px] font-medium">
-              <button onClick={() => setViewMode('classic')} className={`px-3 py-1 rounded-full transition-all ${viewMode === 'classic' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}>Classic</button>
-              <button onClick={() => setViewMode('modern')} className={`px-3 py-1 rounded-full transition-all ${viewMode === 'modern' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}>Modern <span className="text-[9px] tracking-wider uppercase ml-1 opacity-60">Preview</span></button>
-            </div>
             <button onClick={clearData} className="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:border-red-300 hover:text-red-600 text-gray-500 text-xs font-medium transition-colors">Clear data</button>
           </div>
         </div>
@@ -1960,38 +1969,31 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
           </div>
         </section>
 
-        {/* TWO COLUMN: STREAM + MORNING BRIEF */}
-        <section className="grid grid-cols-1 lg:grid-cols-5 border-b border-gray-200/70">
-          {/* Left: Question Stream */}
-          <div className="lg:col-span-3 px-6 md:px-12 pt-10 pb-12 lg:border-r border-gray-200/70">
-            <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />The stream · live</div>
-            <h3 className="serif text-[28px] text-gray-900 leading-tight tracking-tight">Questions, as they land<span className="italic">.</span></h3>
-            <p className="text-[14px] text-gray-500 mt-2.5 mb-6 leading-relaxed">Verbatim from your class. Each one carries a thread to the source PDF and the AI's answer — click any quote to read the full exchange.</p>
-            <div className="flex flex-col">
-              {stream.map((s, i) => <StreamRow key={i} idx={i} q={s.q} topic={s.topic} when={s.when} />)}
-            </div>
-          </div>
-
-          {/* Right: Morning Brief — dark, editorial */}
-          <div className="lg:col-span-2 px-6 md:px-12 pt-10 pb-12 bg-[#15161B] text-white">
-            <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-white/40 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Morning brief</div>
-            <h3 className="serif text-[28px] text-white leading-tight tracking-tight">Where to spend Monday<span className="italic">.</span></h3>
-            <p className="text-[13px] text-white/50 mt-2.5 mb-6 italic">{summaryGeneratedAt ? `Generated ${formatRelativeDate(summaryGeneratedAt)}` : 'Composed each morning from the last 24 hours.'}</p>
-            {summaryLoading && !summary ? (
-              <p className="text-sm text-white/60">Composing this morning's brief…</p>
-            ) : summary ? (
-              <div className="text-[14.5px] leading-[1.65] text-white/90 whitespace-pre-line">{summary}</div>
-            ) : (
-              <div className="text-[14.5px] leading-[1.65] text-white/90 space-y-4">
-                <p><span className="font-semibold text-white">Tuesday's class is stuck on DCF.</span> Fourteen questions about discounted cash flow this week — up from three last week. Students grasp the formula but stall at <span className="italic text-white">terminal-value assumptions</span>; three asked the same question within 90 minutes Tuesday night.</p>
-                <p>The income statement thread is healthy. Accrual-vs-cash questions dropped 40% week-over-week, which suggests the Sunday review worked.</p>
-                <p>Worth front-loading: <span className="italic text-white">weighted average cost of capital</span>. Eight asks already, and the exam is in twelve days.</p>
+        {/* MORNING DEBRIEF — full-width editorial column on ink-black */}
+        <section className="bg-[#15161B] text-white px-6 md:px-12 pt-12 pb-14 border-b border-gray-200/70">
+          <div className="max-w-3xl">
+            <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-white/40 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Morning debrief</div>
+            <h3 className="serif text-[34px] md:text-[42px] text-white leading-[1.05] tracking-tight">Where to spend Monday<span className="italic">.</span></h3>
+            <p className="text-[13px] text-white/50 mt-3 italic">{summaryGeneratedAt ? `Generated ${formatRelativeDate(summaryGeneratedAt)}` : 'Composed each morning from the last 24 hours.'}</p>
+            <div className="mt-7">
+              {summaryLoading && !summary ? (
+                <p className="text-[15px] text-white/60">Composing this morning's debrief…</p>
+              ) : summary ? (
+                <div className="text-[16px] leading-[1.7] text-white/90 whitespace-pre-line">{summary}</div>
+              ) : (
+                <div className="text-[16px] leading-[1.7] text-white/90 space-y-5">
+                  <p><span className="font-semibold text-white">Tuesday's class is stuck on DCF.</span> Fourteen questions about discounted cash flow this week — up from three last week. Students grasp the formula but stall at <span className="italic text-white">terminal-value assumptions</span>; three asked the same question within 90 minutes Tuesday night.</p>
+                  <p>The income statement thread is healthy. Accrual-vs-cash questions dropped 40% week-over-week, which suggests the Sunday review worked.</p>
+                  <p>Worth front-loading: <span className="italic text-white">weighted average cost of capital</span>. Eight asks already, and the exam is in twelve days.</p>
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-2 mt-8 pt-7 border-t border-white/10">
+                <button onClick={fetchSummary} disabled={summaryLoading} className="px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/15 text-white text-[12px] font-medium tracking-wide transition-colors disabled:opacity-40">{summaryLoading ? 'Refreshing…' : 'Refresh debrief'}</button>
+                <button onClick={shareWithTA} className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-white text-gray-900 hover:bg-white/90 text-[12px] font-medium tracking-wide transition-colors">
+                  <Send size={11} />Share with TA
+                </button>
+                {sharedToast && <span className="text-[11.5px] text-emerald-300 italic ml-1">Opening your mail app…</span>}
               </div>
-            )}
-            <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-white/10">
-              <button onClick={fetchSummary} disabled={summaryLoading} className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 text-white text-[11.5px] font-medium tracking-wide transition-colors disabled:opacity-40">{summaryLoading ? 'Refreshing…' : 'Refresh brief'}</button>
-              <button className="px-3 py-1.5 rounded-full bg-white text-gray-900 hover:bg-white/90 text-[11.5px] font-medium tracking-wide transition-colors">Pin for Monday</button>
-              <button className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 text-white text-[11.5px] font-medium tracking-wide transition-colors">Share with TA</button>
             </div>
           </div>
         </section>
@@ -2023,90 +2025,14 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
           </div>
         </section>
 
-        {/* STATS STRIP */}
-        <section className="px-6 md:px-12 pt-10 pb-14 grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-10">
+        {/* STATS STRIP — kept lean: just the two numbers professors actually quote */}
+        <section className="px-6 md:px-12 pt-12 pb-14 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
           <BigStat label="Questions answered" value={d.totalQuestions.toLocaleString()}
             descriptor={`${d.weekQuestions} this week — the AI was on call for every one.`}
             accent={d.weekQuestions > 0 ? { text: `↑ ${d.weekQuestions} this week`, color: '#2A4D8F' } : null} />
           <BigStat label="Hours freed up" value={timeSaved}
             descriptor={`Roughly ${Math.max(1, Math.round((d.timeSavedHours * 60 + d.timeSavedMinutes) / 20))} office-hour slots you didn't have to staff.`} />
-          <BigStat label="Class confidence" value={`${d.confidenceRate}%`}
-            descriptor={flaggedCount === 0 ? 'No flagged answers this week — the AI is grounding cleanly in your materials.' : `${flaggedCount} flagged answer${flaggedCount === 1 ? '' : 's'} to review.`}
-            accent={flaggedCount > 0 ? { text: `${flaggedCount} to review`, color: '#B45309' } : null} />
-          <BigStat label="Course health" value={courseHealth}
-            descriptor={`${healthDescriptor} — composite of coverage, volume, and confidence.`}
-            accent={{ text: healthDescriptor, color: courseHealth >= 70 ? '#3F6B57' : '#B45309' }} />
         </section>
-      </div>
-      <ConfirmDialog
-        open={confirmingClear}
-        title="Clear all insights data?"
-        body={"This wipes the Total Questions count, Weekly Activity chart, and AI Summary.\n\nStudent chat history and uploaded materials are not affected.\n\nThis cannot be undone."}
-        confirmLabel={clearing ? 'Clearing…' : 'Yes, clear data'}
-        cancelLabel="Cancel"
-        destructive
-        onConfirm={clearing ? undefined : performClear}
-        onCancel={clearing ? undefined : () => { setConfirmingClear(false); setClearError(''); }}
-      />
-      <ToastBanner message={clearError} type="error" onClose={() => setClearError('')} />
-    </div>
-  );
-
-  // ── CLASSIC VIEW ─────────────────────────────────────────────────────
-  return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-[#F6F6F4]">
-      <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 md:py-5 flex-shrink-0">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div><h2 className="text-gray-900 font-semibold text-sm">Student Insights</h2><div className="flex items-center gap-2 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><p className="text-gray-400 text-xs">Live · updates every 10s</p></div></div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {newCount > 0 && <button onClick={() => { setNewCount(0); fetchInsights(); }} className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">↑ {newCount} new</button>}
-            <div className="inline-flex items-center bg-white border border-gray-200 rounded-full p-0.5 text-[11px] font-medium">
-              <button onClick={() => setViewMode('classic')} className={`px-3 py-1 rounded-full transition-all ${viewMode === 'classic' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}>Classic</button>
-              <button onClick={() => setViewMode('modern')} className={`px-3 py-1 rounded-full transition-all ${viewMode === 'modern' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}>Modern <span className="text-[9px] tracking-wider uppercase ml-1 opacity-60">Preview</span></button>
-            </div>
-            <button onClick={clearData} className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-red-300 hover:text-red-600 text-gray-500 text-xs font-medium transition-colors">Clear data</button>
-          </div>
-        </div>
-      </div>
-      <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 md:space-y-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-          <StatCard dark label="Total Questions" value={d.totalQuestions.toLocaleString()} sub={`${d.weekQuestions} this week`} icon={<MessageSquare size={15} />} />
-          <StatCard label="Time Saved" value={timeSaved} sub="professor hours freed up" icon={<Clock size={15} />} />
-        </div>
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide mb-0.5">Weekly Activity</h3>
-          <p className="text-[11px] text-gray-400 mb-5">Questions asked per day</p>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={d.dailyActivity} barSize={32}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} width={20} />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: '#F9FAFB' }} />
-              <Bar dataKey="questions" fill="#0F0F0F" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="bg-gray-900 rounded-2xl p-6 text-white">
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0"><Sparkles size={18} className="text-white/80" /></div>
-            <div className="flex-1">
-              <div className="flex items-center justify-between mb-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40">AI Summary</p>
-                <button onClick={fetchSummary} disabled={summaryLoading} className="text-[10px] text-white/40 hover:text-white/80 transition-colors disabled:opacity-40">{summaryLoading ? 'Refreshing…' : 'Refresh'}</button>
-              </div>
-              {summaryLoading && !summary ? (
-                <p className="text-sm text-white/60">Generating summary from recent student questions…</p>
-              ) : summary ? (
-                <>
-                  <p className="text-sm leading-relaxed text-white/85 whitespace-pre-line">{summary}</p>
-                  {summaryGeneratedAt && <p className="text-[10px] text-white/30 mt-3">Updated {formatRelativeDate(summaryGeneratedAt)}</p>}
-                </>
-              ) : (
-                <p className="text-sm text-white/60">Waiting for more student activity to summarize.</p>
-              )}
-            </div>
-          </div>
-        </div>
       </div>
       <ConfirmDialog
         open={confirmingClear}
