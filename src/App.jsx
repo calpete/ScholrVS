@@ -1536,23 +1536,28 @@ function CourseManager({ token, course, onBack, authHeaders }) {
 
         {activeTab === 'materials' ? (
           <div className="flex-1 overflow-y-auto bg-[#FBFBF9]">
-            {/* Editorial header */}
-            <header className="px-6 md:px-12 pt-10 md:pt-12 pb-7 border-b border-gray-200/70">
-              <div className="flex items-start justify-between gap-6 flex-wrap">
-                <div className="min-w-0 max-w-2xl">
-                  <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Your course library</div>
-                  <h2 className="serif text-[40px] md:text-[52px] text-gray-900 leading-[1.02] tracking-tight">Course Materials<span className="italic">.</span></h2>
-                  <p className="text-[14px] text-gray-500 mt-3 leading-relaxed">Drop in syllabi, slides, readings — Scholr indexes each one and grounds every student answer in what you uploaded. <span className="italic">Live for all students the moment it's added.</span></p>
+            {/* Operational strip — single thin row with status + Upload.
+                No giant masthead — the top header already named the page. */}
+            <div className="px-6 md:px-12 py-5 border-b border-gray-200/70 bg-[#F6F6F4]/40">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3 min-w-0 flex-wrap">
+                  <span className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100">
+                    <span className="block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-[10px] font-bold tracking-[.14em] uppercase text-emerald-700">Live</span>
+                  </span>
+                  <span className="text-[12.5px] text-gray-700"><span className="font-semibold tabular-nums">{mods.length}</span> <span className="text-gray-500">file{mods.length !== 1 ? 's' : ''} indexed</span></span>
+                  <span className="text-gray-300">·</span>
+                  <span className="text-[12.5px] text-gray-500">Available to every student in <span className="font-medium text-gray-700">{course.name}</span></span>
                 </div>
-                <div className="flex items-center gap-3 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0">
                   <input type="file" ref={fileRef} onChange={e => { handleFile(e.target.files[0]); e.target.value = ''; }} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" />
                   <button onClick={() => fileRef.current.click()} disabled={uploading}
-                    className="inline-flex items-center gap-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-[13px] font-medium px-5 py-2.5 rounded-full transition-colors">
-                    <UploadCloud size={14} />{uploading ? `Uploading ${uploadProgress}%` : 'Upload'}
+                    className="inline-flex items-center gap-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-[13px] font-medium px-4 py-2 rounded-full transition-colors">
+                    <UploadCloud size={14} />{uploading ? `${uploadProgress}%` : 'Upload'}
                   </button>
                 </div>
               </div>
-            </header>
+            </div>
 
             {/* Upload progress strip */}
             {uploading && uploadingFile && (
@@ -1565,7 +1570,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
                       </div>
                       <div className="min-w-0">
                         <p className="serif text-[15px] text-gray-900 truncate leading-tight">{cleanFileName(uploadingFile.name)}</p>
-                        <p className="text-[11px] text-gray-400 mt-0.5 tracking-wide">{uploadingFile.sizeKb}kb · uploading</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5 tracking-wide">{uploadingFile.sizeKb}kb · indexing</p>
                       </div>
                     </div>
                     <span className="text-gray-700 text-sm font-medium tabular-nums ml-3 flex-shrink-0">{uploadProgress}%</span>
@@ -1578,7 +1583,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
             )}
 
             {/* Body */}
-            <div className="max-w-3xl mx-auto w-full px-6 md:px-12 py-8">
+            <div className="max-w-3xl mx-auto w-full px-6 md:px-12 py-8 md:py-10">
               {loadingMods ? (
                 <div className="flex flex-col gap-2.5">
                   {[0, 1, 2].map(i => (
@@ -1592,52 +1597,86 @@ function CourseManager({ token, course, onBack, authHeaders }) {
                   ))}
                 </div>
               ) : mods.length === 0 ? (
-                <div className="text-center py-20">
-                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#F3F2EF] mb-5"><UploadCloud size={22} className="text-gray-400" /></div>
-                  <h3 className="serif text-[26px] text-gray-900 leading-none tracking-tight">Start with your syllabus<span className="italic">.</span></h3>
-                  <p className="text-[14px] text-gray-500 mt-3 max-w-sm mx-auto leading-relaxed">Drop it in and your students can ask about deadlines, late policy, and grading the moment it's live. <span className="italic">Drag a file anywhere on the page</span> — or click Upload.</p>
-                  <button onClick={() => fileRef.current.click()} className="mt-7 inline-flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white text-[13px] font-medium px-5 py-2.5 rounded-full transition-colors">
-                    <UploadCloud size={14} />Upload your first file
-                  </button>
-                </div>
+                // Empty state — single hero drop card. Bigger because it's
+                // the only thing on the page until they upload.
+                <button onClick={() => fileRef.current.click()} className="group/drop w-full block text-left">
+                  <div className="border-2 border-dashed border-gray-200 group-hover/drop:border-gray-400 bg-white/40 group-hover/drop:bg-white rounded-3xl px-8 py-16 transition-all text-center">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#F3F2EF] group-hover/drop:bg-gray-100 mb-5 transition-colors"><UploadCloud size={26} className="text-gray-700" /></div>
+                    <h3 className="serif text-[28px] text-gray-900 leading-none tracking-tight">Start with your syllabus<span className="italic">.</span></h3>
+                    <p className="text-[14px] text-gray-500 mt-3.5 max-w-sm mx-auto leading-relaxed">Students can ask about deadlines, late policy, and grading the moment your first file goes live. <span className="italic">Drop one anywhere on the page</span> — or click here.</p>
+                    <div className="flex items-center justify-center gap-3 mt-7 text-[11px] tracking-[.14em] uppercase text-gray-400 font-semibold">
+                      <span>PDF</span><span className="text-gray-300">·</span><span>JPG</span><span className="text-gray-300">·</span><span>PNG</span>
+                    </div>
+                  </div>
+                </button>
               ) : (
                 <>
-                  {/* Drop zone — small, refined, between header and list */}
-                  <button onClick={() => fileRef.current.click()} className="group/drop w-full mb-5 flex items-center gap-3 px-5 py-4 rounded-2xl border-2 border-dashed border-gray-200 hover:border-gray-400 bg-white/40 hover:bg-white transition-all">
+                  {/* Compact drop pill — sits above the list, click or drag */}
+                  <button onClick={() => fileRef.current.click()} className="group/drop w-full mb-5 flex items-center gap-3 px-5 py-3.5 rounded-2xl border-2 border-dashed border-gray-200 hover:border-gray-400 bg-white/40 hover:bg-white transition-all">
                     <div className="w-9 h-9 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0 group-hover/drop:bg-gray-100 transition-colors"><UploadCloud size={14} className="text-gray-500" /></div>
                     <div className="flex flex-col items-start min-w-0">
                       <span className="serif text-[15px] text-gray-800 leading-tight">Drop another file</span>
                       <span className="text-[11px] text-gray-400 mt-0.5 tracking-wide">PDF · JPG · PNG — or paste from clipboard</span>
                     </div>
+                    <span className="ml-auto text-[10px] tracking-[.14em] uppercase text-gray-300 font-semibold hidden sm:inline">Drag anywhere</span>
                   </button>
 
-                  {/* File rows — editorial list, same shape as My Notes on the student side */}
+                  {/* Section kicker — small editorial sectioning, not a page title */}
+                  <div className="flex items-center justify-between mb-3 mt-7">
+                    <div className="flex items-center gap-3 text-[10px] font-bold tracking-[.18em] uppercase text-gray-400"><span className="block w-5 h-[1.5px] bg-current opacity-60 rounded-sm" />Your library</div>
+                    <span className="text-[10px] tracking-[.14em] uppercase text-gray-400 font-semibold tabular-nums">{mods.length} file{mods.length !== 1 ? 's' : ''}</span>
+                  </div>
+
+                  {/* File rows */}
                   <div className="flex flex-col gap-2.5">
                     {mods.map(m => {
                       const isImage = /\.(jpg|jpeg|png|webp)$/i.test(m.name);
                       const sizeKb = m.sizeKb || 0;
+                      const fileType = isImage ? 'IMG' : m.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'FILE';
                       return (
                         <div key={m.id} className="group flex items-center gap-4 px-5 py-4 rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04)] transition-all">
-                          <div className="w-11 h-11 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0">
+                          <div className="relative w-11 h-11 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0">
                             {isImage ? <span className="text-gray-700 text-[10px] font-bold tracking-wider">IMG</span> : <FileText size={17} className="text-gray-700" />}
+                            <span className="absolute -bottom-1 -right-1 px-1 py-px rounded text-[8px] font-bold tracking-wider bg-gray-900 text-white">{fileType}</span>
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="serif text-[16px] text-gray-900 leading-tight truncate">{cleanFileName(m.name)}</p>
                             <div className="flex items-center gap-2 mt-1.5">
                               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100">
                                 <span className="block w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                <span className="text-[10px] font-semibold tracking-[.1em] uppercase text-emerald-700">Live</span>
+                                <span className="text-[10px] font-semibold tracking-[.1em] uppercase text-emerald-700">Live · Indexed</span>
                               </span>
                               <span className="text-gray-300">·</span>
                               <span className="text-[11px] text-gray-400 tabular-nums">{sizeKb}kb</span>
                               <span className="text-gray-300">·</span>
-                              <span className="text-[11px] text-gray-400">{formatRelativeDate(m.uploaded)}</span>
+                              <span className="text-[11px] text-gray-400">Uploaded {formatRelativeDate(m.uploaded)}</span>
                             </div>
                           </div>
                           <button onClick={() => onDelete(m)} aria-label="Delete file" className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={14} /></button>
                         </div>
                       );
                     })}
+                  </div>
+
+                  {/* Quick actions — small editorial action chips at the bottom.
+                      Gives the page a "this is a tool I use" feeling vs. a static
+                      file list. Pure presentation for now — buttons can wire up later. */}
+                  <div className="mt-10 pt-7 border-t border-gray-200/70">
+                    <div className="flex items-center gap-3 text-[10px] font-bold tracking-[.18em] uppercase text-gray-400 mb-4"><span className="block w-5 h-[1.5px] bg-current opacity-60 rounded-sm" />Quick actions</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <button onClick={copyLink} className="text-left rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04)] transition-all px-5 py-4">
+                        <div className="flex items-center gap-2 mb-1.5"><ExternalLink size={14} className="text-gray-500" /><span className="serif text-[15px] text-gray-900 leading-tight">Share with class</span></div>
+                        <p className="text-[12px] text-gray-500 italic leading-snug">Copy a join link for {course.join_code || course.code}.</p>
+                      </button>
+                      <button onClick={() => setActiveTab('insights')} className="text-left rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04)] transition-all px-5 py-4">
+                        <div className="flex items-center gap-2 mb-1.5"><BarChart2 size={14} className="text-gray-500" /><span className="serif text-[15px] text-gray-900 leading-tight">See what students ask</span></div>
+                        <p className="text-[12px] text-gray-500 italic leading-snug">Jump to live insights and the morning debrief.</p>
+                      </button>
+                      <button onClick={() => fileRef.current.click()} className="text-left rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04)] transition-all px-5 py-4">
+                        <div className="flex items-center gap-2 mb-1.5"><UploadCloud size={14} className="text-gray-500" /><span className="serif text-[15px] text-gray-900 leading-tight">Add another file</span></div>
+                        <p className="text-[12px] text-gray-500 italic leading-snug">Slides, readings, problem sets — any PDF or image.</p>
+                      </button>
+                    </div>
                   </div>
                 </>
               )}
