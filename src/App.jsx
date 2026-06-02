@@ -1523,8 +1523,11 @@ function CourseManager({ token, course, onBack, authHeaders }) {
         </div>
       </aside>
 
-      {/* ── Main ── */}
-      <main className="flex-1 flex flex-col overflow-hidden pt-14 md:pt-0 relative" style={{ paddingTop: 'max(3.5rem + env(safe-area-inset-top), 0px)' }}>
+      {/* ── Main ──
+          Mobile gets pushed below the fixed mobile top bar (3.5rem + safe
+          area inset). Desktop has no mobile top bar, so no offset — the
+          dark hero sits flush at the very top. */}
+      <main className="flex-1 flex flex-col overflow-hidden relative" style={isDesktop ? undefined : { paddingTop: 'calc(3.5rem + env(safe-area-inset-top))' }}>
         {/* Thin top header — kept for the Insights tab only. The Materials
             tab uses the dark hero below as its own top of page. */}
         {activeTab === 'insights' && (
@@ -1619,105 +1622,121 @@ function CourseManager({ token, course, onBack, authHeaders }) {
               </div>
             )}
 
-            {/* Body */}
-            <div className="max-w-4xl mx-auto w-full px-6 md:px-12 py-10 md:py-14">
+            {/* ── BODY ── side-by-side: vertical upload column on left, library on right.
+                Stacks to a single column on small screens. */}
+            <div className="max-w-7xl mx-auto w-full px-6 md:px-10 lg:px-12 py-10 md:py-12">
               {loadingMods ? (
-                <div className="flex flex-col gap-3">
-                  {[0, 1, 2].map(i => (
-                    <div key={i} className="flex items-center gap-4 px-6 py-5 rounded-2xl bg-white border border-gray-200/80 animate-pulse">
-                      <div className="w-14 h-14 rounded-2xl bg-gray-100" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-3.5 bg-gray-100 rounded w-2/3" />
-                        <div className="h-2.5 bg-gray-50 rounded w-1/3" />
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  <div className="lg:col-span-4 rounded-3xl bg-white border border-gray-200/80 animate-pulse h-[360px]" />
+                  <div className="lg:col-span-8 flex flex-col gap-3">
+                    {[0, 1, 2].map(i => (
+                      <div key={i} className="flex items-center gap-4 px-6 py-5 rounded-2xl bg-white border border-gray-200/80 animate-pulse">
+                        <div className="w-14 h-14 rounded-2xl bg-gray-100" />
+                        <div className="flex-1 space-y-2">
+                          <div className="h-3.5 bg-gray-100 rounded w-2/3" />
+                          <div className="h-2.5 bg-gray-50 rounded w-1/3" />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               ) : (
-                <>
-                  {/* ── PROMINENT UPLOAD HERO ──
-                      Big editorial drop card with a centered icon, serif
-                      title, lede, and inline file-type taglets. Indigo
-                      corner glow on hover. Click-to-pick OR drag onto it.
-                      In the empty state it's the entire page; with files
-                      below, it stays the visual anchor at the top. */}
-                  <button onClick={() => fileRef.current.click()} className="group/drop relative w-full block text-left overflow-hidden">
-                    <div className="relative border-2 border-dashed border-gray-200 group-hover/drop:border-[#2A4D8F]/40 bg-white group-hover/drop:bg-white rounded-[28px] px-8 py-12 md:py-14 transition-all overflow-hidden">
-                      {/* Indigo hover halo */}
-                      <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-[#2A4D8F] opacity-0 group-hover/drop:opacity-[0.10] blur-3xl transition-opacity duration-500 pointer-events-none" />
-                      <div className="relative flex flex-col items-center text-center">
-                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#F3F2EF] group-hover/drop:bg-[#2A4D8F]/[0.08] mb-5 transition-colors">
-                          <UploadCloud size={26} className="text-gray-700 group-hover/drop:text-[#2A4D8F] transition-colors" />
-                        </div>
-                        <div className="flex items-center gap-2.5 text-[10px] tracking-[.20em] uppercase text-gray-400 font-bold mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Add to your library</div>
-                        <h3 className="serif text-[30px] md:text-[36px] text-gray-900 leading-[1.05] tracking-tight">{mods.length === 0 ? <>Start with your syllabus<span className="italic">.</span></> : <>Drop another file<span className="italic">.</span></>}</h3>
-                        <p className="text-[14.5px] text-gray-500 mt-3.5 max-w-md leading-relaxed">{mods.length === 0
-                          ? <>Students can ask about deadlines, late policy, and grading the moment your first file is live. <span className="italic">Drag a file anywhere on the page</span> — or click here.</>
-                          : <><span className="italic">Drag anywhere</span>, click here, or paste from clipboard.</>
-                        }</p>
-                        <div className="flex items-center gap-3 mt-7">
-                          {['PDF', 'JPG', 'PNG'].map((ext, i) => (
-                            <span key={ext} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F3F2EF] text-[10.5px] font-bold tracking-[.16em] uppercase text-gray-500">{ext}</span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+                  {/* ── UPLOAD COLUMN — sticky on desktop, vertical card ── */}
+                  <div className="lg:col-span-4 lg:sticky lg:top-8 self-start">
+                    <button onClick={() => fileRef.current.click()} disabled={uploading} className="group/drop relative w-full block text-left overflow-hidden disabled:opacity-60">
+                      <div className="relative border-2 border-dashed border-gray-200 group-hover/drop:border-[#2A4D8F]/50 bg-white rounded-[28px] px-7 py-8 transition-all overflow-hidden">
+                        {/* Indigo hover halo — top-right */}
+                        <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-[#2A4D8F] opacity-0 group-hover/drop:opacity-[0.10] blur-3xl transition-opacity duration-500 pointer-events-none" />
+                        {/* Faint dot grain */}
+                        <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(rgba(15,16,27,0.6) 1px, transparent 1px)', backgroundSize: '14px 14px' }} />
 
-                  {/* ── LIBRARY ── */}
-                  {mods.length > 0 && (
-                    <div className="mt-14">
-                      <div className="flex items-end justify-between mb-6 gap-4 flex-wrap">
-                        <div>
-                          <div className="flex items-center gap-2.5 text-[10px] font-bold tracking-[.20em] uppercase text-gray-400 mb-2"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Your library</div>
-                          <h3 className="serif text-[30px] md:text-[34px] text-gray-900 leading-none tracking-tight">{mods.length} file{mods.length !== 1 ? 's' : ''} indexed<span className="italic">.</span></h3>
-                          <p className="text-[13px] text-gray-500 mt-2 italic">Last upload {formatRelativeDate(mods[0].uploaded)}.</p>
-                        </div>
-                      </div>
+                        <div className="relative flex flex-col">
+                          <div className="flex items-center gap-2.5 text-[10px] tracking-[.20em] uppercase text-gray-400 font-bold mb-4"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Add to your library</div>
 
-                      <div className="flex flex-col gap-3">
-                        {mods.map(m => {
-                          const isImage = /\.(jpg|jpeg|png|webp)$/i.test(m.name);
-                          const sizeKb = m.sizeKb || 0;
-                          const fileType = isImage ? 'IMG' : m.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'FILE';
-                          // Deterministic accent color per file so the list feels
-                          // alive without looking random — based on filename hash.
-                          const palette = ['#2A4D8F', '#3F6B57', '#705F4E', '#54546A', '#7C5C3E', '#6E443A'];
-                          const accent = palette[(m.name.charCodeAt(0) + m.name.length) % palette.length];
-                          return (
-                            <div key={m.id} className="group relative flex items-center gap-5 pl-6 pr-5 py-5 rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_8px_28px_-12px_rgba(15,15,15,0.10)] transition-all overflow-hidden">
-                              {/* Left accent rule — colored by file */}
-                              <span className="absolute left-0 top-4 bottom-4 w-[3px] rounded-full" style={{ background: accent }} />
+                          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#F3F2EF] group-hover/drop:bg-[#2A4D8F]/[0.10] mb-5 transition-colors">
+                            <UploadCloud size={22} className="text-gray-700 group-hover/drop:text-[#2A4D8F] transition-colors" />
+                          </div>
 
-                              {/* Icon tile with file-type badge */}
-                              <div className="relative w-14 h-14 rounded-2xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0">
-                                {isImage ? <span className="text-gray-700 text-[11px] font-bold tracking-wider">IMG</span> : <FileText size={20} className="text-gray-700" />}
-                                <span className="absolute -bottom-1.5 -right-1.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold tracking-wider bg-gray-900 text-white shadow-[0_2px_6px_-2px_rgba(0,0,0,0.3)]">{fileType}</span>
-                              </div>
+                          <h3 className="serif text-[30px] md:text-[34px] text-gray-900 leading-[1.04] tracking-tight">{uploading ? <>Uploading<span className="italic">…</span></> : mods.length === 0 ? <>Drop your syllabus<span className="italic">.</span></> : <>Drop another file<span className="italic">.</span></>}</h3>
+                          <p className="text-[13.5px] text-gray-500 mt-3 leading-relaxed">
+                            <span className="italic">Drag anywhere</span>, click here, or paste from clipboard. Scholr indexes it the moment it lands.
+                          </p>
 
-                              {/* Title + meta */}
-                              <div className="min-w-0 flex-1">
-                                <p className="serif text-[18px] text-gray-900 leading-tight truncate">{cleanFileName(m.name)}</p>
-                                <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100">
-                                    <span className="block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                    <span className="text-[10px] font-bold tracking-[.12em] uppercase text-emerald-700">Live · Indexed</span>
-                                  </span>
-                                  <span className="text-gray-300">·</span>
-                                  <span className="text-[12px] text-gray-400 tabular-nums">{sizeKb}kb</span>
-                                  <span className="text-gray-300">·</span>
-                                  <span className="text-[12px] text-gray-400">Uploaded {formatRelativeDate(m.uploaded)}</span>
-                                </div>
-                              </div>
+                          <div className="flex items-center gap-2 mt-6">
+                            {['PDF', 'JPG', 'PNG'].map(ext => (
+                              <span key={ext} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#F3F2EF] text-[10px] font-bold tracking-[.16em] uppercase text-gray-500">{ext}</span>
+                            ))}
+                          </div>
 
-                              <button onClick={() => onDelete(m)} aria-label="Delete file" className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"><Trash2 size={15} /></button>
+                          {/* Big upload action button */}
+                          <div className="mt-7 pt-6 border-t border-gray-100">
+                            <div className="inline-flex items-center gap-2 bg-gray-900 group-hover/drop:bg-[#2A4D8F] text-white text-[13.5px] font-medium px-5 py-3 rounded-full transition-colors shadow-[0_4px_14px_-4px_rgba(15,15,15,0.35)]">
+                              <UploadCloud size={14} />{uploading ? `Uploading ${uploadProgress}%` : 'Choose a file'}
                             </div>
-                          );
-                        })}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </>
+                    </button>
+                  </div>
+
+                  {/* ── LIBRARY COLUMN ── */}
+                  <div className="lg:col-span-8 min-w-0">
+                    {mods.length === 0 ? (
+                      <div className="rounded-3xl bg-white border border-gray-200/80 px-8 py-14 text-center">
+                        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#F3F2EF] mb-5"><FolderOpen size={22} className="text-gray-400" /></div>
+                        <h3 className="serif text-[26px] text-gray-900 leading-none tracking-tight">No files yet<span className="italic">.</span></h3>
+                        <p className="text-[14px] text-gray-500 mt-3 max-w-sm mx-auto leading-relaxed">Drop a syllabus or slide deck on the left and it'll appear here, indexed and live for every student in seconds.</p>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Library masthead */}
+                        <div className="flex items-end justify-between mb-6 gap-4 flex-wrap">
+                          <div>
+                            <div className="flex items-center gap-2.5 text-[10px] font-bold tracking-[.20em] uppercase text-gray-400 mb-2"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Your library</div>
+                            <h3 className="serif text-[30px] md:text-[36px] text-gray-900 leading-none tracking-tight">{mods.length} file{mods.length !== 1 ? 's' : ''} indexed<span className="italic">.</span></h3>
+                            <p className="text-[13px] text-gray-500 mt-2 italic">Last upload {formatRelativeDate(mods[0].uploaded)}.</p>
+                          </div>
+                          <span className="text-[10px] tracking-[.16em] uppercase text-gray-400 font-bold tabular-nums">{mods.length} / ∞</span>
+                        </div>
+
+                        {/* File rows */}
+                        <div className="flex flex-col gap-3">
+                          {mods.map(m => {
+                            const isImage = /\.(jpg|jpeg|png|webp)$/i.test(m.name);
+                            const sizeKb = m.sizeKb || 0;
+                            const fileType = isImage ? 'IMG' : m.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'FILE';
+                            const palette = ['#2A4D8F', '#3F6B57', '#705F4E', '#54546A', '#7C5C3E', '#6E443A'];
+                            const accent = palette[(m.name.charCodeAt(0) + m.name.length) % palette.length];
+                            return (
+                              <div key={m.id} className="group relative flex items-center gap-5 pl-6 pr-5 py-5 rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_8px_28px_-12px_rgba(15,15,15,0.10)] transition-all overflow-hidden">
+                                <span className="absolute left-0 top-4 bottom-4 w-[3px] rounded-full" style={{ background: accent }} />
+                                <div className="relative w-14 h-14 rounded-2xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0">
+                                  {isImage ? <span className="text-gray-700 text-[11px] font-bold tracking-wider">IMG</span> : <FileText size={20} className="text-gray-700" />}
+                                  <span className="absolute -bottom-1.5 -right-1.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold tracking-wider bg-gray-900 text-white shadow-[0_2px_6px_-2px_rgba(0,0,0,0.3)]">{fileType}</span>
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="serif text-[18px] text-gray-900 leading-tight truncate">{cleanFileName(m.name)}</p>
+                                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100">
+                                      <span className="block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                      <span className="text-[10px] font-bold tracking-[.12em] uppercase text-emerald-700">Live · Indexed</span>
+                                    </span>
+                                    <span className="text-gray-300">·</span>
+                                    <span className="text-[12px] text-gray-400 tabular-nums">{sizeKb}kb</span>
+                                    <span className="text-gray-300">·</span>
+                                    <span className="text-[12px] text-gray-400">Uploaded {formatRelativeDate(m.uploaded)}</span>
+                                  </div>
+                                </div>
+                                <button onClick={() => onDelete(m)} aria-label="Delete file" className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"><Trash2 size={15} /></button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </div>
