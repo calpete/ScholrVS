@@ -1125,7 +1125,26 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
   );
 }
 
-const COURSE_PATTERN_BGS = ['#0F0F0F', '#1a1a2e', '#0d1b2a', '#1a0a2e', '#0a1a1a', '#1f1147', '#0b2545', '#13262f', '#2a1a0a'];
+// ── Course cover palette ─────────────────────────────────────────────────
+// Five-shade grayscale palette — graphite, charcoal, slate, silver, paper.
+// Each of the nine cover slots pairs one shade with one of the three line
+// patterns so each course gets a visually distinct identity. `ink: 'light'`
+// means the bg is dark and text/strokes should be white; `ink: 'dark'`
+// flips it for the two lightest grays so titles stay readable.
+const COURSE_COVERS = [
+  { bg: '#1C1C1C', type: 0, ink: 'light' }, // 0 — graphite · arcs
+  { bg: '#4B4B4B', type: 1, ink: 'light' }, // 1 — charcoal · grid
+  { bg: '#7D7D7D', type: 2, ink: 'light' }, // 2 — slate · verticals
+  { bg: '#A9A9A9', type: 0, ink: 'dark'  }, // 3 — silver · arcs
+  { bg: '#F0F0F0', type: 1, ink: 'dark'  }, // 4 — paper · grid
+  { bg: '#1C1C1C', type: 2, ink: 'light' }, // 5 — graphite · verticals
+  { bg: '#4B4B4B', type: 0, ink: 'light' }, // 6 — charcoal · arcs
+  { bg: '#7D7D7D', type: 1, ink: 'light' }, // 7 — slate · grid
+  { bg: '#A9A9A9', type: 2, ink: 'dark'  }, // 8 — silver · verticals
+];
+// Kept for backward compatibility with anything still importing the old name.
+const COURSE_PATTERN_BGS = COURSE_COVERS.map(c => c.bg);
+
 // Parse a stored "pattern:N" cover into its index, else null.
 function coverPatternId(course) {
   const m = /^pattern:(\d+)$/.exec(course?.cover_image || '');
@@ -1138,89 +1157,95 @@ function resolveCourseCover(course) {
   let idx = coverPatternId(course);
   if (idx == null) {
     const id = course?.id || '';
-    idx = Math.abs(id.split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0)) % COURSE_PATTERN_BGS.length;
+    idx = Math.abs(id.split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0)) % COURSE_COVERS.length;
   }
-  return { idx, bg: COURSE_PATTERN_BGS[idx % COURSE_PATTERN_BGS.length], type: idx % 3 };
+  const c = COURSE_COVERS[idx % COURSE_COVERS.length];
+  return { idx, bg: c.bg, type: c.type, ink: c.ink };
 }
+
 // Banner-scale pattern. Same 3 SVG variants as CoursePattern but stretched
 // to fill a header on any aspect ratio — preserveAspectRatio="slice" makes
 // it cover regardless of how tall the banner ends up being.
-function BannerPattern({ type }) {
+// `ink` flips stroke color to ink black on the two lightest covers so the
+// pattern stays legible.
+function BannerPattern({ type, ink = 'light' }) {
   const VBW = 1600, VBH = 500;
+  const stroke = ink === 'dark' ? '#15161B' : '#fff';
   return (
     <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="xMidYMid slice" viewBox={`0 0 ${VBW} ${VBH}`}>
       {type === 0 && (
         <>
-          <circle cx="240" cy="40" r="340" fill="none" stroke="#fff" strokeWidth="1" opacity="0.10" />
-          <circle cx="240" cy="40" r="220" fill="none" stroke="#fff" strokeWidth="1" opacity="0.08" />
-          <circle cx="240" cy="40" r="110" fill="none" stroke="#fff" strokeWidth="1" opacity="0.13" />
-          <line x1="0" y1={VBH} x2={VBW} y2="0" stroke="#fff" strokeWidth="1" opacity="0.06" />
-          <line x1="0" y1={VBH * 0.72} x2={VBW} y2={VBH * -0.28} stroke="#fff" strokeWidth="1" opacity="0.05" />
-          <rect x={VBW - 240} y="-40" width="340" height="340" rx="22" fill="none" stroke="#fff" strokeWidth="1" opacity="0.09" transform={`rotate(20 ${VBW - 70} 130)`} />
+          <circle cx="240" cy="40" r="340" fill="none" stroke={stroke} strokeWidth="1" opacity="0.10" />
+          <circle cx="240" cy="40" r="220" fill="none" stroke={stroke} strokeWidth="1" opacity="0.08" />
+          <circle cx="240" cy="40" r="110" fill="none" stroke={stroke} strokeWidth="1" opacity="0.13" />
+          <line x1="0" y1={VBH} x2={VBW} y2="0" stroke={stroke} strokeWidth="1" opacity="0.06" />
+          <line x1="0" y1={VBH * 0.72} x2={VBW} y2={VBH * -0.28} stroke={stroke} strokeWidth="1" opacity="0.05" />
+          <rect x={VBW - 240} y="-40" width="340" height="340" rx="22" fill="none" stroke={stroke} strokeWidth="1" opacity="0.09" transform={`rotate(20 ${VBW - 70} 130)`} />
         </>
       )}
       {type === 1 && (
         <>
           {Array.from({ length: 12 }).map((_, i) => (
-            <rect key={i} x={i * 150 - 30} y="-30" width="170" height="170" rx="14" fill="none" stroke="#fff" strokeWidth="1" opacity="0.10" transform={`rotate(15 ${i * 150 + 55} 55)`} />
+            <rect key={i} x={i * 150 - 30} y="-30" width="170" height="170" rx="14" fill="none" stroke={stroke} strokeWidth="1" opacity="0.10" transform={`rotate(15 ${i * 150 + 55} 55)`} />
           ))}
           {Array.from({ length: 12 }).map((_, i) => (
-            <rect key={i + 'b'} x={i * 150 + 60} y="180" width="130" height="130" rx="12" fill="none" stroke="#fff" strokeWidth="1" opacity="0.07" transform={`rotate(15 ${i * 150 + 125} 245)`} />
+            <rect key={i + 'b'} x={i * 150 + 60} y="180" width="130" height="130" rx="12" fill="none" stroke={stroke} strokeWidth="1" opacity="0.07" transform={`rotate(15 ${i * 150 + 125} 245)`} />
           ))}
         </>
       )}
       {type === 2 && (
         <>
           {Array.from({ length: 15 }).map((_, i) => (
-            <line key={i} x1={i * 120} y1="0" x2={i * 120 + 70} y2={VBH} stroke="#fff" strokeWidth="1" opacity="0.08" />
+            <line key={i} x1={i * 120} y1="0" x2={i * 120 + 70} y2={VBH} stroke={stroke} strokeWidth="1" opacity="0.08" />
           ))}
           {Array.from({ length: 6 }).map((_, i) => (
-            <line key={i + 'h'} x1="0" y1={i * 90} x2={VBW} y2={i * 90} stroke="#fff" strokeWidth="1" opacity="0.05" />
+            <line key={i + 'h'} x1="0" y1={i * 90} x2={VBW} y2={i * 90} stroke={stroke} strokeWidth="1" opacity="0.05" />
           ))}
-          <circle cx={VBW - 220} cy={VBH / 2} r="170" fill="none" stroke="#fff" strokeWidth="1" opacity="0.11" />
-          <circle cx={VBW - 220} cy={VBH / 2} r="95" fill="none" stroke="#fff" strokeWidth="1" opacity="0.08" />
+          <circle cx={VBW - 220} cy={VBH / 2} r="170" fill="none" stroke={stroke} strokeWidth="1" opacity="0.11" />
+          <circle cx={VBW - 220} cy={VBH / 2} r="95" fill="none" stroke={stroke} strokeWidth="1" opacity="0.08" />
         </>
       )}
     </svg>
   );
 }
+
 // Renders a chosen pattern (patternId 0–8) or, if none, a deterministic one
-// derived from the courseId.
+// derived from the courseId. Stroke flips to ink black on the lightest grays.
 function CoursePattern({ courseId = '', patternId = null, height = 80 }) {
-  let bg, type;
+  let idx;
   if (patternId != null && patternId >= 0) {
-    bg = COURSE_PATTERN_BGS[patternId % COURSE_PATTERN_BGS.length];
-    type = patternId % 3;
+    idx = patternId % COURSE_COVERS.length;
   } else {
     const hash = courseId.split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
-    bg = COURSE_PATTERN_BGS[Math.abs(hash) % COURSE_PATTERN_BGS.length];
-    type = Math.abs(hash >> 3) % 3;
+    idx = Math.abs(hash) % COURSE_COVERS.length;
   }
+  const { bg, type, ink } = COURSE_COVERS[idx];
+  const stroke = ink === 'dark' ? '#15161B' : '#fff';
   if (type === 0) return (
     <svg viewBox={`0 0 400 ${height}`} style={{width:'100%',height,display:'block'}} preserveAspectRatio="xMidYMid slice">
       <rect width="400" height={height} fill={bg}/>
-      <circle cx="60" cy="10" r="80" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.12"/>
-      <circle cx="60" cy="10" r="50" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.1"/>
-      <circle cx="60" cy="10" r="25" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.15"/>
-      <line x1="0" y1={height} x2="400" y2="0" stroke="#fff" strokeWidth="0.5" opacity="0.08"/>
-      <line x1="0" y1={height*0.7} x2="400" y2={height*-0.3} stroke="#fff" strokeWidth="0.5" opacity="0.06"/>
-      <rect x="280" y="-10" width="80" height="80" rx="6" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.1" transform="rotate(20 320 30)"/>
+      <circle cx="60" cy="10" r="80" fill="none" stroke={stroke} strokeWidth="0.5" opacity="0.18"/>
+      <circle cx="60" cy="10" r="50" fill="none" stroke={stroke} strokeWidth="0.5" opacity="0.15"/>
+      <circle cx="60" cy="10" r="25" fill="none" stroke={stroke} strokeWidth="0.5" opacity="0.22"/>
+      <line x1="0" y1={height} x2="400" y2="0" stroke={stroke} strokeWidth="0.5" opacity="0.12"/>
+      <line x1="0" y1={height*0.7} x2="400" y2={height*-0.3} stroke={stroke} strokeWidth="0.5" opacity="0.10"/>
+      <rect x="280" y="-10" width="80" height="80" rx="6" fill="none" stroke={stroke} strokeWidth="0.5" opacity="0.15" transform="rotate(20 320 30)"/>
     </svg>
   );
   if (type === 1) return (
     <svg viewBox={`0 0 400 ${height}`} style={{width:'100%',height,display:'block'}} preserveAspectRatio="xMidYMid slice">
       <rect width="400" height={height} fill={bg}/>
-      {[0,1,2,3,4,5,6,7].map(i => (<rect key={i} x={i*55-10} y="-10" width="45" height="45" rx="4" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.12" transform={`rotate(15 ${i*55+12} 12)`}/>))}
-      {[0,1,2,3,4,5,6,7].map(i => (<rect key={i+8} x={i*55+15} y="25" width="35" height="35" rx="4" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.08" transform={`rotate(15 ${i*55+32} 42)`}/>))}
+      {[0,1,2,3,4,5,6,7].map(i => (<rect key={i} x={i*55-10} y="-10" width="45" height="45" rx="4" fill="none" stroke={stroke} strokeWidth="0.5" opacity="0.18" transform={`rotate(15 ${i*55+12} 12)`}/>))}
+      {[0,1,2,3,4,5,6,7].map(i => (<rect key={i+8} x={i*55+15} y="25" width="35" height="35" rx="4" fill="none" stroke={stroke} strokeWidth="0.5" opacity="0.12" transform={`rotate(15 ${i*55+32} 42)`}/>))}
     </svg>
   );
   return (
     <svg viewBox={`0 0 400 ${height}`} style={{width:'100%',height,display:'block'}} preserveAspectRatio="xMidYMid slice">
       <rect width="400" height={height} fill={bg}/>
-      {[0,1,2,3,4,5,6,7,8,9].map(i => (<line key={i} x1={i*45} y1="0" x2={i*45+20} y2={height} stroke="#fff" strokeWidth="0.5" opacity="0.1"/>))}
-      {[0,1,2,3].map(i => (<line key={i+10} x1="0" y1={i*28} x2="400" y2={i*28} stroke="#fff" strokeWidth="0.5" opacity="0.07"/>))}
-      <circle cx="320" cy={height/2} r="35" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.12"/>
-      <circle cx="320" cy={height/2} r="20" fill="none" stroke="#fff" strokeWidth="0.5" opacity="0.1"/>
+      {[0,1,2,3,4,5,6,7,8,9].map(i => (<line key={i} x1={i*45} y1="0" x2={i*45+20} y2={height} stroke={stroke} strokeWidth="0.5" opacity="0.14"/>))}
+      {[0,1,2,3].map(i => (<line key={i+10} x1="0" y1={i*28} x2="400" y2={i*28} stroke={stroke} strokeWidth="0.5" opacity="0.10"/>))}
+      <circle cx="320" cy={height/2} r="35" fill="none" stroke={stroke} strokeWidth="0.5" opacity="0.18"/>
+      <circle cx="320" cy={height/2} r="20" fill="none" stroke={stroke} strokeWidth="0.5" opacity="0.15"/>
     </svg>
   );
 }
@@ -1521,6 +1546,47 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   // picked for this course (or a stable hash if they haven't picked one).
   // Used by the mobile top bar AND the dark hero so they read as one piece.
   const cover = resolveCourseCover(course);
+  // Ink mode — the two lightest grays in the palette use dark ink so the
+  // course name + chrome stays readable. Every text/border/bg color in the
+  // hero references one of these computed class strings.
+  const onLight = cover.ink === 'dark';
+  const chrome = onLight ? {
+    text:       'text-[#15161B]',
+    text85:     'text-[#15161B]/85',
+    text75:     'text-[#15161B]/75',
+    text65:     'text-[#15161B]/65',
+    text55:     'text-[#15161B]/55',
+    text50:     'text-[#15161B]/50',
+    text45:     'text-[#15161B]/45',
+    text40:     'text-[#15161B]/40',
+    text25:     'text-[#15161B]/25',
+    bg06hover12:'bg-[#15161B]/[0.06] hover:bg-[#15161B]/[0.12]',
+    border10:   'border-[#15161B]/10',
+    tabActive:  'bg-[#15161B] text-white shadow-[0_2px_10px_-2px_rgba(15,15,15,0.18)]',
+    emerald:    'text-emerald-700',
+    halo:       'bg-[#15161B]',
+    haloOp:     'opacity-[0.04]',
+    haloOp2:    'opacity-[0.025]',
+    grain:      'rgba(15,16,27,0.6)',
+  } : {
+    text:       'text-white',
+    text85:     'text-white/85',
+    text75:     'text-white/75',
+    text65:     'text-white/65',
+    text55:     'text-white/55',
+    text50:     'text-white/50',
+    text45:     'text-white/45',
+    text40:     'text-white/40',
+    text25:     'text-white/25',
+    bg06hover12:'bg-white/[0.06] hover:bg-white/[0.12]',
+    border10:   'border-white/10',
+    tabActive:  'bg-white text-[#15161B] shadow-[0_2px_10px_-2px_rgba(255,255,255,0.15)]',
+    emerald:    'text-emerald-300',
+    halo:       'bg-white',
+    haloOp:     'opacity-[0.05]',
+    haloOp2:    'opacity-[0.025]',
+    grain:      'rgba(255,255,255,0.6)',
+  };
 
   return (
     <div className="flex h-[100dvh] w-screen overflow-hidden bg-[#F6F6F4] fixed inset-0 page-enter"
@@ -1539,18 +1605,18 @@ function CourseManager({ token, course, onBack, authHeaders }) {
         </div>
       )}
 
-      {/* Mobile top bar — color follows the chosen course cover so it
+      {/* Mobile top bar — color + ink follow the chosen course cover so it
           flows continuously into the banner below. */}
-      <div className="md:hidden fixed top-0 inset-x-0 z-20 border-b border-white/5 flex items-center gap-3 px-4 h-14 pt-[env(safe-area-inset-top)]" style={{ height: 'calc(3.5rem + env(safe-area-inset-top))', background: cover.bg }}>
-        <button onClick={onBack} aria-label="All courses" className="p-2 -ml-2 text-white/70"><ArrowLeft size={18} /></button>
+      <div className={`md:hidden fixed top-0 inset-x-0 z-20 ${chrome.border10} border-b flex items-center gap-3 px-4 h-14 pt-[env(safe-area-inset-top)]`} style={{ height: 'calc(3.5rem + env(safe-area-inset-top))', background: cover.bg }}>
+        <button onClick={onBack} aria-label="All courses" className={`p-2 -ml-2 ${chrome.text65}`}><ArrowLeft size={18} /></button>
         <div className="flex flex-col leading-tight min-w-0 flex-1">
-          <p className="text-[10px] tracking-[.18em] uppercase text-white/50 font-bold">{activeTab === 'materials' ? 'Materials' : 'Insights'}</p>
-          <p className="text-[11px] text-white/35 truncate">{course.name}</p>
+          <p className={`text-[10px] tracking-[.18em] uppercase ${chrome.text50} font-bold`}>{activeTab === 'materials' ? 'Materials' : 'Insights'}</p>
+          <p className={`text-[11px] ${chrome.text45} truncate`}>{course.name}</p>
         </div>
         <button type="button" onClick={onBack} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0" aria-label="Scholr home">
           <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
-            <rect width="28" height="28" rx="7" fill="#FBFBF9" />
-            <path d="M8 10h8M8 14h12M8 18h6" stroke="#15161B" strokeWidth="1.75" strokeLinecap="round" />
+            <rect width="28" height="28" rx="7" fill={onLight ? '#15161B' : '#FBFBF9'} />
+            <path d="M8 10h8M8 14h12M8 18h6" stroke={onLight ? '#FBFBF9' : '#15161B'} strokeWidth="1.75" strokeLinecap="round" />
           </svg>
         </button>
       </div>
@@ -1562,49 +1628,46 @@ function CourseManager({ token, course, onBack, authHeaders }) {
           no top bar so the hero sits flush at the very top. */}
       <main className="flex-1 flex flex-col overflow-hidden relative" style={isDesktop ? undefined : { paddingTop: 'calc(3.5rem + env(safe-area-inset-top))' }}>
         <div className="flex-1 overflow-y-auto bg-[#FBFBF9]">
-          {/* ── UNIFIED HERO ──
-              Background color + line pattern follow whichever cover the
-              professor picked for this course, so the banner reads as a
-              continuation of the course card from the all-courses screen.
-              Three layers stacked over the cover color: the BannerPattern
-              SVG (the editorial line work), a faint white→transparent
-              radial glow top-right for depth, and the faint dot grain. */}
-          <div className="relative overflow-hidden text-white" style={{ background: cover.bg }}>
-            <BannerPattern type={cover.type} />
-            <div className="absolute -top-40 -right-32 w-[520px] h-[520px] rounded-full bg-white opacity-[0.05] blur-[120px] pointer-events-none" />
-            <div className="absolute -bottom-32 -left-40 w-[420px] h-[420px] rounded-full bg-white opacity-[0.025] blur-[100px] pointer-events-none" />
-            <div className="absolute inset-0 pointer-events-none opacity-[0.025]" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px)', backgroundSize: '14px 14px' }} />
+          {/* ── UNIFIED HERO ── Color + pattern come from the course's
+              chosen cover (grayscale palette: graphite / charcoal / slate /
+              silver / paper × three line patterns). Text ink flips dark
+              for the two lightest grays. */}
+          <div className={`relative overflow-hidden ${chrome.text}`} style={{ background: cover.bg }}>
+            <BannerPattern type={cover.type} ink={cover.ink} />
+            <div className={`absolute -top-40 -right-32 w-[520px] h-[520px] rounded-full ${chrome.halo} ${chrome.haloOp} blur-[120px] pointer-events-none`} />
+            <div className={`absolute -bottom-32 -left-40 w-[420px] h-[420px] rounded-full ${chrome.halo} ${chrome.haloOp2} blur-[100px] pointer-events-none`} />
+            <div className="absolute inset-0 pointer-events-none opacity-[0.025]" style={{ backgroundImage: `radial-gradient(${chrome.grain} 1px, transparent 1px)`, backgroundSize: '14px 14px' }} />
 
             {/* Top bar — All courses back / breadcrumb left, Copy link + Scholr right */}
             <div className="relative flex items-center justify-between px-6 md:px-12 pt-6 pb-3 gap-3 flex-wrap">
               <div className="hidden md:flex flex-col min-w-0 leading-tight">
-                <button onClick={onBack} className="text-[10px] tracking-[.20em] uppercase text-white/55 font-bold hover:text-white transition-colors text-left inline-flex items-center gap-1.5"><ArrowLeft size={11} />All courses</button>
-                <p className="text-[11px] text-white/40 mt-1 truncate">{course.name}</p>
+                <button onClick={onBack} className={`text-[10px] tracking-[.20em] uppercase ${chrome.text55} font-bold hover:${chrome.text} transition-colors text-left inline-flex items-center gap-1.5`}><ArrowLeft size={11} />All courses</button>
+                <p className={`text-[11px] ${chrome.text40} mt-1 truncate`}>{course.name}</p>
               </div>
               <div className="flex items-center gap-2 ml-auto">
-                <button onClick={copyLink} className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/85 hover:text-white text-[12px] font-medium transition-colors">
-                  {copied ? <Check size={12} className="text-emerald-300" /> : <ExternalLink size={12} />}
+                <button onClick={copyLink} className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full ${chrome.bg06hover12} ${chrome.border10} border ${chrome.text85} text-[12px] font-medium transition-colors`}>
+                  {copied ? <Check size={12} className={chrome.emerald} /> : <ExternalLink size={12} />}
                   {copied ? 'Copied!' : 'Copy student link'}
                 </button>
                 <button type="button" onClick={onBack} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0" aria-label="Scholr home">
                   <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
-                    <rect width="28" height="28" rx="7" fill="#FBFBF9" />
-                    <path d="M8 10h8M8 14h12M8 18h6" stroke="#15161B" strokeWidth="1.75" strokeLinecap="round" />
+                    <rect width="28" height="28" rx="7" fill={onLight ? '#15161B' : '#FBFBF9'} />
+                    <path d="M8 10h8M8 14h12M8 18h6" stroke={onLight ? '#FBFBF9' : '#15161B'} strokeWidth="1.75" strokeLinecap="round" />
                   </svg>
-                  <span className="text-white font-semibold text-sm hidden sm:inline tracking-tight">Scholr</span>
+                  <span className={`${chrome.text} font-semibold text-sm hidden sm:inline tracking-tight`}>Scholr</span>
                 </button>
               </div>
             </div>
 
-            {/* Tab switcher — centered pill, white-on-dark for active */}
+            {/* Tab switcher — centered pill, active flips to match cover ink */}
             <div className="relative flex justify-center pt-5 pb-1">
-              <div className="inline-flex items-center bg-white/[0.06] border border-white/10 rounded-full p-1 backdrop-blur-sm">
+              <div className={`inline-flex items-center ${chrome.bg06hover12.replace('hover:bg-white/[0.12]','').replace('hover:bg-[#15161B]/[0.12]','')} border ${chrome.border10} rounded-full p-1 backdrop-blur-sm`}>
                 {[
                   { id: 'materials', label: 'Materials', icon: FolderOpen },
                   { id: 'insights',  label: 'Insights',  icon: BarChart2 },
                 ].map(({ id, label, icon: Icon }) => (
                   <button key={id} onClick={() => setActiveTab(id)}
-                    className={`inline-flex items-center gap-2 px-5 py-2 rounded-full text-[12.5px] font-semibold tracking-wide transition-all ${activeTab === id ? 'bg-white text-[#15161B] shadow-[0_2px_10px_-2px_rgba(255,255,255,0.15)]' : 'text-white/55 hover:text-white'}`}>
+                    className={`inline-flex items-center gap-2 px-5 py-2 rounded-full text-[12.5px] font-semibold tracking-wide transition-all ${activeTab === id ? chrome.tabActive : `${chrome.text55} hover:${chrome.text}`}`}>
                     <Icon size={13} />{label}
                   </button>
                 ))}
@@ -1613,24 +1676,24 @@ function CourseManager({ token, course, onBack, authHeaders }) {
 
             {/* Nameplate */}
             <div className="relative px-6 md:px-12 pt-7 pb-10">
-              <div className="flex items-center gap-2.5 text-[10px] tracking-[.20em] uppercase text-white/45 font-bold mb-5"><span className="block w-7 h-[1.5px] bg-current opacity-70 rounded-sm" />Course command</div>
+              <div className={`flex items-center gap-2.5 text-[10px] tracking-[.20em] uppercase ${chrome.text45} font-bold mb-5`}><span className="block w-7 h-[1.5px] bg-current opacity-70 rounded-sm" />Course command</div>
               <div className="flex items-end justify-between gap-10 flex-wrap">
                 <div className="min-w-0">
-                  <h2 className="serif text-[52px] md:text-[88px] text-white leading-[0.94] tracking-tight">{course.name}<span className="italic">.</span></h2>
-                  <p className="text-[13px] text-white/45 mt-5 italic">
-                    Join code <span className="not-italic font-mono text-white/75 tracking-wide ml-1">{course.join_code || course.code}</span>
-                    <span className="text-white/25 mx-2">·</span>
+                  <h2 className={`serif text-[52px] md:text-[88px] ${chrome.text} leading-[0.94] tracking-tight`}>{course.name}<span className="italic">.</span></h2>
+                  <p className={`text-[13px] ${chrome.text45} mt-5 italic`}>
+                    Join code <span className={`not-italic font-mono ${chrome.text75} tracking-wide ml-1`}>{course.join_code || course.code}</span>
+                    <span className={`${chrome.text25} mx-2`}>·</span>
                     <span className="not-italic">{activeTab === 'materials' ? 'Indexed and live for every enrolled student.' : 'Live look at what your class is wrestling with.'}</span>
                   </p>
                 </div>
                 <div className="flex items-end gap-8 md:gap-12">
                   <div className="flex flex-col">
-                    <span className="text-[10px] tracking-[.20em] uppercase text-white/40 font-bold mb-1.5">{activeTab === 'materials' ? 'Files' : 'This week'}</span>
-                    <span className="serif text-[44px] md:text-[56px] text-white leading-none tabular-nums">{activeTab === 'materials' ? mods.length : '—'}<span className="italic text-white/60">.</span></span>
+                    <span className={`text-[10px] tracking-[.20em] uppercase ${chrome.text40} font-bold mb-1.5`}>{activeTab === 'materials' ? 'Files' : 'This week'}</span>
+                    <span className={`serif text-[44px] md:text-[56px] ${chrome.text} leading-none tabular-nums`}>{activeTab === 'materials' ? mods.length : '—'}<span className={`italic ${chrome.text65}`}>.</span></span>
                   </div>
                   <div className="hidden md:flex flex-col">
-                    <span className="text-[10px] tracking-[.20em] uppercase text-white/40 font-bold mb-1.5">Status</span>
-                    <span className="serif text-[40px] text-emerald-300 leading-none italic">Live<span className="not-italic text-white/60">.</span></span>
+                    <span className={`text-[10px] tracking-[.20em] uppercase ${chrome.text40} font-bold mb-1.5`}>Status</span>
+                    <span className={`serif text-[40px] ${chrome.emerald} leading-none italic`}>Live<span className={`not-italic ${chrome.text65}`}>.</span></span>
                   </div>
                 </div>
               </div>
