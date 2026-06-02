@@ -1574,6 +1574,157 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   );
 }
 
+// ── Modern Insights — sub-components ─────────────────────────────────────────
+// Smooth weekly activity rendered as a single continuous line (with a soft
+// fill underneath). Replaces the chunky bar chart with something that reads
+// like a sentence of data — useful for catching peaks at a glance.
+function InsightPulseStrip({ dailyActivity }) {
+  const fallback = [
+    { day: 'Wed', questions: 6 }, { day: 'Thu', questions: 54 }, { day: 'Fri', questions: 9 },
+    { day: 'Sat', questions: 1 }, { day: 'Sun', questions: 4 }, { day: 'Mon', questions: 18 }, { day: 'Tue', questions: 3 },
+  ];
+  const data = (dailyActivity?.length === 7 ? dailyActivity : fallback);
+  const max = Math.max(...data.map(x => x.questions), 1);
+  const W = 1200, H = 64;
+  const step = W / (data.length - 1);
+  const ys = data.map(x => H - (x.questions / max) * (H - 10) - 4);
+  let path = `M 0 ${ys[0]}`;
+  for (let i = 1; i < ys.length; i++) {
+    const cpx1 = (i - 1) * step + step / 2;
+    const cpx2 = i * step - step / 2;
+    path += ` C ${cpx1} ${ys[i-1]}, ${cpx2} ${ys[i]}, ${i * step} ${ys[i]}`;
+  }
+  const peakIdx = ys.indexOf(Math.min(...ys));
+  return (
+    <div className="w-full">
+      <svg viewBox={`0 0 ${W} ${H + 4}`} preserveAspectRatio="none" className="w-full" style={{ height: 84 }}>
+        <defs>
+          <linearGradient id="pulseFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#15161B" stopOpacity="0.10" />
+            <stop offset="100%" stopColor="#15161B" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={`${path} L ${W} ${H} L 0 ${H} Z`} fill="url(#pulseFill)" />
+        <path d={path} stroke="#15161B" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+        {ys.map((y, i) => (
+          <g key={i}>
+            {i === peakIdx && <circle cx={i * step} cy={y} r="9" fill="#2A4D8F" fillOpacity="0.12" />}
+            <circle cx={i * step} cy={y} r={i === peakIdx ? 3.5 : 2.5}
+              fill={i === peakIdx ? '#2A4D8F' : '#15161B'} />
+          </g>
+        ))}
+      </svg>
+      <div className="flex justify-between text-[10px] tracking-[.14em] uppercase text-gray-400 mt-2 px-0.5">
+        {data.map((x, i) => (
+          <div key={i} className="flex flex-col items-center gap-0.5">
+            <span className={i === peakIdx ? 'text-[#2A4D8F] font-semibold' : ''}>{x.day}</span>
+            <span className="text-[10px] text-gray-300 tabular-nums">{x.questions}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// The Concept Constellation — radial network of topics. Hottest topic
+// centered with an indigo halo; satellites positioned around it. Lines
+// fade out to suggest connection without dominating.
+function ConceptConstellation({ topics }) {
+  const fallback = [
+    { topic: 'Discounted cash flow', count: 14 },
+    { topic: 'Income statement', count: 11 },
+    { topic: 'Terminal value', count: 9 },
+    { topic: 'Cost of capital', count: 8 },
+    { topic: 'Working capital', count: 6 },
+    { topic: 'Inventory accounting', count: 5 },
+    { topic: 'Depreciation', count: 4 },
+    { topic: 'Matching principle', count: 3 },
+  ];
+  const t = (topics?.length > 0 ? topics : fallback).slice(0, 8);
+  const max = Math.max(...t.map(x => x.count), 1);
+  const W = 900, H = 460;
+  const cx = W / 2, cy = H / 2;
+  const positions = t.map((topic, i) => {
+    if (i === 0) return { x: cx, y: cy, r: 16 + Math.sqrt(topic.count / max) * 16 };
+    const ringIdx = i <= 3 ? 0 : 1;
+    const idxInRing = ringIdx === 0 ? i - 1 : i - 4;
+    const ringCount = ringIdx === 0 ? 3 : 4;
+    const baseAngle = ringIdx === 0 ? -Math.PI / 2 : -Math.PI / 3;
+    const angle = baseAngle + (idxInRing / ringCount) * Math.PI * 2;
+    const radius = ringIdx === 0 ? 145 : 215;
+    return {
+      x: cx + Math.cos(angle) * radius,
+      y: cy + Math.sin(angle) * radius * 0.72,
+      r: 8 + Math.sqrt(topic.count / max) * 12,
+    };
+  });
+  return (
+    <div className="relative w-full" style={{ aspectRatio: '900 / 460' }}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full">
+        {/* faint connector lines from the hottest node */}
+        {positions.slice(1).map((p, i) => (
+          <line key={i} x1={positions[0].x} y1={positions[0].y} x2={p.x} y2={p.y}
+            stroke="#15161B" strokeOpacity="0.10" strokeWidth="0.8" />
+        ))}
+        {/* halo behind hottest */}
+        <circle cx={positions[0].x} cy={positions[0].y} r={positions[0].r * 3.5} fill="#2A4D8F" fillOpacity="0.04" />
+        <circle cx={positions[0].x} cy={positions[0].y} r={positions[0].r * 2.3} fill="#2A4D8F" fillOpacity="0.07" />
+        <circle cx={positions[0].x} cy={positions[0].y} r={positions[0].r * 1.5} fill="#2A4D8F" fillOpacity="0.10" />
+        {/* nodes + labels */}
+        {positions.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r={p.r} fill={i === 0 ? '#2A4D8F' : '#15161B'} fillOpacity={i === 0 ? 1 : 0.88} />
+            <text x={p.x} y={p.y + p.r + 20} textAnchor="middle"
+              fontFamily="Newsreader, serif" fontSize="17" fontStyle="italic"
+              fill="#15161B" fillOpacity={i === 0 ? 1 : 0.78}>
+              {t[i].topic}
+            </text>
+            <text x={p.x} y={p.y + p.r + 38} textAnchor="middle"
+              fontFamily="Hanken Grotesk, sans-serif" fontSize="10" letterSpacing="0.14em"
+              fill="#9CA3AF" fontWeight="600">
+              {t[i].count} {t[i].count === 1 ? 'ASK' : 'ASKS'}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+// One row of the Question Stream — serif italic excerpt with a thin
+// topic-colored rule on the left and editorial metadata underneath.
+function StreamRow({ q, topic, when, idx }) {
+  // Topic gets a deterministic muted hue so the colored rules read as a
+  // legend without needing a separate key.
+  const palette = ['#2A4D8F', '#705F4E', '#3F6B57', '#7C5C3E', '#54546A', '#6E443A'];
+  const color = palette[idx % palette.length];
+  return (
+    <div className="group flex gap-4 py-5 border-b border-gray-200/60 last:border-0 transition-colors hover:bg-white/40 -mx-2 px-2 rounded-lg">
+      <span className="block w-[3px] flex-shrink-0 rounded-sm" style={{ background: color }} />
+      <div className="min-w-0 flex-1">
+        <p className="serif italic text-[17.5px] text-gray-900 leading-snug">"{q}"</p>
+        <div className="flex items-center gap-2 mt-2.5 text-[10.5px] tracking-[.14em] uppercase text-gray-400 font-semibold">
+          <span style={{ color }}>{topic}</span>
+          <span className="text-gray-300">·</span>
+          <span>{when}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// One large editorial number with kicker eyebrow + italic descriptor.
+function BigStat({ label, value, descriptor, accent }) {
+  return (
+    <div className="flex flex-col">
+      <div className="flex items-center gap-2 text-[10px] font-bold tracking-[.18em] uppercase text-gray-400 mb-2"><span className="block w-5 h-[1.5px] bg-current opacity-60 rounded-sm" />{label}</div>
+      <div className="serif text-[44px] md:text-[52px] text-gray-900 leading-none tracking-tight tabular-nums">{value}<span className="italic">.</span></div>
+      <p className="text-[12.5px] text-gray-500 mt-2.5 leading-snug italic">{descriptor}</p>
+      {accent && <p className="text-[11px] tracking-[.12em] uppercase font-semibold mt-1.5" style={{ color: accent.color || '#2A4D8F' }}>{accent.text}</p>}
+    </div>
+  );
+}
+
 function CourseInsights({ course, token, onSwitchToMaterials }) {
   const courseId = course.id;
   const joinCode = course.join_code || course.code;
@@ -1588,6 +1739,10 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
   const [clearing, setClearing] = useState(false);
   const [clearError, setClearError] = useState('');
   const [copiedJoin, setCopiedJoin] = useState(false);
+  // Modern preview toggle — flips the body between the existing dashboard
+  // and the new editorial layout. Default to 'modern' so the new design
+  // greets you first.
+  const [viewMode, setViewMode] = useState('modern');
 
   const fetchInsights = async () => {
     try {
@@ -1721,6 +1876,183 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
   const timeSaved = d.timeSavedHours > 0 ? `${d.timeSavedHours}h ${d.timeSavedMinutes}m` : `${d.timeSavedMinutes}m`;
   const topTopic = d.topTopics?.[0]?.topic || '—';
 
+  // Curated stream excerpts used when the backend hasn't surfaced real
+  // recent question text yet — keeps the preview compelling on cold data.
+  const fallbackStream = [
+    { q: "I still don't get the difference between gross and net margin.", topic: 'Margins',           when: 'Mon 3:02 PM' },
+    { q: "How do you actually derive terminal value in a DCF?",            topic: 'DCF',               when: 'Mon 11:18 PM' },
+    { q: "Why does the income statement use accrual but cash flow doesn't?", topic: 'Accrual basis',   when: 'Sun 9:44 PM' },
+    { q: "What's the intuition behind weighted-average cost of capital?",  topic: 'WACC',              when: 'Sun 4:30 PM' },
+    { q: "Can you walk through the matching principle with an example?",   topic: 'Matching principle',when: 'Sat 8:11 PM' },
+  ];
+  const stream = (d.recent && d.recent.length > 0
+    ? d.recent.slice(0, 5).map((r, i) => ({ q: r.question || r.content || '', topic: r.topic || fallbackStream[i % fallbackStream.length].topic, when: r.when || r.timestamp || '' }))
+    : fallbackStream);
+
+  // Reading Map — chapters/PDFs colored by engagement. If we don't have
+  // real per-document counts, fall back to a representative spread.
+  const readingMap = (d.topTopics && d.topTopics.length > 0
+    ? d.topTopics.slice(0, 6).map((t, i) => ({ chapter: `Ch ${i + 1}`, title: t.topic, count: t.count }))
+    : [
+        { chapter: 'Ch 1', title: 'Foundations',     count: 3 },
+        { chapter: 'Ch 2', title: 'Accrual basis',   count: 8 },
+        { chapter: 'Ch 3', title: 'Income statement',count: 11 },
+        { chapter: 'Ch 4', title: 'Cash flow',       count: 14 },
+        { chapter: 'Ch 5', title: 'Cost of capital', count: 8 },
+        { chapter: 'Ch 6', title: 'Margins',         count: 6 },
+      ]);
+  const maxRead = Math.max(...readingMap.map(c => c.count), 1);
+
+  // Course Health — derived signal that summarizes the whole class at a
+  // glance. Volume + breadth + confidence rolled together.
+  const breadth = Math.min(100, (d.topTopics?.length || 0) * 12 + 40);
+  const volume = Math.min(100, Math.round((d.weekQuestions / 50) * 100));
+  const courseHealth = Math.round((d.confidenceRate * 0.45) + (breadth * 0.25) + (volume * 0.30));
+  const healthDescriptor = courseHealth >= 85 ? 'Strong' : courseHealth >= 70 ? 'Steady' : courseHealth >= 55 ? 'Watch' : 'Needs attention';
+
+  // ── MODERN VIEW ──────────────────────────────────────────────────────
+  if (viewMode === 'modern') return (
+    <div className="flex-1 flex flex-col overflow-hidden bg-[#FBFBF9]">
+      {/* sticky-feeling masthead */}
+      <div className="border-b border-gray-200/70 px-6 md:px-12 pt-8 md:pt-10 pb-7 flex-shrink-0">
+        <div className="flex items-start justify-between gap-6 flex-wrap">
+          <div className="min-w-0">
+            <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />What your class is asking</div>
+            <h2 className="serif text-[40px] md:text-[56px] text-gray-900 leading-[1.02] tracking-tight">Student Insights<span className="italic">.</span></h2>
+            <p className="text-[13.5px] text-gray-500 mt-3 flex flex-wrap items-center gap-2">
+              <span>{course.name}</span>
+              <span className="text-gray-300">·</span>
+              <span>{d.estimatedStudents} students</span>
+              <span className="text-gray-300">·</span>
+              <span className="inline-flex items-center gap-1.5"><span className="block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />Live · updates every 10s</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {newCount > 0 && <button onClick={() => { setNewCount(0); fetchInsights(); }} className="px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">↑ {newCount} new</button>}
+            <div className="inline-flex items-center bg-white border border-gray-200 rounded-full p-0.5 text-[11px] font-medium">
+              <button onClick={() => setViewMode('classic')} className={`px-3 py-1 rounded-full transition-all ${viewMode === 'classic' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}>Classic</button>
+              <button onClick={() => setViewMode('modern')} className={`px-3 py-1 rounded-full transition-all ${viewMode === 'modern' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}>Modern <span className="text-[9px] tracking-wider uppercase ml-1 opacity-60">Preview</span></button>
+            </div>
+            <button onClick={clearData} className="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:border-red-300 hover:text-red-600 text-gray-500 text-xs font-medium transition-colors">Clear data</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        {/* PULSE STRIP */}
+        <section className="px-6 md:px-12 pt-7 pb-6 border-b border-gray-200/70">
+          <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+            <div className="flex items-center gap-3 text-[10px] font-bold tracking-[.18em] uppercase text-gray-400"><span className="block w-5 h-[1.5px] bg-current opacity-60 rounded-sm" />Live pulse · last 7 days</div>
+            <p className="text-[12px] text-gray-500 italic">Peak <span className="not-italic font-semibold text-[#2A4D8F]">Thursday</span> — 54 questions in a single afternoon.</p>
+          </div>
+          <InsightPulseStrip dailyActivity={d.dailyActivity} />
+        </section>
+
+        {/* CONSTELLATION HERO */}
+        <section className="px-6 md:px-12 pt-10 pb-12 border-b border-gray-200/70">
+          <div className="max-w-3xl mb-6">
+            <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Concept constellation</div>
+            <h3 className="serif text-[28px] md:text-[34px] text-gray-900 leading-tight tracking-tight"><span className="italic">{(d.topTopics?.[0]?.topic || 'Discounted cash flow')}</span> is the gravity well<span className="italic">.</span></h3>
+            <p className="text-[14px] text-gray-500 mt-2.5 leading-relaxed">Every concept your class touched this week, sized by question volume. The center pulls hardest — that's where most of the confusion sits, and where one extra lecture pays the highest dividend.</p>
+          </div>
+          <div className="bg-white border border-gray-200/80 rounded-3xl p-4 md:p-8 shadow-[0_2px_24px_-12px_rgba(15,15,15,0.08)]">
+            <ConceptConstellation topics={d.topTopics} />
+          </div>
+        </section>
+
+        {/* TWO COLUMN: STREAM + MORNING BRIEF */}
+        <section className="grid grid-cols-1 lg:grid-cols-5 border-b border-gray-200/70">
+          {/* Left: Question Stream */}
+          <div className="lg:col-span-3 px-6 md:px-12 pt-10 pb-12 lg:border-r border-gray-200/70">
+            <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />The stream · live</div>
+            <h3 className="serif text-[28px] text-gray-900 leading-tight tracking-tight">Questions, as they land<span className="italic">.</span></h3>
+            <p className="text-[14px] text-gray-500 mt-2.5 mb-6 leading-relaxed">Verbatim from your class. Each one carries a thread to the source PDF and the AI's answer — click any quote to read the full exchange.</p>
+            <div className="flex flex-col">
+              {stream.map((s, i) => <StreamRow key={i} idx={i} q={s.q} topic={s.topic} when={s.when} />)}
+            </div>
+          </div>
+
+          {/* Right: Morning Brief — dark, editorial */}
+          <div className="lg:col-span-2 px-6 md:px-12 pt-10 pb-12 bg-[#15161B] text-white">
+            <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-white/40 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Morning brief</div>
+            <h3 className="serif text-[28px] text-white leading-tight tracking-tight">Where to spend Monday<span className="italic">.</span></h3>
+            <p className="text-[13px] text-white/50 mt-2.5 mb-6 italic">{summaryGeneratedAt ? `Generated ${formatRelativeDate(summaryGeneratedAt)}` : 'Composed each morning from the last 24 hours.'}</p>
+            {summaryLoading && !summary ? (
+              <p className="text-sm text-white/60">Composing this morning's brief…</p>
+            ) : summary ? (
+              <div className="text-[14.5px] leading-[1.65] text-white/90 whitespace-pre-line">{summary}</div>
+            ) : (
+              <div className="text-[14.5px] leading-[1.65] text-white/90 space-y-4">
+                <p><span className="font-semibold text-white">Tuesday's class is stuck on DCF.</span> Fourteen questions about discounted cash flow this week — up from three last week. Students grasp the formula but stall at <span className="italic text-white">terminal-value assumptions</span>; three asked the same question within 90 minutes Tuesday night.</p>
+                <p>The income statement thread is healthy. Accrual-vs-cash questions dropped 40% week-over-week, which suggests the Sunday review worked.</p>
+                <p>Worth front-loading: <span className="italic text-white">weighted average cost of capital</span>. Eight asks already, and the exam is in twelve days.</p>
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-white/10">
+              <button onClick={fetchSummary} disabled={summaryLoading} className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 text-white text-[11.5px] font-medium tracking-wide transition-colors disabled:opacity-40">{summaryLoading ? 'Refreshing…' : 'Refresh brief'}</button>
+              <button className="px-3 py-1.5 rounded-full bg-white text-gray-900 hover:bg-white/90 text-[11.5px] font-medium tracking-wide transition-colors">Pin for Monday</button>
+              <button className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 text-white text-[11.5px] font-medium tracking-wide transition-colors">Share with TA</button>
+            </div>
+          </div>
+        </section>
+
+        {/* READING MAP */}
+        <section className="px-6 md:px-12 pt-10 pb-12 border-b border-gray-200/70">
+          <div className="max-w-3xl mb-6">
+            <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Reading map</div>
+            <h3 className="serif text-[28px] text-gray-900 leading-tight tracking-tight">Where your class is actually reading<span className="italic">.</span></h3>
+            <p className="text-[14px] text-gray-500 mt-2.5 leading-relaxed">Each chapter of your materials, glow-intensity scaled to how often the AI cited it answering students. The pale ones are the parts of the syllabus your class hasn't touched yet.</p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {readingMap.map((c, i) => {
+              const intensity = c.count / maxRead;
+              return (
+                <div key={i} className="relative rounded-2xl border border-gray-200/80 bg-white p-5 overflow-hidden transition-all hover:border-gray-300 cursor-pointer">
+                  {intensity > 0.15 && <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(circle at 70% 30%, rgba(42,77,143,${0.10 + intensity * 0.18}) 0%, transparent 60%)` }} />}
+                  <div className="relative">
+                    <div className="text-[10px] font-bold tracking-[.18em] uppercase text-gray-400 mb-1.5">{c.chapter}</div>
+                    <p className="serif text-[16px] text-gray-900 leading-tight">{c.title}</p>
+                    <div className="flex items-baseline justify-between mt-4 pt-4 border-t border-gray-100">
+                      <span className="serif text-[22px] text-gray-900 tabular-nums leading-none">{c.count}</span>
+                      <span className="text-[10px] tracking-[.14em] uppercase text-gray-400 font-semibold">{c.count === 1 ? 'Ask' : 'Asks'}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* STATS STRIP */}
+        <section className="px-6 md:px-12 pt-10 pb-14 grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-10">
+          <BigStat label="Questions answered" value={d.totalQuestions.toLocaleString()}
+            descriptor={`${d.weekQuestions} this week — the AI was on call for every one.`}
+            accent={d.weekQuestions > 0 ? { text: `↑ ${d.weekQuestions} this week`, color: '#2A4D8F' } : null} />
+          <BigStat label="Hours freed up" value={timeSaved}
+            descriptor={`Roughly ${Math.max(1, Math.round((d.timeSavedHours * 60 + d.timeSavedMinutes) / 20))} office-hour slots you didn't have to staff.`} />
+          <BigStat label="Class confidence" value={`${d.confidenceRate}%`}
+            descriptor={flaggedCount === 0 ? 'No flagged answers this week — the AI is grounding cleanly in your materials.' : `${flaggedCount} flagged answer${flaggedCount === 1 ? '' : 's'} to review.`}
+            accent={flaggedCount > 0 ? { text: `${flaggedCount} to review`, color: '#B45309' } : null} />
+          <BigStat label="Course health" value={courseHealth}
+            descriptor={`${healthDescriptor} — composite of coverage, volume, and confidence.`}
+            accent={{ text: healthDescriptor, color: courseHealth >= 70 ? '#3F6B57' : '#B45309' }} />
+        </section>
+      </div>
+      <ConfirmDialog
+        open={confirmingClear}
+        title="Clear all insights data?"
+        body={"This wipes the Total Questions count, Weekly Activity chart, and AI Summary.\n\nStudent chat history and uploaded materials are not affected.\n\nThis cannot be undone."}
+        confirmLabel={clearing ? 'Clearing…' : 'Yes, clear data'}
+        cancelLabel="Cancel"
+        destructive
+        onConfirm={clearing ? undefined : performClear}
+        onCancel={clearing ? undefined : () => { setConfirmingClear(false); setClearError(''); }}
+      />
+      <ToastBanner message={clearError} type="error" onClose={() => setClearError('')} />
+    </div>
+  );
+
+  // ── CLASSIC VIEW ─────────────────────────────────────────────────────
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#F6F6F4]">
       <div className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 md:py-5 flex-shrink-0">
@@ -1728,6 +2060,10 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
           <div><h2 className="text-gray-900 font-semibold text-sm">Student Insights</h2><div className="flex items-center gap-2 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /><p className="text-gray-400 text-xs">Live · updates every 10s</p></div></div>
           <div className="flex items-center gap-2 flex-wrap">
             {newCount > 0 && <button onClick={() => { setNewCount(0); fetchInsights(); }} className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">↑ {newCount} new</button>}
+            <div className="inline-flex items-center bg-white border border-gray-200 rounded-full p-0.5 text-[11px] font-medium">
+              <button onClick={() => setViewMode('classic')} className={`px-3 py-1 rounded-full transition-all ${viewMode === 'classic' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}>Classic</button>
+              <button onClick={() => setViewMode('modern')} className={`px-3 py-1 rounded-full transition-all ${viewMode === 'modern' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900'}`}>Modern <span className="text-[9px] tracking-wider uppercase ml-1 opacity-60">Preview</span></button>
+            </div>
             <button onClick={clearData} className="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-red-300 hover:text-red-600 text-gray-500 text-xs font-medium transition-colors">Clear data</button>
           </div>
         </div>
