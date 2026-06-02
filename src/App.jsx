@@ -1525,86 +1525,75 @@ function CourseManager({ token, course, onBack, authHeaders }) {
 
       {/* ── Main ── */}
       <main className="flex-1 flex flex-col overflow-hidden pt-14 md:pt-0 relative" style={{ paddingTop: 'max(3.5rem + env(safe-area-inset-top), 0px)' }}>
-        {/* Thin top header — same shape as the student chat header */}
-        <header className="hidden md:flex bg-[#F6F6F4] border-b border-gray-200/70 items-center justify-between px-4 md:px-8 py-2 md:h-12 flex-shrink-0 gap-3">
-          <div className="flex flex-col min-w-0 leading-tight">
-            <h2 className="text-gray-900 text-sm font-medium truncate">{activeTab === 'materials' ? 'Course Materials' : 'Student Insights'}</h2>
-            <p className="text-[11px] text-gray-400 truncate">{course.name}</p>
-          </div>
-          <button type="button" onClick={onBack} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0" aria-label="Scholr home"><Logo size={20} /><span className="text-gray-900 font-semibold text-sm hidden sm:inline">Scholr</span></button>
-        </header>
+        {/* Thin top header — kept for the Insights tab only. The Materials
+            tab uses the dark hero below as its own top of page. */}
+        {activeTab === 'insights' && (
+          <header className="hidden md:flex bg-[#F6F6F4] border-b border-gray-200/70 items-center justify-between px-4 md:px-8 py-2 md:h-12 flex-shrink-0 gap-3">
+            <div className="flex flex-col min-w-0 leading-tight">
+              <h2 className="text-gray-900 text-sm font-medium truncate">Student Insights</h2>
+              <p className="text-[11px] text-gray-400 truncate">{course.name}</p>
+            </div>
+            <button type="button" onClick={onBack} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0" aria-label="Scholr home"><Logo size={20} /><span className="text-gray-900 font-semibold text-sm hidden sm:inline">Scholr</span></button>
+          </header>
+        )}
 
         {activeTab === 'materials' ? (
           <div className="flex-1 overflow-y-auto bg-[#FBFBF9]">
-            {/* ── COMMAND BAR ──
-                Dark editorial nameplate that says "this is the teacher's
-                view." Course name as the serif centerpiece, today's date
-                and join code in the gutters, live stats stacked on the
-                right. Two soft indigo glows in the corners give it depth
-                without committing to a gradient. A thin indigo→fade rule
-                at the bottom edge is the Scholr brand signature. */}
+            {/* ── DARK HERO ──
+                The top of the page is now a single editorial nameplate
+                that swallows the breadcrumb + the Scholr logo + the big
+                course name + the live stats. No competing thin header.
+                Two soft indigo halos in opposite corners + a faint dot
+                grain give the dark canvas depth. Bottom edge wears the
+                Scholr signature indigo→fade rule. */}
             <div className="relative overflow-hidden bg-[#15161B] text-white">
-              <div className="absolute -top-32 -right-24 w-[420px] h-[420px] rounded-full bg-[#2A4D8F] opacity-[0.18] blur-[100px] pointer-events-none" />
-              <div className="absolute -bottom-24 -left-32 w-[340px] h-[340px] rounded-full bg-[#2A4D8F] opacity-[0.10] blur-[90px] pointer-events-none" />
-              {/* Subtle paper-grain texture (CSS dot pattern, very faint) */}
-              <div className="absolute inset-0 pointer-events-none opacity-[0.025]" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px)', backgroundSize: '14px 14px' }} />
+              <div className="absolute -top-40 -right-32 w-[520px] h-[520px] rounded-full bg-[#2A4D8F] opacity-[0.22] blur-[120px] pointer-events-none" />
+              <div className="absolute -bottom-32 -left-40 w-[420px] h-[420px] rounded-full bg-[#2A4D8F] opacity-[0.12] blur-[100px] pointer-events-none" />
+              <div className="absolute inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px)', backgroundSize: '14px 14px' }} />
 
-              <div className="relative px-6 md:px-12 pt-8 pb-7">
-                {/* top row — kicker + date + live */}
-                <div className="flex items-center justify-between text-[10px] tracking-[.20em] uppercase text-white/45 font-bold mb-6 gap-3 flex-wrap">
-                  <span className="flex items-center gap-2.5"><span className="block w-7 h-[1.5px] bg-current opacity-70 rounded-sm" />Course command</span>
-                  <span className="flex items-center gap-3 text-white/40 normal-case tracking-normal text-[11px]">
-                    <span className="italic">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</span>
-                    <span className="text-white/20">·</span>
-                    <span className="inline-flex items-center gap-1.5 uppercase tracking-[.16em] font-bold text-[10px] text-emerald-300/90"><span className="block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />Live</span>
-                  </span>
+              {/* Top bar — breadcrumb on the left, Scholr lockup on the right */}
+              <div className="relative flex items-center justify-between px-6 md:px-12 pt-6 pb-3">
+                <div className="flex flex-col min-w-0 leading-tight">
+                  <p className="text-[10px] tracking-[.22em] uppercase text-white/55 font-bold">Course Materials</p>
+                  <p className="text-[11px] text-white/40 mt-0.5 truncate">{course.name}</p>
                 </div>
+                <button type="button" onClick={onBack} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0" aria-label="Scholr home">
+                  {/* Inverted Scholr mark for dark backgrounds */}
+                  <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
+                    <rect width="28" height="28" rx="7" fill="#FBFBF9" />
+                    <path d="M8 10h8M8 14h12M8 18h6" stroke="#15161B" strokeWidth="1.75" strokeLinecap="round" />
+                  </svg>
+                  <span className="text-white font-semibold text-sm hidden sm:inline tracking-tight">Scholr</span>
+                </button>
+              </div>
 
-                {/* Nameplate row — big serif course name + right-rail stats */}
-                <div className="flex items-end justify-between gap-8 flex-wrap">
+              {/* Nameplate */}
+              <div className="relative px-6 md:px-12 pt-7 pb-10">
+                <div className="flex items-center gap-2.5 text-[10px] tracking-[.20em] uppercase text-white/45 font-bold mb-5"><span className="block w-7 h-[1.5px] bg-current opacity-70 rounded-sm" />Course command</div>
+                <div className="flex items-end justify-between gap-10 flex-wrap">
                   <div className="min-w-0">
-                    <h2 className="serif text-[44px] md:text-[68px] text-white leading-[0.95] tracking-tight truncate">{course.name}<span className="italic">.</span></h2>
-                    <p className="text-[12.5px] text-white/45 mt-3.5 italic">
-                      Join code <span className="not-italic font-mono text-white/70 tracking-wide ml-1">{course.join_code || course.code}</span>
+                    <h2 className="serif text-[52px] md:text-[88px] text-white leading-[0.94] tracking-tight">{course.name}<span className="italic">.</span></h2>
+                    <p className="text-[13px] text-white/45 mt-5 italic">
+                      Join code <span className="not-italic font-mono text-white/75 tracking-wide ml-1">{course.join_code || course.code}</span>
                       <span className="text-white/25 mx-2">·</span>
                       <span className="not-italic">Indexed and live for every enrolled student.</span>
                     </p>
                   </div>
-                  <div className="flex items-end gap-7 md:gap-9">
+                  <div className="flex items-end gap-8 md:gap-12">
                     <div className="flex flex-col">
-                      <span className="text-[10px] tracking-[.20em] uppercase text-white/40 font-bold mb-1">Files</span>
-                      <span className="serif text-[36px] md:text-[44px] text-white leading-none tabular-nums">{mods.length}<span className="italic text-white/60">.</span></span>
+                      <span className="text-[10px] tracking-[.20em] uppercase text-white/40 font-bold mb-1.5">Files</span>
+                      <span className="serif text-[44px] md:text-[56px] text-white leading-none tabular-nums">{mods.length}<span className="italic text-white/60">.</span></span>
                     </div>
                     <div className="hidden md:flex flex-col">
-                      <span className="text-[10px] tracking-[.20em] uppercase text-white/40 font-bold mb-1">Status</span>
-                      <span className="serif text-[28px] text-emerald-300 leading-none italic">Live<span className="not-italic text-white/60">.</span></span>
+                      <span className="text-[10px] tracking-[.20em] uppercase text-white/40 font-bold mb-1.5">Status</span>
+                      <span className="serif text-[40px] text-emerald-300 leading-none italic">Live<span className="not-italic text-white/60">.</span></span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* signature accent rule — indigo fade */}
+              {/* Signature indigo→fade rule */}
               <div className="h-[2px] w-full bg-gradient-to-r from-[#2A4D8F] via-[#2A4D8F]/40 to-transparent" />
-            </div>
-
-            {/* Operational strip — slim, just the time signal + Upload pill.
-                The command bar above already declares "LIVE / # files / course." */}
-            <div className="px-6 md:px-12 py-4 border-b border-gray-200/70 bg-white/40">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-2.5 min-w-0 text-[12px] text-gray-500">
-                  <span className="text-gray-400">Last upload</span>
-                  <span className="font-medium text-gray-800">{mods.length > 0 ? formatRelativeDate(mods[0].uploaded) : 'never'}</span>
-                  <span className="text-gray-300">·</span>
-                  <span>{mods.length} file{mods.length !== 1 ? 's' : ''} indexed</span>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <input type="file" ref={fileRef} onChange={e => { handleFile(e.target.files[0]); e.target.value = ''; }} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" />
-                  <button onClick={() => fileRef.current.click()} disabled={uploading}
-                    className="inline-flex items-center gap-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-[13px] font-medium px-4 py-2 rounded-full transition-colors shadow-[0_4px_14px_-4px_rgba(15,15,15,0.35)]">
-                    <UploadCloud size={14} />{uploading ? `${uploadProgress}%` : 'Upload'}
-                  </button>
-                </div>
-              </div>
             </div>
 
             {/* Upload progress strip */}
@@ -1631,110 +1620,103 @@ function CourseManager({ token, course, onBack, authHeaders }) {
             )}
 
             {/* Body */}
-            <div className="max-w-3xl mx-auto w-full px-6 md:px-12 py-8 md:py-10">
+            <div className="max-w-4xl mx-auto w-full px-6 md:px-12 py-10 md:py-14">
               {loadingMods ? (
-                <div className="flex flex-col gap-2.5">
+                <div className="flex flex-col gap-3">
                   {[0, 1, 2].map(i => (
-                    <div key={i} className="flex items-center gap-4 px-5 py-4 rounded-2xl bg-white border border-gray-200/80 animate-pulse">
-                      <div className="w-11 h-11 rounded-xl bg-gray-100" />
+                    <div key={i} className="flex items-center gap-4 px-6 py-5 rounded-2xl bg-white border border-gray-200/80 animate-pulse">
+                      <div className="w-14 h-14 rounded-2xl bg-gray-100" />
                       <div className="flex-1 space-y-2">
-                        <div className="h-3 bg-gray-100 rounded w-2/3" />
-                        <div className="h-2 bg-gray-50 rounded w-1/3" />
+                        <div className="h-3.5 bg-gray-100 rounded w-2/3" />
+                        <div className="h-2.5 bg-gray-50 rounded w-1/3" />
                       </div>
                     </div>
                   ))}
                 </div>
-              ) : mods.length === 0 ? (
-                // Empty state — single hero drop card. Bigger because it's
-                // the only thing on the page until they upload.
-                <button onClick={() => fileRef.current.click()} className="group/drop w-full block text-left">
-                  <div className="border-2 border-dashed border-gray-200 group-hover/drop:border-gray-400 bg-white/40 group-hover/drop:bg-white rounded-3xl px-8 py-16 transition-all text-center">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#F3F2EF] group-hover/drop:bg-gray-100 mb-5 transition-colors"><UploadCloud size={26} className="text-gray-700" /></div>
-                    <h3 className="serif text-[28px] text-gray-900 leading-none tracking-tight">Start with your syllabus<span className="italic">.</span></h3>
-                    <p className="text-[14px] text-gray-500 mt-3.5 max-w-sm mx-auto leading-relaxed">Students can ask about deadlines, late policy, and grading the moment your first file goes live. <span className="italic">Drop one anywhere on the page</span> — or click here.</p>
-                    <div className="flex items-center justify-center gap-3 mt-7 text-[11px] tracking-[.14em] uppercase text-gray-400 font-semibold">
-                      <span>PDF</span><span className="text-gray-300">·</span><span>JPG</span><span className="text-gray-300">·</span><span>PNG</span>
-                    </div>
-                  </div>
-                </button>
               ) : (
                 <>
-                  {/* Compact drop pill — sits above the list, click or drag */}
-                  <button onClick={() => fileRef.current.click()} className="group/drop w-full mb-5 flex items-center gap-3 px-5 py-3.5 rounded-2xl border-2 border-dashed border-gray-200 hover:border-gray-400 bg-white/40 hover:bg-white transition-all">
-                    <div className="w-9 h-9 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0 group-hover/drop:bg-gray-100 transition-colors"><UploadCloud size={14} className="text-gray-500" /></div>
-                    <div className="flex flex-col items-start min-w-0">
-                      <span className="serif text-[15px] text-gray-800 leading-tight">Drop another file</span>
-                      <span className="text-[11px] text-gray-400 mt-0.5 tracking-wide">PDF · JPG · PNG — or paste from clipboard</span>
+                  {/* ── PROMINENT UPLOAD HERO ──
+                      Big editorial drop card with a centered icon, serif
+                      title, lede, and inline file-type taglets. Indigo
+                      corner glow on hover. Click-to-pick OR drag onto it.
+                      In the empty state it's the entire page; with files
+                      below, it stays the visual anchor at the top. */}
+                  <button onClick={() => fileRef.current.click()} className="group/drop relative w-full block text-left overflow-hidden">
+                    <div className="relative border-2 border-dashed border-gray-200 group-hover/drop:border-[#2A4D8F]/40 bg-white group-hover/drop:bg-white rounded-[28px] px-8 py-12 md:py-14 transition-all overflow-hidden">
+                      {/* Indigo hover halo */}
+                      <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-[#2A4D8F] opacity-0 group-hover/drop:opacity-[0.10] blur-3xl transition-opacity duration-500 pointer-events-none" />
+                      <div className="relative flex flex-col items-center text-center">
+                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#F3F2EF] group-hover/drop:bg-[#2A4D8F]/[0.08] mb-5 transition-colors">
+                          <UploadCloud size={26} className="text-gray-700 group-hover/drop:text-[#2A4D8F] transition-colors" />
+                        </div>
+                        <div className="flex items-center gap-2.5 text-[10px] tracking-[.20em] uppercase text-gray-400 font-bold mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Add to your library</div>
+                        <h3 className="serif text-[30px] md:text-[36px] text-gray-900 leading-[1.05] tracking-tight">{mods.length === 0 ? <>Start with your syllabus<span className="italic">.</span></> : <>Drop another file<span className="italic">.</span></>}</h3>
+                        <p className="text-[14.5px] text-gray-500 mt-3.5 max-w-md leading-relaxed">{mods.length === 0
+                          ? <>Students can ask about deadlines, late policy, and grading the moment your first file is live. <span className="italic">Drag a file anywhere on the page</span> — or click here.</>
+                          : <><span className="italic">Drag anywhere</span>, click here, or paste from clipboard.</>
+                        }</p>
+                        <div className="flex items-center gap-3 mt-7">
+                          {['PDF', 'JPG', 'PNG'].map((ext, i) => (
+                            <span key={ext} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F3F2EF] text-[10.5px] font-bold tracking-[.16em] uppercase text-gray-500">{ext}</span>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                    <span className="ml-auto text-[10px] tracking-[.14em] uppercase text-gray-300 font-semibold hidden sm:inline">Drag anywhere</span>
                   </button>
 
-                  {/* Section kicker — small editorial sectioning, not a page title */}
-                  <div className="flex items-center justify-between mb-3 mt-7">
-                    <div className="flex items-center gap-3 text-[10px] font-bold tracking-[.18em] uppercase text-gray-400"><span className="block w-5 h-[1.5px] bg-current opacity-60 rounded-sm" />Your library</div>
-                    <span className="text-[10px] tracking-[.14em] uppercase text-gray-400 font-semibold tabular-nums">{mods.length} file{mods.length !== 1 ? 's' : ''}</span>
-                  </div>
-
-                  {/* File rows */}
-                  <div className="flex flex-col gap-2.5">
-                    {mods.map(m => {
-                      const isImage = /\.(jpg|jpeg|png|webp)$/i.test(m.name);
-                      const sizeKb = m.sizeKb || 0;
-                      const fileType = isImage ? 'IMG' : m.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'FILE';
-                      return (
-                        <div key={m.id} className="group flex items-center gap-4 px-5 py-4 rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04)] transition-all">
-                          <div className="relative w-11 h-11 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0">
-                            {isImage ? <span className="text-gray-700 text-[10px] font-bold tracking-wider">IMG</span> : <FileText size={17} className="text-gray-700" />}
-                            <span className="absolute -bottom-1 -right-1 px-1 py-px rounded text-[8px] font-bold tracking-wider bg-gray-900 text-white">{fileType}</span>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="serif text-[16px] text-gray-900 leading-tight truncate">{cleanFileName(m.name)}</p>
-                            <div className="flex items-center gap-2 mt-1.5">
-                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100">
-                                <span className="block w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                <span className="text-[10px] font-semibold tracking-[.1em] uppercase text-emerald-700">Live · Indexed</span>
-                              </span>
-                              <span className="text-gray-300">·</span>
-                              <span className="text-[11px] text-gray-400 tabular-nums">{sizeKb}kb</span>
-                              <span className="text-gray-300">·</span>
-                              <span className="text-[11px] text-gray-400">Uploaded {formatRelativeDate(m.uploaded)}</span>
-                            </div>
-                          </div>
-                          <button onClick={() => onDelete(m)} aria-label="Delete file" className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={14} /></button>
+                  {/* ── LIBRARY ── */}
+                  {mods.length > 0 && (
+                    <div className="mt-14">
+                      <div className="flex items-end justify-between mb-6 gap-4 flex-wrap">
+                        <div>
+                          <div className="flex items-center gap-2.5 text-[10px] font-bold tracking-[.20em] uppercase text-gray-400 mb-2"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Your library</div>
+                          <h3 className="serif text-[30px] md:text-[34px] text-gray-900 leading-none tracking-tight">{mods.length} file{mods.length !== 1 ? 's' : ''} indexed<span className="italic">.</span></h3>
+                          <p className="text-[13px] text-gray-500 mt-2 italic">Last upload {formatRelativeDate(mods[0].uploaded)}.</p>
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
 
-                  {/* Quick actions — elevated cards. Each card carries a
-                      colored icon tile and an arrow chevron that animates
-                      on hover, giving the page a "I do things from here"
-                      feel without losing the editorial discipline. */}
-                  <div className="mt-12 pt-8 border-t border-gray-200/70">
-                    <div className="flex items-center gap-3 text-[10px] font-bold tracking-[.18em] uppercase text-gray-400 mb-4"><span className="block w-5 h-[1.5px] bg-current opacity-60 rounded-sm" />Quick actions</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {[
-                        { onClick: copyLink, icon: ExternalLink, title: 'Share with class', dek: `Copy a join link for ${course.join_code || course.code}.`, tint: 'bg-[#2A4D8F]', accent: '#2A4D8F' },
-                        { onClick: () => setActiveTab('insights'), icon: BarChart2, title: 'See what students ask', dek: 'Jump to live insights and the morning debrief.', tint: 'bg-[#15161B]', accent: '#15161B' },
-                        { onClick: () => fileRef.current.click(), icon: UploadCloud, title: 'Add another file', dek: 'Slides, readings, problem sets — any PDF or image.', tint: 'bg-[#3F6B57]', accent: '#3F6B57' },
-                      ].map((a, i) => (
-                        <button key={i} onClick={a.onClick} className="group/qa relative overflow-hidden text-left rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_8px_28px_-12px_rgba(15,15,15,0.18)] transition-all px-5 py-5">
-                          {/* tinted corner glow on hover */}
-                          <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-0 group-hover/qa:opacity-100 blur-2xl transition-opacity duration-300" style={{ background: a.accent }} />
-                          <div className="relative">
-                            <div className="flex items-start justify-between mb-3">
-                              <div className={`w-10 h-10 rounded-xl ${a.tint} flex items-center justify-center flex-shrink-0 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.2)]`}>
-                                <a.icon size={15} className="text-white" />
+                      <div className="flex flex-col gap-3">
+                        {mods.map(m => {
+                          const isImage = /\.(jpg|jpeg|png|webp)$/i.test(m.name);
+                          const sizeKb = m.sizeKb || 0;
+                          const fileType = isImage ? 'IMG' : m.name.toLowerCase().endsWith('.pdf') ? 'PDF' : 'FILE';
+                          // Deterministic accent color per file so the list feels
+                          // alive without looking random — based on filename hash.
+                          const palette = ['#2A4D8F', '#3F6B57', '#705F4E', '#54546A', '#7C5C3E', '#6E443A'];
+                          const accent = palette[(m.name.charCodeAt(0) + m.name.length) % palette.length];
+                          return (
+                            <div key={m.id} className="group relative flex items-center gap-5 pl-6 pr-5 py-5 rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_8px_28px_-12px_rgba(15,15,15,0.10)] transition-all overflow-hidden">
+                              {/* Left accent rule — colored by file */}
+                              <span className="absolute left-0 top-4 bottom-4 w-[3px] rounded-full" style={{ background: accent }} />
+
+                              {/* Icon tile with file-type badge */}
+                              <div className="relative w-14 h-14 rounded-2xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0">
+                                {isImage ? <span className="text-gray-700 text-[11px] font-bold tracking-wider">IMG</span> : <FileText size={20} className="text-gray-700" />}
+                                <span className="absolute -bottom-1.5 -right-1.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold tracking-wider bg-gray-900 text-white shadow-[0_2px_6px_-2px_rgba(0,0,0,0.3)]">{fileType}</span>
                               </div>
-                              <ChevronRight size={14} className="text-gray-300 group-hover/qa:text-gray-700 group-hover/qa:translate-x-0.5 transition-all mt-1.5" />
+
+                              {/* Title + meta */}
+                              <div className="min-w-0 flex-1">
+                                <p className="serif text-[18px] text-gray-900 leading-tight truncate">{cleanFileName(m.name)}</p>
+                                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100">
+                                    <span className="block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                    <span className="text-[10px] font-bold tracking-[.12em] uppercase text-emerald-700">Live · Indexed</span>
+                                  </span>
+                                  <span className="text-gray-300">·</span>
+                                  <span className="text-[12px] text-gray-400 tabular-nums">{sizeKb}kb</span>
+                                  <span className="text-gray-300">·</span>
+                                  <span className="text-[12px] text-gray-400">Uploaded {formatRelativeDate(m.uploaded)}</span>
+                                </div>
+                              </div>
+
+                              <button onClick={() => onDelete(m)} aria-label="Delete file" className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"><Trash2 size={15} /></button>
                             </div>
-                            <p className="serif text-[16px] text-gray-900 leading-tight">{a.title}</p>
-                            <p className="text-[12px] text-gray-500 italic leading-snug mt-1.5">{a.dek}</p>
-                          </div>
-                        </button>
-                      ))}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </>
               )}
             </div>
