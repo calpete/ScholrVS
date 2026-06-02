@@ -1443,130 +1443,213 @@ function CourseManager({ token, course, onBack, authHeaders }) {
 
   const closeMobileNav = () => setMobileNavOpen(false);
 
+  // Drag handlers for the page-level drop zone (mirrors the student-side
+  // pattern). Drop anywhere on the materials view → triggers upload.
+  const onPageDragOver = (e) => {
+    if (activeTab !== 'materials') return;
+    if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+    e.preventDefault();
+    setDragOver(true);
+  };
+  const onPageDragLeave = (e) => {
+    if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+    e.preventDefault();
+    setDragOver(false);
+  };
+  const onPageDrop = (e) => {
+    if (activeTab !== 'materials') return;
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) handleFile(file);
+  };
+
   return (
-    <div className="flex h-[100dvh] w-screen overflow-hidden bg-[#F6F6F4] fixed inset-0 page-enter">
+    <div className="flex h-[100dvh] w-screen overflow-hidden bg-[#F6F6F4] fixed inset-0 page-enter"
+      onDragOver={onPageDragOver} onDragLeave={onPageDragLeave} onDrop={onPageDrop}>
       <style>{FONT}</style>
-      {/* Mobile top bar — hamburger + course name. Hidden on desktop. */}
-      <div className="md:hidden fixed top-0 inset-x-0 z-20 bg-white border-b border-gray-200 flex items-center gap-3 px-4 h-14 pt-[env(safe-area-inset-top)]" style={{ height: 'calc(3.5rem + env(safe-area-inset-top))' }}>
+
+      {/* Page-level drop overlay — only when on Materials tab and a file is dragged. */}
+      {dragOver && activeTab === 'materials' && (
+        <div className="fixed inset-0 z-[60] bg-[#F6F6F4]/92 backdrop-blur-sm flex items-center justify-center pointer-events-none">
+          <div className="border-2 border-dashed border-gray-400 rounded-3xl px-12 py-10 max-w-md text-center bg-white shadow-[0_8px_32px_-8px_rgba(0,0,0,0.15)]">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#F3F2EF] mb-4"><UploadCloud size={26} className="text-gray-700" /></div>
+            <div className="flex items-center justify-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-2"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Add to your library</div>
+            <p className="serif text-[26px] text-gray-900 leading-none tracking-tight">Drop to upload<span className="italic">.</span></p>
+            <p className="text-[13.5px] text-gray-500 mt-3 leading-relaxed">PDF · JPG · PNG — Scholr indexes it and grounds every student answer in your materials.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile top bar */}
+      <div className="md:hidden fixed top-0 inset-x-0 z-20 bg-[#F6F6F4] border-b border-gray-200/70 flex items-center gap-3 px-4 h-14 pt-[env(safe-area-inset-top)]" style={{ height: 'calc(3.5rem + env(safe-area-inset-top))' }}>
         <button onClick={() => setMobileNavOpen(true)} aria-label="Open menu" className="p-2 -ml-2 text-gray-700">
           <Menu size={20} />
         </button>
-        <button type="button" onClick={onBack} className="flex items-center gap-2 flex-1 min-w-0 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={20} /><span className="text-gray-900 font-semibold text-sm truncate">{course.name}</span></button>
+        <div className="flex flex-col leading-tight min-w-0 flex-1">
+          <h2 className="text-gray-900 text-sm font-medium truncate">{activeTab === 'materials' ? 'Materials' : 'Insights'}</h2>
+          <p className="text-[11px] text-gray-400 truncate">{course.name}</p>
+        </div>
+        <button type="button" onClick={onBack} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0" aria-label="Scholr home"><Logo size={20} /><span className="text-gray-900 font-semibold text-sm hidden sm:inline">Scholr</span></button>
       </div>
-      {/* Backdrop when mobile nav is open */}
       {mobileNavOpen && <div onClick={closeMobileNav} className="md:hidden fixed inset-0 bg-black/40 z-30" />}
+
+      {/* ── Sidebar — editorial, mirrors the student side ── */}
       <aside style={isDesktop ? { width: sidebarW } : undefined} className={`fixed md:relative inset-y-0 left-0 z-40 w-72 bg-[#F6F6F4] border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
         <ResizeHandle onMouseDown={startSidebarDrag} />
-        <div className="px-5 py-5 border-b border-gray-100">
-          <div className="flex items-center justify-between mb-4">
-            <button onClick={onBack} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 text-xs transition-colors"><ArrowLeft size={12} />All courses</button>
+        <div className="px-4 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between mb-2">
+            <button onClick={onBack} className="flex items-center gap-1.5 text-gray-400 hover:text-gray-700 text-[11px] transition-colors -ml-0.5"><ArrowLeft size={11} />All courses</button>
             <button onClick={closeMobileNav} aria-label="Close menu" className="md:hidden p-1 text-gray-400"><X size={16} /></button>
           </div>
-          <button type="button" onClick={onBack} className="flex items-center gap-2.5 mb-3 hover:opacity-80 transition-opacity" aria-label="Scholr home"><Logo size={22} /><span className="text-gray-900 font-semibold text-sm">Scholr</span></button>
-          <div className="bg-gray-900 rounded-lg px-3 py-2.5">
-            <p className="text-white text-xs font-medium truncate">{course.name}</p>
-            <p className="text-gray-500 text-[10px] mt-0.5 font-mono">{course.join_code || course.code}</p>
-          </div>
+          <p className="text-gray-900 text-[15px] font-bold truncate leading-tight">{course.name}</p>
+          <p className="text-gray-400 text-[11px] mt-1">{mods.length} file{mods.length !== 1 ? 's' : ''} indexed · <span className="font-mono text-gray-500">{course.join_code || course.code}</span></p>
         </div>
-        <nav className="p-3 flex-1">
-          {[{ id: 'materials', label: 'Materials', icon: FileText }, { id: 'insights', label: 'Insights', icon: BarChart2 }].map(({ id, label, icon: Icon }) => (
+        <div className="px-3 pt-3 space-y-0.5">
+          {[{ id: 'materials', label: 'Materials', icon: FolderOpen, count: mods.length }, { id: 'insights', label: 'Insights', icon: BarChart2, count: null }].map(({ id, label, icon: Icon, count }) => (
             <button key={id} onClick={() => { setActiveTab(id); closeMobileNav(); }}
-              className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors mb-0.5 ${activeTab === id ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}>
-              <Icon size={15} className={activeTab === id ? 'text-gray-700' : 'text-gray-400'} />{label}
+              className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${activeTab === id ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
+              <Icon size={15} className="text-gray-500" />{label}
+              {count != null && count > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{count}</span>}
             </button>
           ))}
-        </nav>
-        <div className="p-4 border-t border-gray-100 space-y-2">
-          <button onClick={copyLink} className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs font-medium transition-colors">
-            {copied ? <Check size={11} className="text-emerald-500" /> : <ExternalLink size={11} />}{copied ? 'Copied!' : 'Copy student link'}
+        </div>
+        <div className="flex-1" />
+        <div className="p-4 border-t border-gray-200 space-y-2.5">
+          <button onClick={copyLink} className="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-white border border-gray-200/80 hover:border-gray-300 text-gray-700 text-[12px] font-medium transition-colors">
+            {copied ? <Check size={12} className="text-emerald-500" /> : <ExternalLink size={12} className="text-gray-400" />}{copied ? 'Copied!' : 'Copy student link'}
           </button>
-          <div className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div><span className="text-[10px] text-gray-400">Vertex AI connected</span></div>
+          <div className="flex items-center gap-2 px-1"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-[10px] text-gray-400">Vertex AI connected</span></div>
         </div>
       </aside>
-      <main className="flex-1 flex flex-col overflow-hidden pt-14 md:pt-0" style={{ paddingTop: 'max(3.5rem + env(safe-area-inset-top), 0px)' }}>
+
+      {/* ── Main ── */}
+      <main className="flex-1 flex flex-col overflow-hidden pt-14 md:pt-0 relative" style={{ paddingTop: 'max(3.5rem + env(safe-area-inset-top), 0px)' }}>
+        {/* Thin top header — same shape as the student chat header */}
+        <header className="hidden md:flex bg-[#F6F6F4] border-b border-gray-200/70 items-center justify-between px-4 md:px-8 py-2 md:h-12 flex-shrink-0 gap-3">
+          <div className="flex flex-col min-w-0 leading-tight">
+            <h2 className="text-gray-900 text-sm font-medium truncate">{activeTab === 'materials' ? 'Course Materials' : 'Student Insights'}</h2>
+            <p className="text-[11px] text-gray-400 truncate">{course.name}</p>
+          </div>
+          <button type="button" onClick={onBack} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0" aria-label="Scholr home"><Logo size={20} /><span className="text-gray-900 font-semibold text-sm hidden sm:inline">Scholr</span></button>
+        </header>
+
         {activeTab === 'materials' ? (
-          <>
-            <header className="bg-white border-b border-gray-200 px-8 py-4 flex-shrink-0 flex items-center justify-between">
-              <div><h2 className="text-gray-900 text-sm font-semibold">Course Materials</h2><p className="text-gray-400 text-xs mt-0.5">{mods.length} file{mods.length !== 1 ? 's' : ''} indexed · live for all students</p></div>
-              <div className="flex items-center gap-3">
-                <input type="file" ref={fileRef} onChange={e => { handleFile(e.target.files[0]); e.target.value = ''; }} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" />
-                <button onClick={() => fileRef.current.click()} disabled={uploading}
-                  className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-xs font-medium px-4 py-2 rounded-lg transition-colors">
-                  <UploadCloud size={13} />{uploading ? `Uploading ${uploadProgress}%` : 'Upload'}
-                </button>
+          <div className="flex-1 overflow-y-auto bg-[#FBFBF9]">
+            {/* Editorial header */}
+            <header className="px-6 md:px-12 pt-10 md:pt-12 pb-7 border-b border-gray-200/70">
+              <div className="flex items-start justify-between gap-6 flex-wrap">
+                <div className="min-w-0 max-w-2xl">
+                  <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Your course library</div>
+                  <h2 className="serif text-[40px] md:text-[52px] text-gray-900 leading-[1.02] tracking-tight">Course Materials<span className="italic">.</span></h2>
+                  <p className="text-[14px] text-gray-500 mt-3 leading-relaxed">Drop in syllabi, slides, readings — Scholr indexes each one and grounds every student answer in what you uploaded. <span className="italic">Live for all students the moment it's added.</span></p>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <input type="file" ref={fileRef} onChange={e => { handleFile(e.target.files[0]); e.target.value = ''; }} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+                  <button onClick={() => fileRef.current.click()} disabled={uploading}
+                    className="inline-flex items-center gap-2 bg-gray-900 hover:bg-gray-800 disabled:opacity-50 text-white text-[13px] font-medium px-5 py-2.5 rounded-full transition-colors">
+                    <UploadCloud size={14} />{uploading ? `Uploading ${uploadProgress}%` : 'Upload'}
+                  </button>
+                </div>
               </div>
             </header>
+
+            {/* Upload progress strip */}
             {uploading && uploadingFile && (
-              <div className="bg-white border-b border-gray-200 px-8 py-3 flex-shrink-0">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-7 h-7 rounded-lg bg-gray-900 flex items-center justify-center flex-shrink-0">
-                      <UploadCloud size={12} className="text-white" />
+              <div className="bg-white border-b border-gray-200/70 px-6 md:px-12 py-4 flex-shrink-0">
+                <div className="max-w-3xl mx-auto">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0">
+                        <UploadCloud size={14} className="text-gray-700" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="serif text-[15px] text-gray-900 truncate leading-tight">{cleanFileName(uploadingFile.name)}</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5 tracking-wide">{uploadingFile.sizeKb}kb · uploading</p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-gray-900 text-xs font-medium truncate">{cleanFileName(uploadingFile.name)}</p>
-                      <p className="text-gray-400 text-[11px]">{uploadingFile.sizeKb}kb · uploading</p>
-                    </div>
+                    <span className="text-gray-700 text-sm font-medium tabular-nums ml-3 flex-shrink-0">{uploadProgress}%</span>
                   </div>
-                  <span className="text-gray-700 text-xs font-medium tabular-nums ml-3 flex-shrink-0">{uploadProgress}%</span>
-                </div>
-                <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-gray-900 transition-all duration-150 ease-out rounded-full" style={{ width: `${uploadProgress}%` }} />
+                  <div className="h-[3px] w-full bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-gray-900 transition-all duration-150 ease-out rounded-full" style={{ width: `${uploadProgress}%` }} />
+                  </div>
                 </div>
               </div>
             )}
-            <div className="flex-1 overflow-y-auto p-8">
+
+            {/* Body */}
+            <div className="max-w-3xl mx-auto w-full px-6 md:px-12 py-8">
               {loadingMods ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {[0,1,2].map(i => (
-                    <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">
-                      <div className="w-9 h-9 rounded-lg bg-gray-100 mb-3" />
-                      <div className="h-3 bg-gray-100 rounded w-3/4 mb-2" />
-                      <div className="h-3 bg-gray-50 rounded w-1/2" />
+                <div className="flex flex-col gap-2.5">
+                  {[0, 1, 2].map(i => (
+                    <div key={i} className="flex items-center gap-4 px-5 py-4 rounded-2xl bg-white border border-gray-200/80 animate-pulse">
+                      <div className="w-11 h-11 rounded-xl bg-gray-100" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3 bg-gray-100 rounded w-2/3" />
+                        <div className="h-2 bg-gray-50 rounded w-1/3" />
+                      </div>
                     </div>
                   ))}
                 </div>
               ) : mods.length === 0 ? (
-                <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
-                  onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }} onClick={() => fileRef.current.click()}
-                  className={`flex flex-col items-center justify-center text-center px-6 py-14 rounded-2xl border-2 border-dashed cursor-pointer transition-all ${dragOver ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
-                  <div className="w-12 h-12 rounded-2xl bg-gray-900 mb-4 flex items-center justify-center"><UploadCloud size={20} className="text-white" /></div>
-                  <h2 className="serif text-xl text-gray-900 mb-2">{dragOver ? 'Drop to upload' : 'Drop in your first material'}</h2>
-                  <p className="text-gray-500 text-sm max-w-sm leading-relaxed mb-1">Start with your syllabus — students will be able to ask about deadlines, late policy, and grading the moment you upload it.</p>
-                  <p className="text-gray-400 text-xs mt-3">Drag and drop or click · PDF, JPG, PNG</p>
+                <div className="text-center py-20">
+                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#F3F2EF] mb-5"><UploadCloud size={22} className="text-gray-400" /></div>
+                  <h3 className="serif text-[26px] text-gray-900 leading-none tracking-tight">Start with your syllabus<span className="italic">.</span></h3>
+                  <p className="text-[14px] text-gray-500 mt-3 max-w-sm mx-auto leading-relaxed">Drop it in and your students can ask about deadlines, late policy, and grading the moment it's live. <span className="italic">Drag a file anywhere on the page</span> — or click Upload.</p>
+                  <button onClick={() => fileRef.current.click()} className="mt-7 inline-flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white text-[13px] font-medium px-5 py-2.5 rounded-full transition-colors">
+                    <UploadCloud size={14} />Upload your first file
+                  </button>
                 </div>
               ) : (
-                <div>
-                  <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
-                    onDrop={e => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }} onClick={() => fileRef.current.click()}
-                    className={`mb-6 flex items-center gap-3 px-5 py-3 rounded-xl border border-dashed cursor-pointer transition-all ${dragOver ? 'border-gray-400 bg-gray-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                    <UploadCloud size={14} className="text-gray-300" /><span className="text-gray-400 text-xs">Drop another file — PDF or image</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {mods.map(m => (
-                      <div key={m.id} className="group bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-300 hover:shadow-sm transition-all">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="w-9 h-9 rounded-lg bg-gray-900 flex items-center justify-center">
-                            {/\.(jpg|jpeg|png|webp)$/i.test(m.name) ? <span className="text-white text-[10px] font-bold">IMG</span> : <FileText size={14} className="text-white" />}
+                <>
+                  {/* Drop zone — small, refined, between header and list */}
+                  <button onClick={() => fileRef.current.click()} className="group/drop w-full mb-5 flex items-center gap-3 px-5 py-4 rounded-2xl border-2 border-dashed border-gray-200 hover:border-gray-400 bg-white/40 hover:bg-white transition-all">
+                    <div className="w-9 h-9 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0 group-hover/drop:bg-gray-100 transition-colors"><UploadCloud size={14} className="text-gray-500" /></div>
+                    <div className="flex flex-col items-start min-w-0">
+                      <span className="serif text-[15px] text-gray-800 leading-tight">Drop another file</span>
+                      <span className="text-[11px] text-gray-400 mt-0.5 tracking-wide">PDF · JPG · PNG — or paste from clipboard</span>
+                    </div>
+                  </button>
+
+                  {/* File rows — editorial list, same shape as My Notes on the student side */}
+                  <div className="flex flex-col gap-2.5">
+                    {mods.map(m => {
+                      const isImage = /\.(jpg|jpeg|png|webp)$/i.test(m.name);
+                      const sizeKb = m.sizeKb || 0;
+                      return (
+                        <div key={m.id} className="group flex items-center gap-4 px-5 py-4 rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04)] transition-all">
+                          <div className="w-11 h-11 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0">
+                            {isImage ? <span className="text-gray-700 text-[10px] font-bold tracking-wider">IMG</span> : <FileText size={17} className="text-gray-700" />}
                           </div>
-                          <button onClick={() => onDelete(m)} className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-400 transition-all"><Trash2 size={12} /></button>
+                          <div className="min-w-0 flex-1">
+                            <p className="serif text-[16px] text-gray-900 leading-tight truncate">{cleanFileName(m.name)}</p>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100">
+                                <span className="block w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                <span className="text-[10px] font-semibold tracking-[.1em] uppercase text-emerald-700">Live</span>
+                              </span>
+                              <span className="text-gray-300">·</span>
+                              <span className="text-[11px] text-gray-400 tabular-nums">{sizeKb}kb</span>
+                              <span className="text-gray-300">·</span>
+                              <span className="text-[11px] text-gray-400">{formatRelativeDate(m.uploaded)}</span>
+                            </div>
+                          </div>
+                          <button onClick={() => onDelete(m)} aria-label="Delete file" className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={14} /></button>
                         </div>
-                        <p className="text-gray-900 text-sm font-medium line-clamp-2">{cleanFileName(m.name)}</p>
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                          <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><span className="text-[11px] text-gray-400">Live</span></div>
-                          <span className="text-[11px] text-gray-300">{m.sizeKb || 0}kb · {formatRelativeDate(m.uploaded)}</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
-                </div>
+                </>
               )}
             </div>
-          </>
-        ) : <CourseInsights course={course} token={token} onSwitchToMaterials={() => setActiveTab('materials')} />}
+          </div>
+        ) : (
+          <CourseInsights course={course} token={token} onSwitchToMaterials={() => setActiveTab('materials')} />
+        )}
       </main>
+
       {toast && (
-        <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-xl text-white text-xs font-medium shadow-xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
+        <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-2xl text-white text-[13px] font-medium shadow-xl z-50 ${toast.type === 'error' ? 'bg-red-500' : 'bg-gray-900'}`}>
           {toast.type === 'error' ? <AlertCircle size={13} /> : <CheckCircle2 size={13} />}{toast.msg}
         </div>
       )}
