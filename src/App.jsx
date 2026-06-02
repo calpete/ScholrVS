@@ -1621,9 +1621,16 @@ function CourseManager({ token, course, onBack, authHeaders }) {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+                  {/* Hidden file input — the upload card's onClick triggers
+                      its `click()` to open the OS picker. Got accidentally
+                      dropped in the sidebar-removal restructure; without
+                      this in the DOM, fileRef.current is null and the
+                      upload card does nothing on click. */}
+                  <input type="file" ref={fileRef} onChange={e => { handleFile(e.target.files[0]); e.target.value = ''; }} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+
                   {/* ── UPLOAD COLUMN — sticky on desktop, vertical card ── */}
                   <div className="lg:col-span-4 lg:sticky lg:top-8 self-start">
-                    <button onClick={() => fileRef.current.click()} disabled={uploading} className="group/drop relative w-full block text-left overflow-hidden disabled:opacity-60">
+                    <button onClick={() => fileRef.current?.click()} disabled={uploading} className="group/drop relative w-full block text-left overflow-hidden disabled:opacity-60">
                       <div className="relative border-2 border-dashed border-gray-200 group-hover/drop:border-[#2A4D8F]/50 bg-white rounded-[28px] px-7 py-8 transition-all overflow-hidden">
                         {/* Indigo hover halo — top-right */}
                         <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-[#2A4D8F] opacity-0 group-hover/drop:opacity-[0.10] blur-3xl transition-opacity duration-500 pointer-events-none" />
