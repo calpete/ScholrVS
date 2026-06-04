@@ -56,13 +56,14 @@ const MODEL = 'gemini-2.5-flash';            // heavy generation: quiz / test / 
 // segment at the end" after a few characters). Production logs show this
 // firing reliably. Until we bump @google/genai to a recent release and
 // re-test, run chat on the proven 2.5-flash. RAG keeps us at ~3s anyway.
-// Chat generation moved to OpenAI gpt-4o-mini. Gemini was over-escaping
-// LaTeX backslashes (\\text, \\frac) and tangling with markdown bold/$$,
-// producing broken math no matter how many post-process regex layers we
-// stacked. GPT-4o-mini emits clean Markdown+LaTeX, is faster TTFT, and the
-// SDK is rock-solid. Quiz / test / cards / debrief still run on Gemini —
-// they don't have the math-rendering issue.
-const MODEL_CHAT = 'gpt-4o-mini';
+// Chat generation runs on OpenAI gpt-4o. Gemini was over-escaping LaTeX
+// backslashes and tangling with markdown; gpt-4o-mini fixed the escaping
+// but ignored the "no formulas inside list items" rule. gpt-4o follows
+// formatting instructions reliably and writes more thorough answers — the
+// extra cost is small at our scale and saves us from chasing one prompt-
+// adherence bug after another. Quiz / test / cards / debrief still run on
+// Gemini — they don't have the math-rendering issue.
+const MODEL_CHAT = 'gpt-4o';
 const MODEL_EMBED = 'text-embedding-004';    // 768-dim embeddings for retrieval
 
 const ai = new GoogleGenAI({ vertexai: true, project: PROJECT, location: LOCATION });
@@ -752,6 +753,24 @@ function rewriteEquations(text) {
   text = text.replace(
     /\\{2,}(?=(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)\b)/g,
     '\\'
+  );
+
+  // Lift any `$$...$$` block out of a list item. Markdown renderers don't
+  // reliably parse math blocks embedded inline in `1. ` or `- ` list-item
+  // lines — they need to live as their own paragraph. Models routinely
+  // ignore the "never embed a formula in a bullet" prompt rule and write
+  // `1. **Label:** $$\text{...}$$`, which renders as raw text. So we
+  // detect that pattern and split it into a label line and a standalone
+  // math paragraph below.
+  // Use [ \t] (horizontal whitespace) instead of \s — \s would match \n and
+  // let the regex slurp into the next line through the trailing `\s*$`.
+  text = text.replace(
+    /^([ \t]*(?:\d+\.|[-*])[ \t]+)([^\n$]*?)[ \t]*(\$\$[^\n]+?\$\$)[ \t]*([^\n]*?)[ \t]*$/gm,
+    (_, marker, before, math, after) => {
+      const trailing = after.trim();
+      const labelLine = (marker + before.trim() + (trailing ? ' ' + trailing : '')).trimEnd();
+      return `${labelLine}\n\n${math}\n`;
+    }
   );
 
   // Then also collapse anything left inside already-wrapped math blocks
