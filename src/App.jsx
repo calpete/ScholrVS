@@ -336,6 +336,17 @@ function MarkdownMessage({ content }) {
     // so e.g. \textbf{77.25%} becomes proper **bold** instead of a parse error.
     .replace(/\\textbf\{([^{}]*)\}/g, '**$1**')
     .replace(/\\textit\{([^{}]*)\}/g, '*$1*')
+    // Currency rescue: when Gemini writes "$0.50" or "**$250**" the lone $
+    // opens math mode and tangles with the surrounding markdown — the
+    // visible result is broken bold + math fragments. Escape any $ that's
+    // immediately followed by a digit (currency-shaped) so it stays literal
+    // text. Real LaTeX math variables lead with letters or backslashes, so
+    // legitimate equations are untouched.
+    .replace(/\$(?=\d)/g, '\\$')
+    // Strip filler openers — the prompt says no filler but models still
+    // slip "Alright, let's…" / "Sure! Let's dive into…" past the system
+    // message sometimes. Cleaner to strip than to refight the prompt.
+    .replace(/^(Alright|Sure|Okay|Ok|Great|Got it),?\s*(let'?s\s+(?:dive\s+into|break\s+(?:this|that|it)\s+down|take\s+a\s+look|explore|unpack|go\s+through|walk\s+through))[^.!?\n]*[.!?]\s*/i, '')
     // Strip inline page citations like "(p. 6)" / "(pp. 12-14)" / "(page 6)" —
     // the source is shown below the answer instead. Cleans new and old messages.
     .replace(/\s*\((?:pp?\.?|page)\s*\d[\d\s,&\-–]*\)/gi, '')
