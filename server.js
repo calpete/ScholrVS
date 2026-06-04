@@ -734,7 +734,12 @@ function rewriteEquations(text) {
   if (!text) return text;
   const lines = text.split('\n');
   const out = [];
-  const mathCmdRe = /\\(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)\b/;
+  // Match ONE OR MORE backslashes before the command. Gemini sometimes
+  // emits "\\text{...}" (double-escaped) when it tries to follow markdown
+  // backslash-escape rules. We catch both \text (correct) and \\text
+  // (over-escaped), and collapse the runs to a single \ in the math
+  // output below so KaTeX gets clean LaTeX.
+  const mathCmdRe = /\\+(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)\b/;
 
   for (const line of lines) {
     // Skip lines without any math command
@@ -755,8 +760,12 @@ function rewriteEquations(text) {
     const prefix = rawPrefix.replace(/\s*\\?\s*$/, '').trimEnd();
 
     // Math portion = from the command to end of line, minus orphan $$.
+    // Collapse runs of multiple backslashes back to one — KaTeX expects
+    // \text, not \\text. Then strip the trailing $$ Gemini sometimes
+    // tacks on, and escape any % so KaTeX doesn't treat it as a comment.
     const math = line
       .slice(matchIdx)
+      .replace(/\\{2,}/g, '\\')      // collapse \\text → \text
       .replace(/\$+\s*$/, '')        // strip trailing $$
       .replace(/(?<!\\)%/g, '\\%')   // escape unescaped %
       .trim();
@@ -1701,6 +1710,20 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
         console.log(`🧹 Rewrite applied to chat response (${rawText.length} → ${fullText.length} chars)`);
       } else {
         console.log(`🧹 Rewrite no-op for chat response (${rawText.length} chars)`);
+        // If the no-op surfaces but the text actually contains LaTeX, dump
+        // the relevant line so we can see the EXACT bytes the regex is
+        // failing to match against.
+        if (/\\(?:text|frac|sum)/.test(rawText)) {
+          const offendingLine = rawText.split('\n').find(l => /\\(?:text|frac|sum)/.test(l)) || '';
+          const chars = offendingLine.slice(0, 200).split('').map(c => {
+            const code = c.charCodeAt(0);
+            if (c === '\\') return '\\\\';
+            if (c === '\n') return '\\n';
+            if (code < 32 || code > 126) return `\\u${code.toString(16).padStart(4, '0')}`;
+            return c;
+          }).join('');
+          console.log(`📝 OFFENDING LINE BYTES: ${chars}`);
+        }
       }
     } catch (e) {
       console.error(`Rewrite threw — falling back to raw text: ${e.message}`);
