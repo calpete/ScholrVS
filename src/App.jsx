@@ -347,6 +347,21 @@ function MarkdownMessage({ content }) {
     // text. Real LaTeX math variables lead with letters or backslashes, so
     // legitimate equations are untouched.
     .replace(/\$(?=\s*\*{0,3}\s*[.\d])/g, '\\$')
+    // Math-mode rescue: when Gemini writes \frac{}{} or \text{} without
+    // wrapping the equation in $$ ... $$, KaTeX never sees it and the
+    // student sees raw "\frac" text. Detect lines that contain LaTeX
+    // commands but have no $ delimiters, and wrap them in $$ block math
+    // so they render. Only triggers for lines that START with a math
+    // command (possibly after whitespace or a bold/italic marker), to
+    // avoid clobbering normal prose that mentions a backslash.
+    .replace(
+      /^([ \t]*)([*_]{0,3})(\\(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|leq|geq|neq|approx|cdot|times|div)[^\n$]*)$/gm,
+      (m, indent, marker, math) => {
+        // If the line already contains a $ pair, don't touch it.
+        if ((math.match(/\$/g) || []).length >= 2) return m;
+        return `${indent}${marker}$$${math.trim()}$$`;
+      }
+    )
     // Defensive belt: also kill any LONE $ that has matching content
     // running for >40 chars with no close — that's a clear sign math mode
     // got accidentally opened and is eating prose. Escape both ends.
