@@ -347,35 +347,32 @@ function MarkdownMessage({ content }) {
     // text. Real LaTeX math variables lead with letters or backslashes, so
     // legitimate equations are untouched.
     .replace(/\$(?=\s*\*{0,3}\s*[.\d])/g, '\\$')
-    // Math-mode rescue, take 2 — the model keeps jamming equations INSIDE
-    // bullets after a "**Label:**" prefix, where the previous start-of-
-    // line regex didn't trigger. Two patterns now:
+    // Math-mode rescue, take 3 — single aggressive regex that catches
+    // ANY line containing a LaTeX command (\frac, \text, \sum, etc.)
+    // that isn't already inside $...$ inline math. Lifts the equation
+    // onto its own line and wraps it in $$ ... $$ so KaTeX renders it.
     //
-    //   A) Bullet-with-equation: "- **Label:** \text{X} = \frac{a}{b} $$"
-    //      Lift the equation out, render it as its own block math line
-    //      under the bullet label.
-    //   B) Plain line starting with a LaTeX command (the original case)
-    //      — wrap it in $$ block math.
-    //
-    // Both also escape any unescaped % inside the captured math so KaTeX
-    // doesn't treat it as a LaTeX comment and silently break the render.
+    // The previous specific patterns kept missing variants (label
+    // crammed with equation, leading "\ " filler before the command,
+    // multiple nested {...} braces in \frac arguments). This version
+    // just looks for "anything-then-a-math-command-to-end-of-line"
+    // and only bails if the line already has properly-paired inline
+    // $...$ math (in which case the original is correct).
     .replace(
-      /^([ \t]*[-*][ \t]+\*\*[^*\n]+:\*\*)\s*\\?\s*(\\(?:text|frac|sum|prod|int|sqrt|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla)[^\n]*?)\s*\$*\s*$/gm,
-      (m, label, equation) => {
-        const clean = equation
+      /^(.*?)\s*\\?\s*(\\(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)[^\n]*?)(\s*\$+)?\s*$/gm,
+      (m, before, math) => {
+        // Skip if before already has $ — line probably has inline math
+        // we shouldn't double-wrap.
+        if (before.includes('$')) return m;
+        const cleanMath = math
           .replace(/\$+/g, '')
           .replace(/(?<!\\)%/g, '\\%')
           .trim();
-        if (!clean) return m;
-        return `${label}\n\n$$${clean}$$\n`;
-      }
-    )
-    .replace(
-      /^([ \t]*)([*_]{0,3})(\\(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|leq|geq|neq|approx|cdot|times|div)[^\n$]*)$/gm,
-      (m, indent, marker, math) => {
-        if ((math.match(/\$/g) || []).length >= 2) return m;
-        const clean = math.replace(/(?<!\\)%/g, '\\%').trim();
-        return `${indent}${marker}$$${clean}$$`;
+        if (!cleanMath || cleanMath.length < 5) return m;
+        const cleanBefore = before.trimEnd();
+        return cleanBefore
+          ? `${cleanBefore}\n\n$$${cleanMath}$$`
+          : `$$${cleanMath}$$`;
       }
     )
     // Defensive belt: also kill any LONE $ that has matching content
@@ -3499,6 +3496,16 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                 : c
               ));
               scrollToBottom();
+            } else if (event.type === 'rewrite') {
+              // Server-side cleanup pass — replace the streamed text with
+              // a cleaned version (e.g. equations lifted out of bullets,
+              // unescaped % escaped). Belt-and-suspenders alongside the
+              // client renderer fixes.
+              fullText = event.content;
+              setChats(prev => prev.map(c => c.id === currentChatId
+                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: event.content } : m) }
+                : c
+              ));
             } else if (event.type === 'sources') {
               finalSources = event.sources;
               setChats(prev => prev.map(c => c.id === currentChatId

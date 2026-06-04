@@ -721,6 +721,29 @@ async function searchChunks(courseId, question, k = 6) {
   return data || [];
 }
 
+// Same math-rescue transformation the client MarkdownMessage runs, applied
+// on the server so the saved assistant message text (DB + chat reload) is
+// also clean. Catches the "equation jammed inside a bullet" pattern Gemini
+// keeps emitting despite the prompt forbidding it.
+function rewriteEquations(text) {
+  if (!text) return text;
+  return text.replace(
+    /^(.*?)\s*\\?\s*(\\(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)[^\n]*?)(\s*\$+)?\s*$/gm,
+    (m, before, math) => {
+      if (before.includes('$')) return m;
+      const cleanMath = math
+        .replace(/\$+/g, '')
+        .replace(/(?<!\\)%/g, '\\%')
+        .trim();
+      if (!cleanMath || cleanMath.length < 5) return m;
+      const cleanBefore = before.trimEnd();
+      return cleanBefore
+        ? `${cleanBefore}\n\n$$${cleanMath}$$`
+        : `$$${cleanMath}$$`;
+    }
+  );
+}
+
 // Lazy backfill: the first time the chat endpoint sees a course with no
 // chunks yet, we kick off indexing in the background. The current question
 // falls back to whole-library mode, but every subsequent question on the
@@ -1646,10 +1669,22 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
     const sources = docNames;
     const confident = !fullText.toLowerCase().includes("doesn't appear to be in any of your uploaded");
 
+    // ── REWRITE PASS — same math rescue the client renderer does, applied
+    // on the server so the SAVED message (the one that gets stored and
+    // shown again on chat reload) is also clean. Catches the "equation
+    // jammed inside a bullet" pattern Gemini keeps producing. We emit a
+    // `rewrite` event so the live UI replaces the streamed broken text
+    // with the cleaned version — works regardless of frontend bundle
+    // caching.
+    const rewrittenText = rewriteEquations(fullText);
+
     try {
       await supabase.from('questions').insert({ course_id: courseId, question: message, confident });
     } catch (e) { console.warn('Question log failed:', e.message); }
 
+    if (rewrittenText !== fullText) {
+      safeWrite(`data: ${JSON.stringify({ type: 'rewrite', content: rewrittenText })}\n\n`);
+    }
     safeWrite(`data: ${JSON.stringify({ type: 'sources', sources })}\n\n`);
     safeWrite(`data: ${JSON.stringify({ type: 'done', truncated: streamCutOff })}\n\n`);
     safeEnd();
