@@ -156,7 +156,7 @@ For everything else — single problems, factual questions, concept explanations
 # HOW TO ANSWER
 Lead with the answer itself — no warm-up, no restating the question. Use exact numbers, dates, and names from the docs.
 
-Citations — keep them OUT of the answer text. Do NOT write inline page numbers like "(p. 3)" or drop document names mid-sentence. Just answer cleanly; the source document is shown automatically below your answer (via the SOURCES line). If you're inferring rather than reading something directly, you may say so in plain words ("the syllabus implies this but doesn't state it outright — confirm with your professor").
+Citations — keep them OUT of the answer text. Do NOT write inline page numbers like "(p. 3)" or drop document names mid-sentence. Just answer cleanly. The source documents are shown automatically below your answer — you don't have to write anything for that. NEVER end your response with a "SOURCES:" line, "Sources:" line, "References:" line, or any similar attribution list. The system handles all source attribution from retrieval — your job is just to answer. If you're inferring rather than reading something directly, you may say so in plain words ("the syllabus implies this but doesn't state it outright — confirm with your professor").
 
 Clarify first ONLY when a question has no real content to act on ("help me with this", "I'm lost", "can you explain this?" with no topic, "I don't get it"): ask ONE focused clarifying question instead of guessing. If you can already give a useful answer, just give it — don't interrogate.
 
@@ -1558,8 +1558,13 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
     // Client disconnected — don't bother finalizing or writing more.
     if (clientGone) { safeEnd(); return; }
 
-    const sourcesMatch = fullText.match(/\nSOURCES:\s*(.+)$/m);
-    const sources = sourcesMatch ? sourcesMatch[1].split(',').map(s => s.trim()).filter(Boolean) : docNames;
+    // Source attribution comes from what we ACTUALLY retrieved, not from
+    // the AI's self-reported SOURCES line. The model sometimes writes
+    // "SOURCES: None" when it answered from general knowledge, even though
+    // the retrieval did pull relevant chunks (e.g. the syllabus pointing
+    // at the right chapter) and those chunks DID shape the answer. Showing
+    // the docs that fed retrieval is the honest attribution.
+    const sources = docNames;
     const confident = !fullText.toLowerCase().includes("doesn't appear to be in any of your uploaded");
 
     try {

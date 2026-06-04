@@ -330,7 +330,10 @@ function LoadingScreen({ label }) {
 
 function MarkdownMessage({ content }) {
   const clean = content
-    .replace(/\nSOURCES:.*$/m, '')
+    // Strip any trailing attribution block the model might emit despite the
+    // prompt telling it not to. Catches "SOURCES:", "Sources:", "References:",
+    // and similar variants, plus any whitespace between the answer and them.
+    .replace(/\n+\s*(?:SOURCES|Sources|REFERENCES|References|CITATIONS|Citations)\s*:.*$/s, '')
     // LLMs sometimes emit LaTeX text-styling commands outside math mode, where
     // KaTeX renders them as broken red text. Convert the common ones to Markdown
     // so e.g. \textbf{77.25%} becomes proper **bold** instead of a parse error.
