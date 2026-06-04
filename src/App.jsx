@@ -1283,9 +1283,36 @@ function ProfessorDashboard({ token, user, onLogout }) {
   const [copied, setCopied] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [patternPicker, setPatternPicker] = useState(null); // course whose cover is being chosen
+  const [cleaningUp, setCleaningUp] = useState(false);
 
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
   const authHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+
+  // Sweep the buckets for blobs whose course no longer exists. One-shot
+  // cleanup for the orphans left by courses deleted before on-delete blob
+  // cleanup shipped. Safe to run any time — only deletes blobs with no
+  // matching live course.
+  const cleanUpOrphans = async () => {
+    if (cleaningUp) return;
+    setCleaningUp(true);
+    showToast('Cleaning up unused files…');
+    try {
+      const res = await fetch(`${API}/admin/cleanup-orphans`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        const n = data.totalCleaned || 0;
+        showToast(n === 0 ? 'All clean — no orphan files found.' : `Cleaned up ${n} unused file${n === 1 ? '' : 's'}.`);
+      } else {
+        showToast('Cleanup failed — try again', 'error');
+      }
+    } catch {
+      showToast('Could not reach the server', 'error');
+    }
+    setCleaningUp(false);
+  };
 
   useEffect(() => {
     fetch(`${API}/professor/courses`, { headers: authHeaders })
@@ -1423,6 +1450,28 @@ function ProfessorDashboard({ token, user, onLogout }) {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+        {/* Subtle utility footer — one-click sweep for orphaned PDF blobs
+            left behind by courses deleted before on-delete cleanup
+            shipped. Quiet by design; this is plumbing, not a feature. */}
+        {courses.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 36, paddingBottom: 32 }}>
+            <button
+              onClick={cleanUpOrphans}
+              disabled={cleaningUp}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '6px 12px', borderRadius: 999,
+                background: 'transparent', border: '1px solid var(--line)',
+                color: 'var(--muted)', fontSize: 11.5, letterSpacing: '.04em',
+                cursor: cleaningUp ? 'wait' : 'pointer', opacity: cleaningUp ? 0.6 : 1,
+                transition: 'all .15s ease',
+              }}
+              onMouseEnter={e => { if (!cleaningUp) { e.currentTarget.style.color = 'var(--ink)'; e.currentTarget.style.borderColor = 'var(--ink)'; } }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.borderColor = 'var(--line)'; }}>
+              {cleaningUp ? 'Cleaning…' : 'Clean up unused files'}
+            </button>
           </div>
         )}
       </div>
