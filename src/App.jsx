@@ -347,34 +347,36 @@ function MarkdownMessage({ content }) {
     // text. Real LaTeX math variables lead with letters or backslashes, so
     // legitimate equations are untouched.
     .replace(/\$(?=\s*\*{0,3}\s*[.\d])/g, '\\$')
-    // Math-mode rescue, take 3 — single aggressive regex that catches
-    // ANY line containing a LaTeX command (\frac, \text, \sum, etc.)
-    // that isn't already inside $...$ inline math. Lifts the equation
-    // onto its own line and wraps it in $$ ... $$ so KaTeX renders it.
-    //
-    // The previous specific patterns kept missing variants (label
-    // crammed with equation, leading "\ " filler before the command,
-    // multiple nested {...} braces in \frac arguments). This version
-    // just looks for "anything-then-a-math-command-to-end-of-line"
-    // and only bails if the line already has properly-paired inline
-    // $...$ math (in which case the original is correct).
-    .replace(
-      /^(.*?)\s*\\?\s*(\\(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)[^\n]*?)(\s*\$+)?\s*$/gm,
-      (m, before, math) => {
-        // Skip if before already has $ — line probably has inline math
-        // we shouldn't double-wrap.
-        if (before.includes('$')) return m;
-        const cleanMath = math
-          .replace(/\$+/g, '')
+    // Math-mode rescue, take 4 — line-by-line scan. For each line, find
+    // the first LaTeX command (\frac, \text, \sum, etc.), then wrap
+    // everything from that command to end-of-line in $$ block math.
+    // Anything before the command (bullet markers, bold labels, prose)
+    // is preserved on its own line above. Skips lines already wrapped
+    // in matched $$ pairs or proper $...$ inline pairs.
+    .replace(/^[\s\S]*$/, (text) => {
+      const lines = text.split('\n');
+      const out = [];
+      const mathCmdRe = /\\(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)\b/;
+      for (const line of lines) {
+        const matchIdx = line.search(mathCmdRe);
+        if (matchIdx === -1) { out.push(line); continue; }
+        // Already properly wrapped in matched $$?
+        const dollarPairs = (line.match(/\$\$/g) || []).length;
+        if (dollarPairs >= 2 && dollarPairs % 2 === 0) { out.push(line); continue; }
+        // Or in proper $...$ inline pairs?
+        const singleDollars = (line.replace(/\$\$/g, '').match(/\$/g) || []).length;
+        if (singleDollars >= 2 && singleDollars % 2 === 0) { out.push(line); continue; }
+        const prefix = line.slice(0, matchIdx).replace(/\s*\\?\s*$/, '').trimEnd();
+        const math = line.slice(matchIdx)
+          .replace(/\$+\s*$/, '')
           .replace(/(?<!\\)%/g, '\\%')
           .trim();
-        if (!cleanMath || cleanMath.length < 5) return m;
-        const cleanBefore = before.trimEnd();
-        return cleanBefore
-          ? `${cleanBefore}\n\n$$${cleanMath}$$`
-          : `$$${cleanMath}$$`;
+        if (!math || math.length < 5) { out.push(line); continue; }
+        if (prefix) { out.push(prefix); out.push(''); out.push(`$$${math}$$`); }
+        else { out.push(`$$${math}$$`); }
       }
-    )
+      return out.join('\n');
+    })
     // Defensive belt: also kill any LONE $ that has matching content
     // running for >40 chars with no close — that's a clear sign math mode
     // got accidentally opened and is eating prose. Escape both ends.

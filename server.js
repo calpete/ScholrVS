@@ -721,27 +721,57 @@ async function searchChunks(courseId, question, k = 6) {
   return data || [];
 }
 
-// Same math-rescue transformation the client MarkdownMessage runs, applied
-// on the server so the saved assistant message text (DB + chat reload) is
-// also clean. Catches the "equation jammed inside a bullet" pattern Gemini
-// keeps emitting despite the prompt forbidding it.
+// Aggressive math-rescue transformation the client MarkdownMessage also
+// runs. Applied here on the server so the saved assistant message text
+// (DB + chat reload) is also clean. Catches every variant of the
+// "equation written without $$ wrapping" pattern Gemini keeps emitting:
+//   - "**Label:** \frac{a}{b}" inside a bullet
+//   - "\ \text{...} = \frac{...}{...} $$" on its own line with leading filler
+//   - Plain "\text{...}" or "\frac{...}{...}" on its own line
+// Goes line by line, finds the first LaTeX command, wraps everything from
+// that command to end-of-line (minus stray $$) in proper block math.
 function rewriteEquations(text) {
   if (!text) return text;
-  return text.replace(
-    /^(.*?)\s*\\?\s*(\\(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)[^\n]*?)(\s*\$+)?\s*$/gm,
-    (m, before, math) => {
-      if (before.includes('$')) return m;
-      const cleanMath = math
-        .replace(/\$+/g, '')
-        .replace(/(?<!\\)%/g, '\\%')
-        .trim();
-      if (!cleanMath || cleanMath.length < 5) return m;
-      const cleanBefore = before.trimEnd();
-      return cleanBefore
-        ? `${cleanBefore}\n\n$$${cleanMath}$$`
-        : `$$${cleanMath}$$`;
+  const lines = text.split('\n');
+  const out = [];
+  const mathCmdRe = /\\(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)\b/;
+
+  for (const line of lines) {
+    // Skip lines without any math command
+    const matchIdx = line.search(mathCmdRe);
+    if (matchIdx === -1) { out.push(line); continue; }
+
+    // Skip lines that are ALREADY properly wrapped in matched $$ pairs
+    const dollarPairs = (line.match(/\$\$/g) || []).length;
+    if (dollarPairs >= 2 && dollarPairs % 2 === 0) { out.push(line); continue; }
+
+    // Skip lines with single-$ math wrapping (inline math we don't want to break)
+    const singleDollars = (line.replace(/\$\$/g, '').match(/\$/g) || []).length;
+    if (singleDollars >= 2 && singleDollars % 2 === 0) { out.push(line); continue; }
+
+    // Identify the "prefix" — everything before the first math command.
+    // Strip trailing " \ " filler that the model often writes before math.
+    const rawPrefix = line.slice(0, matchIdx);
+    const prefix = rawPrefix.replace(/\s*\\?\s*$/, '').trimEnd();
+
+    // Math portion = from the command to end of line, minus orphan $$.
+    const math = line
+      .slice(matchIdx)
+      .replace(/\$+\s*$/, '')        // strip trailing $$
+      .replace(/(?<!\\)%/g, '\\%')   // escape unescaped %
+      .trim();
+
+    if (!math || math.length < 5) { out.push(line); continue; }
+
+    if (prefix) {
+      out.push(prefix);
+      out.push('');
+      out.push(`$$${math}$$`);
+    } else {
+      out.push(`$$${math}$$`);
     }
-  );
+  }
+  return out.join('\n');
 }
 
 // Lazy backfill: the first time the chat endpoint sees a course with no
