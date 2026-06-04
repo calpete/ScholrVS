@@ -957,26 +957,22 @@ app.delete('/professor/courses/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// One-time sweep — finds and deletes blobs in Supabase Storage AND GCS
-// whose course_id doesn't appear in the courses table. Useful for cleaning
-// up after courses that were deleted before the on-delete blob cleanup
-// (above) shipped. Safe to run repeatedly — it only deletes blobs that
-// can't possibly belong to a live course anymore.
-app.post('/admin/cleanup-orphans', requireAuth, async (req, res) => {
+// Walk Supabase Storage AND GCS for blobs belonging to courses that no
+// longer exist in the database, and delete them. Safe to run repeatedly —
+// only touches blobs that can't possibly match any live course.
+async function sweepOrphanBlobs() {
   const { data: courses } = await supabase.from('courses').select('id');
   const liveIds = new Set((courses || []).map(c => c.id));
-
   const report = { liveCourses: liveIds.size, supabase: [], gcs: [] };
 
-  // ── Supabase Storage sweep
-  // The `documents` bucket is structured as <courseId>/<filename>. We list
-  // the top-level folders, drop any whose name isn't in liveIds, and
+  // ── Supabase Storage sweep ──
+  // The `documents` bucket is structured as <courseId>/<filename>. List
+  // the top-level folders, drop any whose name isn't in liveIds,
   // recursively delete their contents.
   try {
     const { data: folders } = await supabase.storage.from('documents').list('', { limit: 1000 });
     for (const folder of folders || []) {
-      // Folder entries have a null `id` field; real files have a uuid id.
-      if (folder.id) continue;
+      if (folder.id) continue; // skip files at root
       const courseId = folder.name;
       if (liveIds.has(courseId)) continue;
       const { data: files } = await supabase.storage.from('documents').list(courseId, { limit: 1000 });
@@ -991,10 +987,9 @@ app.post('/admin/cleanup-orphans', requireAuth, async (req, res) => {
     console.error('Supabase orphan sweep error:', e.message);
   }
 
-  // ── GCS sweep
-  // GCS objects live at courses/<courseId>/<filename>. List everything under
-  // the courses/ prefix, group by course_id, delete the ones with no live
-  // matching row.
+  // ── GCS sweep ──
+  // Objects live at courses/<courseId>/<filename>. Group by course_id,
+  // delete groups with no matching live course.
   if (gcs) {
     try {
       const [files] = await gcs.bucket(GCS_BUCKET).getFiles({ prefix: 'courses/' });
@@ -1017,8 +1012,19 @@ app.post('/admin/cleanup-orphans', requireAuth, async (req, res) => {
   }
 
   const totalCleaned = report.supabase.reduce((a, x) => a + x.files, 0) + report.gcs.reduce((a, x) => a + x.files, 0);
-  console.log(`🧹 Orphan sweep complete — ${totalCleaned} blob(s) cleaned across ${report.supabase.length + report.gcs.length} dead course(s)`);
-  res.json({ success: true, totalCleaned, ...report });
+  if (totalCleaned > 0) {
+    console.log(`🧹 Orphan sweep — cleaned ${totalCleaned} blob(s) across ${report.supabase.length + report.gcs.length} dead course(s)`);
+  } else {
+    console.log('🧹 Orphan sweep — nothing to clean');
+  }
+  return { totalCleaned, ...report };
+}
+
+// Manual endpoint (kept as an escape hatch — the automatic boot-time sweep
+// below is the primary path).
+app.post('/admin/cleanup-orphans', requireAuth, async (req, res) => {
+  const report = await sweepOrphanBlobs();
+  res.json({ success: true, ...report });
 });
 
 app.get('/course/:idOrCode', async (req, res) => {
@@ -1882,4 +1888,11 @@ app.get('/health/deep', async (req, res) => {
 app.listen(PORT, async () => {
   console.log(`✅ ScholrAI running on port ${PORT}`);
   await loadAllDocumentsFromStorage();
+  // Run an orphan sweep ~10s after boot so any storage blobs left behind
+  // by courses deleted before on-delete cleanup shipped get cleaned up
+  // without any manual action. Idempotent — subsequent boots find nothing
+  // and log "nothing to clean" in <1s.
+  setTimeout(() => {
+    sweepOrphanBlobs().catch(e => console.error('Boot-time orphan sweep error:', e.message));
+  }, 10000);
 });
