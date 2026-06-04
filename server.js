@@ -928,10 +928,97 @@ app.delete('/professor/courses/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
   const { data: course } = await supabase.from('courses').select('*').eq('id', id).eq('professor_id', req.user.id).single();
   if (!course) return res.status(404).json({ error: 'Course not found' });
+
+  // Fetch all documents for this course BEFORE the cascade wipes the rows,
+  // so we know which blobs to clean up in Supabase Storage and GCS. The
+  // database cascade handles document_chunks, enrollments, chats, quizzes,
+  // tests, flashcard_decks, etc. — but storage buckets are external and
+  // would otherwise orphan.
+  const { data: docs } = await supabase
+    .from('documents')
+    .select('name, storage_path, gemini_uri')
+    .eq('course_id', id);
+
+  if (docs && docs.length > 0) {
+    // Supabase Storage — batch delete every PDF blob for this course.
+    const paths = docs.map(d => d.storage_path).filter(Boolean);
+    if (paths.length > 0) {
+      const { error } = await supabase.storage.from('documents').remove(paths);
+      if (error) console.error('Course delete — Supabase Storage cleanup:', error.message);
+    }
+    // GCS — delete the gs:// copies in parallel.
+    await Promise.all(docs.map(d => d.gemini_uri ? deleteFromGCS(d.gemini_uri) : Promise.resolve()));
+  }
+
   await supabase.from('courses').delete().eq('id', id);
   delete courseDocuments[id];
   delete geminiUriCache[id];
+  console.log(`🗑️  Course ${id} deleted — cleaned up ${docs?.length || 0} document blob(s)`);
   res.json({ success: true });
+});
+
+// One-time sweep — finds and deletes blobs in Supabase Storage AND GCS
+// whose course_id doesn't appear in the courses table. Useful for cleaning
+// up after courses that were deleted before the on-delete blob cleanup
+// (above) shipped. Safe to run repeatedly — it only deletes blobs that
+// can't possibly belong to a live course anymore.
+app.post('/admin/cleanup-orphans', requireAuth, async (req, res) => {
+  const { data: courses } = await supabase.from('courses').select('id');
+  const liveIds = new Set((courses || []).map(c => c.id));
+
+  const report = { liveCourses: liveIds.size, supabase: [], gcs: [] };
+
+  // ── Supabase Storage sweep
+  // The `documents` bucket is structured as <courseId>/<filename>. We list
+  // the top-level folders, drop any whose name isn't in liveIds, and
+  // recursively delete their contents.
+  try {
+    const { data: folders } = await supabase.storage.from('documents').list('', { limit: 1000 });
+    for (const folder of folders || []) {
+      // Folder entries have a null `id` field; real files have a uuid id.
+      if (folder.id) continue;
+      const courseId = folder.name;
+      if (liveIds.has(courseId)) continue;
+      const { data: files } = await supabase.storage.from('documents').list(courseId, { limit: 1000 });
+      const paths = (files || []).map(f => `${courseId}/${f.name}`);
+      if (paths.length > 0) {
+        const { error } = await supabase.storage.from('documents').remove(paths);
+        if (error) console.error(`Sweep — Supabase delete failed for ${courseId}:`, error.message);
+        else report.supabase.push({ courseId, files: paths.length });
+      }
+    }
+  } catch (e) {
+    console.error('Supabase orphan sweep error:', e.message);
+  }
+
+  // ── GCS sweep
+  // GCS objects live at courses/<courseId>/<filename>. List everything under
+  // the courses/ prefix, group by course_id, delete the ones with no live
+  // matching row.
+  if (gcs) {
+    try {
+      const [files] = await gcs.bucket(GCS_BUCKET).getFiles({ prefix: 'courses/' });
+      const orphansByCourse = new Map();
+      for (const file of files) {
+        const parts = file.name.split('/');
+        if (parts.length < 3) continue;
+        const courseId = parts[1];
+        if (liveIds.has(courseId)) continue;
+        if (!orphansByCourse.has(courseId)) orphansByCourse.set(courseId, []);
+        orphansByCourse.get(courseId).push(file);
+      }
+      for (const [courseId, orphanFiles] of orphansByCourse.entries()) {
+        await Promise.all(orphanFiles.map(f => f.delete({ ignoreNotFound: true }).catch(e => console.error(`GCS delete ${f.name}:`, e.message))));
+        report.gcs.push({ courseId, files: orphanFiles.length });
+      }
+    } catch (e) {
+      console.error('GCS orphan sweep error:', e.message);
+    }
+  }
+
+  const totalCleaned = report.supabase.reduce((a, x) => a + x.files, 0) + report.gcs.reduce((a, x) => a + x.files, 0);
+  console.log(`🧹 Orphan sweep complete — ${totalCleaned} blob(s) cleaned across ${report.supabase.length + report.gcs.length} dead course(s)`);
+  res.json({ success: true, totalCleaned, ...report });
 });
 
 app.get('/course/:idOrCode', async (req, res) => {
