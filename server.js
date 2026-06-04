@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
+import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import { Storage } from '@google-cloud/storage';
 import fs from 'fs';
@@ -55,11 +56,18 @@ const MODEL = 'gemini-2.5-flash';            // heavy generation: quiz / test / 
 // segment at the end" after a few characters). Production logs show this
 // firing reliably. Until we bump @google/genai to a recent release and
 // re-test, run chat on the proven 2.5-flash. RAG keeps us at ~3s anyway.
-const MODEL_CHAT = MODEL;
+// Chat generation moved to OpenAI gpt-4o-mini. Gemini was over-escaping
+// LaTeX backslashes (\\text, \\frac) and tangling with markdown bold/$$,
+// producing broken math no matter how many post-process regex layers we
+// stacked. GPT-4o-mini emits clean Markdown+LaTeX, is faster TTFT, and the
+// SDK is rock-solid. Quiz / test / cards / debrief still run on Gemini —
+// they don't have the math-rendering issue.
+const MODEL_CHAT = 'gpt-4o-mini';
 const MODEL_EMBED = 'text-embedding-004';    // 768-dim embeddings for retrieval
 
 const ai = new GoogleGenAI({ vertexai: true, project: PROJECT, location: LOCATION });
-console.log(`✅ Vertex AI ready — project: ${PROJECT}, gen: ${MODEL} · chat: ${MODEL_CHAT} · embed: ${MODEL_EMBED}`);
+const openai = new OpenAI(); // reads OPENAI_API_KEY from env
+console.log(`✅ AI ready — gen (quiz/test/cards): ${MODEL} (Gemini) · chat: ${MODEL_CHAT} (OpenAI) · embed: ${MODEL_EMBED}`);
 
 const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY;
 const supabase = createClient(process.env.SUPABASE_URL, SUPABASE_KEY);
@@ -733,17 +741,30 @@ async function searchChunks(courseId, question, k = 6) {
 function rewriteEquations(text) {
   if (!text) return text;
 
-  // Pre-pass: even when Gemini correctly wraps an equation in $$ ... $$,
-  // it often emits the LaTeX commands inside with doubled backslashes
-  // ("$$\\text{X} = \\frac{a}{b}$$") because it's trying to escape the
-  // backslash for markdown. KaTeX reads "\\" as a linebreak command, so
-  // the equation renders as broken text. We collapse runs of 2+ back-
-  // slashes inside any $$...$$ or $...$ block back to a single backslash
-  // BEFORE the line-by-line scan below runs.
+  // Global pre-pass — collapse ANY run of 2+ backslashes anywhere in the
+  // text before any LaTeX command. Gemini's "double-escape \\text"
+  // pattern shows up in lots of variants (\\text, \\\\text after some
+  // intermediate processing, etc.) and the safest move is to just
+  // normalize all of them down to a single \ before a recognized math
+  // command. Conservative: only collapse when the backslashes are
+  // immediately followed by a known LaTeX command name, so we don't
+  // touch any prose that happens to contain repeated backslashes.
+  text = text.replace(
+    /\\{2,}(?=(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)\b)/g,
+    '\\'
+  );
+
+  // Then also collapse anything left inside already-wrapped math blocks
+  // (catches edge cases the global pass didn't reach). Also escape any
+  // raw `%` to `\%` — in LaTeX, `%` is a comment marker and an unescaped
+  // one kills the rest of the math block. Models love writing
+  // `\text{Margin of Safety (%)}` and that single `%` was the difference
+  // between a clean render and a broken raw-text fallback. The lookbehind
+  // skips already-escaped `\%` so we don't double-escape.
   text = text.replace(/\$\$([\s\S]+?)\$\$/g, (m, inner) =>
-    '$$' + inner.replace(/\\{2,}/g, '\\') + '$$');
+    '$$' + inner.replace(/\\{2,}/g, '\\').replace(/(?<!\\)%/g, '\\%') + '$$');
   text = text.replace(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g, (m, inner) =>
-    '$' + inner.replace(/\\{2,}/g, '\\') + '$');
+    '$' + inner.replace(/\\{2,}/g, '\\').replace(/(?<!\\)%/g, '\\%') + '$');
 
   const lines = text.split('\n');
   const out = [];
@@ -1664,17 +1685,35 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
     });
   }
 
-  const contents = [];
+  // Flatten docParts into a single text context block for OpenAI. The RAG
+  // path produces only text parts. Fallback path (no chunks indexed yet) and
+  // student-attached notes may include PDFs/images — extract PDF text inline
+  // so the model sees something useful, and skip raw image bytes for now.
+  // Vision support can be added later by switching to a content array.
+  const contextChunks = [];
+  for (const part of docParts) {
+    if (part.text) {
+      contextChunks.push(part.text);
+    } else if (part.inlineData?.mimeType === 'application/pdf') {
+      const extracted = await extractPdfText(Buffer.from(part.inlineData.data, 'base64'));
+      if (extracted?.text) contextChunks.push(extracted.text.slice(0, 50000));
+    }
+    // fileData (Gemini URIs) and images are silently dropped in this branch.
+    // RAG covers the PDF case; image support can be added later via vision.
+  }
+  const contextBlock = contextChunks.join('\n');
+
+  const messages = [{ role: 'system', content: SYSTEM_PROMPT }];
   if (history.length === 0) {
-    contents.push({ role: 'user', parts: [...docParts, { text: `STUDENT QUESTION: ${message}` }] });
+    messages.push({ role: 'user', content: `${contextBlock}\nSTUDENT QUESTION: ${message}` });
   } else {
-    contents.push({ role: 'user', parts: [...docParts, { text: `STUDENT QUESTION: ${history[0].content}` }] });
+    messages.push({ role: 'user', content: `${contextBlock}\nSTUDENT QUESTION: ${history[0].content}` });
     for (let i = 1; i < history.length; i++) {
       const msg = history[i];
       const content = msg.role === 'assistant' ? msg.content.replace(/\nSOURCES:.*$/m, '').trim() : msg.content;
-      contents.push({ role: msg.role === 'assistant' ? 'model' : 'user', parts: [{ text: content }] });
+      messages.push({ role: msg.role === 'assistant' ? 'assistant' : 'user', content });
     }
-    contents.push({ role: 'user', parts: [{ text: `STUDENT QUESTION: ${message}` }] });
+    messages.push({ role: 'user', content: `STUDENT QUESTION: ${message}` });
   }
 
   sendStatus('writing');
@@ -1683,25 +1722,22 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
   let rawText = '';
   let streamCutOff = false;
   try {
-    const stream = await ai.models.generateContentStream({
-      model: MODEL_CHAT, contents,
-      config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.3, maxOutputTokens: 2048 },
+    const stream = await openai.chat.completions.create({
+      model: MODEL_CHAT,
+      messages,
+      temperature: 0.3,
+      max_tokens: 2048,
+      stream: true,
     });
 
     // ── COLLECT first, STREAM cleaned ──
-    // Past attempts streamed Gemini's tokens directly and relied on a
-    // client-side renderer pass to fix broken patterns. That depends on
-    // the user having the latest frontend bundle, which is unreliable
-    // because of browser cache and CDN propagation. So instead we now
-    // buffer Gemini's full response on the server, run rewriteEquations
-    // to fix any \frac/\text math that was left unwrapped, and THEN
-    // stream the cleaned text as tokens. Every client (old, new, cached,
-    // fresh) receives already-clean tokens — there's no "client must
-    // be on the new bundle for the fix to work" anymore.
+    // We buffer the full response on the server, run rewriteEquations as a
+    // safety net, then stream the cleaned text as tokens. Every client
+    // receives already-clean tokens regardless of browser bundle freshness.
     try {
       for await (const chunk of stream) {
         if (clientGone) break;
-        const token = chunk.text;
+        const token = chunk.choices?.[0]?.delta?.content;
         if (token) rawText += token;
       }
     } catch (streamErr) {
@@ -1720,9 +1756,9 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
     try {
       fullText = rewriteEquations(rawText);
       if (fullText !== rawText) {
-        console.log(`🧹 Rewrite applied to chat response (${rawText.length} → ${fullText.length} chars)`);
+        console.log(`🧹 Rewrite v5 applied to chat response (${rawText.length} → ${fullText.length} chars)`);
       } else {
-        console.log(`🧹 Rewrite no-op for chat response (${rawText.length} chars)`);
+        console.log(`🧹 Rewrite v5 no-op for chat response (${rawText.length} chars)`);
         // If the no-op surfaces but the text actually contains LaTeX, dump
         // the relevant line so we can see the EXACT bytes the regex is
         // failing to match against.
