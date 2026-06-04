@@ -360,6 +360,31 @@ function MarkdownMessage({ content }) {
     // slip "Alright, let's…" / "Sure! Let's dive into…" past the system
     // message sometimes. Cleaner to strip than to refight the prompt.
     .replace(/^(Alright|Sure|Okay|Ok|Great|Got it),?\s*(let'?s\s+(?:dive\s+into|break\s+(?:this|that|it)\s+down|take\s+a\s+look|explore|unpack|go\s+through|walk\s+through))[^.!?\n]*[.!?]\s*/i, '')
+    // Bullet-to-table rescue: when the model emits 3+ consecutive bullets
+    // of the form "- **Label:** value, value, value" — which is parallel
+    // data masquerading as a list — transform them into a markdown table
+    // for consistent visual polish. Same data, scannable layout.
+    .replace(
+      /(?:^[ \t]*[-*][ \t]+\*\*[^*\n]{1,60}:\*\*[^\n]+\n?){3,}/gm,
+      (block) => {
+        const lines = block.trim().split('\n').map(l => l.trim()).filter(Boolean);
+        const rows = [];
+        for (const line of lines) {
+          const m = line.match(/^[-*][ \t]+\*\*([^*]+):\*\*\s*(.+)$/);
+          if (!m) return block; // bail if any line doesn't match the pattern
+          // Trim common filler from the value side ("Examples include …" etc.)
+          const value = m[2]
+            .replace(/^(?:Examples include|These include|Such as|Including|For example,?)\s+/i, '')
+            .replace(/\.$/, '')
+            .trim();
+          rows.push({ label: m[1].trim(), value });
+        }
+        if (rows.length < 3) return block;
+        return '\n\n| Type | Examples |\n| --- | --- |\n' +
+          rows.map(r => `| **${r.label}** | ${r.value} |`).join('\n') +
+          '\n\n';
+      }
+    )
     // Strip inline page citations like "(p. 6)" / "(pp. 12-14)" / "(page 6)" —
     // the source is shown below the answer instead. Cleans new and old messages.
     .replace(/\s*\((?:pp?\.?|page)\s*\d[\d\s,&\-–]*\)/gi, '')
