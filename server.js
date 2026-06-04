@@ -732,6 +732,19 @@ async function searchChunks(courseId, question, k = 6) {
 // that command to end-of-line (minus stray $$) in proper block math.
 function rewriteEquations(text) {
   if (!text) return text;
+
+  // Pre-pass: even when Gemini correctly wraps an equation in $$ ... $$,
+  // it often emits the LaTeX commands inside with doubled backslashes
+  // ("$$\\text{X} = \\frac{a}{b}$$") because it's trying to escape the
+  // backslash for markdown. KaTeX reads "\\" as a linebreak command, so
+  // the equation renders as broken text. We collapse runs of 2+ back-
+  // slashes inside any $$...$$ or $...$ block back to a single backslash
+  // BEFORE the line-by-line scan below runs.
+  text = text.replace(/\$\$([\s\S]+?)\$\$/g, (m, inner) =>
+    '$$' + inner.replace(/\\{2,}/g, '\\') + '$$');
+  text = text.replace(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g, (m, inner) =>
+    '$' + inner.replace(/\\{2,}/g, '\\') + '$');
+
   const lines = text.split('\n');
   const out = [];
   // Match ONE OR MORE backslashes before the command. Gemini sometimes
