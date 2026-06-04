@@ -10,7 +10,27 @@ import { Storage } from '@google-cloud/storage';
 import fs from 'fs';
 import os from 'os';
 import { randomUUID } from 'crypto';
-import pdfParse from 'pdf-parse2';
+import { createRequire } from 'module';
+
+// pdfjs-dist is the only PDF text extractor that reliably works in pure
+// Node ESM. The legacy build is the Node-safe variant; the regular build
+// expects a browser worker. We resolve the worker path with createRequire
+// so pdfjs can find it without any bundler help.
+const _require = createRequire(import.meta.url);
+let _pdfjs = null;
+async function getPdfjs() {
+  if (_pdfjs) return _pdfjs;
+  try {
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    pdfjs.GlobalWorkerOptions.workerSrc = _require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
+    _pdfjs = pdfjs;
+    return pdfjs;
+  } catch (e) {
+    console.warn('⚠️  pdfjs unavailable — PDF text extraction disabled:', e.message);
+    _pdfjs = false;
+    return null;
+  }
+}
 
 dotenv.config();
 
@@ -397,11 +417,33 @@ async function seedMissingGeminiUris() {
 // embed each chunk, and at query time retrieve only the top-k most relevant
 // slices. Net effect: 6s → ~1.5s, smaller token bills, sharper answers.
 
-// Pull all extractable text out of a PDF buffer.
+// Pull all extractable text out of a PDF buffer using pdfjs-dist directly.
+// Returns null if the extraction fails or pdfjs isn't available.
 async function extractPdfText(buffer) {
+  const pdfjs = await getPdfjs();
+  if (!pdfjs) return null;
   try {
-    const data = await pdfParse(buffer);
-    return { text: (data.text || '').trim(), pages: data.numpages || 0 };
+    const loadingTask = pdfjs.getDocument({
+      data: new Uint8Array(buffer),
+      // Silence pdfjs's verbose chatter on Render — only show errors.
+      verbosity: 0,
+    });
+    const pdf = await loadingTask.promise;
+    const numPages = pdf.numPages;
+    const pageTexts = [];
+    for (let i = 1; i <= numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      // Each item is one text run; join with spaces, then collapse runs of
+      // whitespace so the chunked text stays readable.
+      const pageText = content.items
+        .map(item => (item && typeof item.str === 'string') ? item.str : '')
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (pageText) pageTexts.push(pageText);
+    }
+    return { text: pageTexts.join('\n\n'), pages: numPages };
   } catch (e) {
     console.error('PDF extract error:', e.message);
     return null;
@@ -509,6 +551,42 @@ async function searchChunks(courseId, question, k = 6) {
     return [];
   }
   return data || [];
+}
+
+// Lazy backfill: the first time the chat endpoint sees a course with no
+// chunks yet, we kick off indexing in the background. The current question
+// falls back to whole-library mode, but every subsequent question on the
+// same course is fast. Professors never touch a button.
+const reindexInFlight = new Set();
+const reindexCompleted = new Set();
+async function ensureCourseIndexed(courseId) {
+  if (reindexInFlight.has(courseId) || reindexCompleted.has(courseId)) return;
+  reindexInFlight.add(courseId);
+  try {
+    // Cheap existence check — if any chunks at all exist for this course,
+    // we treat it as indexed.
+    const { count } = await supabase
+      .from('document_chunks')
+      .select('id', { count: 'exact', head: true })
+      .eq('course_id', courseId);
+    if (count && count > 0) {
+      reindexCompleted.add(courseId);
+      return;
+    }
+    const docs = getCourseDocuments(courseId);
+    if (!docs || Object.keys(docs).length === 0) return;
+    console.log(`📚 Auto-indexing ${Object.keys(docs).length} file(s) for course ${courseId}…`);
+    for (const [name, doc] of Object.entries(docs)) {
+      if (doc.mimeType !== 'application/pdf') continue;
+      const r = await chunkAndEmbedPdf(courseId, name, doc.buffer);
+      console.log(`📚 ${name}: ${r.ok ? `${r.count} chunks` : `skipped (${r.error})`}`);
+    }
+    reindexCompleted.add(courseId);
+  } catch (e) {
+    console.error('Auto-index error:', e.message);
+  } finally {
+    reindexInFlight.delete(courseId);
+  }
 }
 
 function getTopicTag(question) {
@@ -1159,6 +1237,9 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
     // Fallback path — same as before, send everything. Triggers for courses
     // uploaded before RAG was added, or while embeddings are still indexing.
     sendStatus('reading');
+    // Kick off background indexing for this course so the NEXT question is
+    // fast — fire-and-forget, don't await.
+    ensureCourseIndexed(courseId).catch(e => console.error('Auto-index trigger:', e.message));
     docNames = Object.keys(docs);
     const docEntries = Object.entries(docs);
     const docUris = await Promise.all(docEntries.map(([name, doc]) => getGeminiUri(courseId, name, doc)));

@@ -1465,17 +1465,6 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   const [activeTab, setActiveTab] = useState('materials');
   const [copied, setCopied] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  // Re-index runs the new RAG pipeline on files already uploaded before
-  // embeddings existed. One-time op per course; the button hides itself
-  // for ~24h after a successful reindex via a tiny localStorage flag.
-  const [reindexing, setReindexing] = useState(false);
-  const [reindexed, setReindexed] = useState(() => {
-    try {
-      const last = localStorage.getItem(`scholr_reindex_${course.id}`);
-      if (!last) return false;
-      return (Date.now() - parseInt(last, 10)) < 24 * 60 * 60 * 1000;
-    } catch { return false; }
-  });
   const isDesktop = useIsDesktop();
   const [sidebarW, startSidebarDrag] = useSidebarWidth('scholr_prof_sidebar_w');
   const fileRef = useRef(null);
@@ -1547,32 +1536,6 @@ function CourseManager({ token, course, onBack, authHeaders }) {
     navigator.clipboard.writeText(`https://scholrvs.onrender.com/join/${course.join_code || course.code}`);
     setCopied(true); setTimeout(() => setCopied(false), 2000);
     showToast('Student link copied!');
-  };
-
-  // Backfill the embedding index for all PDFs already in this course.
-  // Only needs to run once after RAG ships; new uploads index automatically.
-  const reindexMaterials = async () => {
-    if (reindexing) return;
-    setReindexing(true);
-    showToast('Re-indexing materials — this can take a minute…');
-    try {
-      const res = await fetch(`${API}/course/${course.id}/reindex`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) {
-        const ok = (data.results || []).filter(r => r.ok).length;
-        showToast(`Indexed ${ok} file${ok === 1 ? '' : 's'} — chat is now faster.`);
-        try { localStorage.setItem(`scholr_reindex_${course.id}`, String(Date.now())); } catch {}
-        setReindexed(true);
-      } else {
-        showToast('Re-indexing failed — try again', 'error');
-      }
-    } catch {
-      showToast('Could not reach the server', 'error');
-    }
-    setReindexing(false);
   };
 
   const closeMobileNav = () => setMobileNavOpen(false);
@@ -1867,18 +1830,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
                             <h3 className="serif text-[30px] md:text-[36px] text-gray-900 leading-none tracking-tight">{mods.length} file{mods.length !== 1 ? 's' : ''} indexed<span className="italic">.</span></h3>
                             <p className="text-[13px] text-gray-500 mt-2 italic">Last upload {formatRelativeDate(mods[0].uploaded)}.</p>
                           </div>
-                          <div className="flex items-center gap-3">
-                            {!reindexed && (
-                              <button onClick={reindexMaterials} disabled={reindexing} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-gray-200/80 hover:border-gray-300 text-gray-700 text-[11.5px] font-medium transition-colors disabled:opacity-60">
-                                {reindexing ? (
-                                  <><span className="w-3 h-3 inline-block border-[1.5px] border-gray-400 border-t-transparent rounded-full animate-spin" />Re-indexing…</>
-                                ) : (
-                                  <><Sparkles size={11} className="text-[#2A4D8F]" />Re-index for faster answers</>
-                                )}
-                              </button>
-                            )}
-                            <span className="text-[10px] tracking-[.16em] uppercase text-gray-400 font-bold tabular-nums">{mods.length} / ∞</span>
-                          </div>
+                          <span className="text-[10px] tracking-[.16em] uppercase text-gray-400 font-bold tabular-nums">{mods.length} / ∞</span>
                         </div>
 
                         {/* File rows */}
