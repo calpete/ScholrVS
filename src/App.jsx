@@ -347,19 +347,35 @@ function MarkdownMessage({ content }) {
     // text. Real LaTeX math variables lead with letters or backslashes, so
     // legitimate equations are untouched.
     .replace(/\$(?=\s*\*{0,3}\s*[.\d])/g, '\\$')
-    // Math-mode rescue: when Gemini writes \frac{}{} or \text{} without
-    // wrapping the equation in $$ ... $$, KaTeX never sees it and the
-    // student sees raw "\frac" text. Detect lines that contain LaTeX
-    // commands but have no $ delimiters, and wrap them in $$ block math
-    // so they render. Only triggers for lines that START with a math
-    // command (possibly after whitespace or a bold/italic marker), to
-    // avoid clobbering normal prose that mentions a backslash.
+    // Math-mode rescue, take 2 — the model keeps jamming equations INSIDE
+    // bullets after a "**Label:**" prefix, where the previous start-of-
+    // line regex didn't trigger. Two patterns now:
+    //
+    //   A) Bullet-with-equation: "- **Label:** \text{X} = \frac{a}{b} $$"
+    //      Lift the equation out, render it as its own block math line
+    //      under the bullet label.
+    //   B) Plain line starting with a LaTeX command (the original case)
+    //      — wrap it in $$ block math.
+    //
+    // Both also escape any unescaped % inside the captured math so KaTeX
+    // doesn't treat it as a LaTeX comment and silently break the render.
+    .replace(
+      /^([ \t]*[-*][ \t]+\*\*[^*\n]+:\*\*)\s*\\?\s*(\\(?:text|frac|sum|prod|int|sqrt|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla)[^\n]*?)\s*\$*\s*$/gm,
+      (m, label, equation) => {
+        const clean = equation
+          .replace(/\$+/g, '')
+          .replace(/(?<!\\)%/g, '\\%')
+          .trim();
+        if (!clean) return m;
+        return `${label}\n\n$$${clean}$$\n`;
+      }
+    )
     .replace(
       /^([ \t]*)([*_]{0,3})(\\(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|leq|geq|neq|approx|cdot|times|div)[^\n$]*)$/gm,
       (m, indent, marker, math) => {
-        // If the line already contains a $ pair, don't touch it.
         if ((math.match(/\$/g) || []).length >= 2) return m;
-        return `${indent}${marker}$$${math.trim()}$$`;
+        const clean = math.replace(/(?<!\\)%/g, '\\%').trim();
+        return `${indent}${marker}$$${clean}$$`;
       }
     )
     // Defensive belt: also kill any LONE $ that has matching content
