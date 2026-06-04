@@ -105,15 +105,34 @@ function Logo({ size = 28 }) {
   );
 }
 
-// Rotates through a few "thinking" phrases while the AI is generating.
-function ThinkingText() {
+// Status display while the AI is generating. If the backend has sent a
+// real status step ("searching" → "found" → "writing") we render that
+// concrete signal; otherwise we fall back to the generic rotating phrases
+// for older endpoints that don't emit status events.
+function ThinkingText({ step, sources }) {
   const phrases = ['Reading your materials…', 'Checking your course materials…', 'Thinking it through…', 'Pulling the details together…'];
   const [i, setI] = useState(0);
   useEffect(() => {
+    if (step) return; // backend is driving the message, no need to rotate
     const id = setInterval(() => setI(p => (p + 1) % phrases.length), 1900);
     return () => clearInterval(id);
-  }, []);
-  return <span className="text-sm text-gray-400 inline-block py-1 transition-opacity">{phrases[i]}</span>;
+  }, [step]);
+  let text;
+  if (step === 'searching') text = 'Searching your materials…';
+  else if (step === 'reading') text = 'Reading your materials…';
+  else if (step === 'found') {
+    if (sources && sources.length === 1) {
+      const clean = sources[0].replace(/\.[^.]+$/, '');
+      text = `Found ${clean.length > 36 ? clean.slice(0, 34) + '…' : clean}.`;
+    } else if (sources && sources.length > 1) {
+      text = `Found ${sources.length} sources…`;
+    } else {
+      text = 'Found relevant sections…';
+    }
+  }
+  else if (step === 'writing') text = 'Writing your answer…';
+  else text = phrases[i];
+  return <span className="text-sm text-gray-400 inline-block py-1 transition-opacity">{text}</span>;
 }
 
 // The AI identity: three black lines (no square). While `thinking`, the line
@@ -3385,7 +3404,15 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           if (!line.startsWith('data: ')) continue;
           try {
             const event = JSON.parse(line.slice(6));
-            if (event.type === 'token') {
+            if (event.type === 'status') {
+              // Progressive status from the backend retrieval / generation
+              // pipeline ("searching" → "found" → "writing"). Stored on the
+              // streaming message and read by <ThinkingText />.
+              setChats(prev => prev.map(c => c.id === currentChatId
+                ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, statusStep: event.step, statusSources: event.sources || m.statusSources } : m) }
+                : c
+              ));
+            } else if (event.type === 'token') {
               fullText += event.token;
               setChats(prev => prev.map(c => c.id === currentChatId
                 ? { ...c, messages: c.messages.map(m => m.id === streamingMsgId ? { ...m, content: m.content + event.token } : m) }
@@ -4240,7 +4267,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                             </div>
                           )}
                           {m.role === 'assistant' && m.content === '' && m.streaming ? (
-                            <ThinkingText />
+                            <ThinkingText step={m.statusStep} sources={m.statusSources} />
                           ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user' ? <p className="leading-relaxed whitespace-pre-wrap text-gray-900">{m.content}</p> : <MarkdownMessage content={m.content} />}
                           {m.role === 'assistant' && m.streaming && m.content && <span className="inline-block w-[3px] h-[16px] bg-gray-800 animate-pulse ml-1 align-middle rounded-sm" />}
                           {m.role === 'assistant' && m.sources?.length > 0 && !m.streaming && !isError && (

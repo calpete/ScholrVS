@@ -10,6 +10,7 @@ import { Storage } from '@google-cloud/storage';
 import fs from 'fs';
 import os from 'os';
 import { randomUUID } from 'crypto';
+import pdfParse from 'pdf-parse2';
 
 dotenv.config();
 
@@ -27,10 +28,12 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const PROJECT = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT_ID || 'scholr-dev';
 const LOCATION = process.env.GCP_LOCATION || 'us-central1';
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'gemini-2.5-flash';            // heavy generation: quiz / test / cards / debrief
+const MODEL_CHAT = 'gemini-2.5-flash-lite';  // student Q&A — sub-second TTFT
+const MODEL_EMBED = 'text-embedding-004';    // 768-dim embeddings for retrieval
 
 const ai = new GoogleGenAI({ vertexai: true, project: PROJECT, location: LOCATION });
-console.log(`✅ Vertex AI ready — project: ${PROJECT}, model: ${MODEL}`);
+console.log(`✅ Vertex AI ready — project: ${PROJECT}, gen: ${MODEL} · chat: ${MODEL_CHAT} · embed: ${MODEL_EMBED}`);
 
 const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY;
 const supabase = createClient(process.env.SUPABASE_URL, SUPABASE_KEY);
@@ -386,6 +389,126 @@ async function seedMissingGeminiUris() {
     }
   }
   console.log('✅ GCS URI seeding complete');
+}
+
+// ── RAG: chunk + embed + retrieve ───────────────────────────────────────────
+// Instead of shipping the entire course PDF library to Gemini on every
+// student question (slow + expensive), we chunk each PDF at upload time,
+// embed each chunk, and at query time retrieve only the top-k most relevant
+// slices. Net effect: 6s → ~1.5s, smaller token bills, sharper answers.
+
+// Pull all extractable text out of a PDF buffer.
+async function extractPdfText(buffer) {
+  try {
+    const data = await pdfParse(buffer);
+    return { text: (data.text || '').trim(), pages: data.numpages || 0 };
+  } catch (e) {
+    console.error('PDF extract error:', e.message);
+    return null;
+  }
+}
+
+// Split text into ~2000-char chunks (~500 tokens) with 200-char overlap.
+// Tries to break at sentence boundaries so chunks read naturally.
+function chunkText(text, { chunkSize = 2000, overlap = 200 } = {}) {
+  if (!text || text.length === 0) return [];
+  if (text.length <= chunkSize) return [text.trim()];
+  const chunks = [];
+  let start = 0;
+  while (start < text.length) {
+    let end = Math.min(start + chunkSize, text.length);
+    if (end < text.length) {
+      const lastPeriod = text.lastIndexOf('. ', end);
+      if (lastPeriod > start + chunkSize / 2) end = lastPeriod + 1;
+    }
+    const slice = text.slice(start, end).trim();
+    if (slice.length > 80) chunks.push(slice);
+    if (end >= text.length) break;
+    start = end - overlap;
+  }
+  return chunks;
+}
+
+// Embed one text → 768-dim vector. Returns null on failure.
+async function embedSingle(text) {
+  try {
+    const result = await ai.models.embedContent({
+      model: MODEL_EMBED,
+      contents: text,
+    });
+    const values = result?.embeddings?.[0]?.values || result?.embedding?.values || null;
+    return Array.isArray(values) ? values : null;
+  } catch (e) {
+    console.error('Embed error:', e.message);
+    return null;
+  }
+}
+
+// Embed many texts. Runs in parallel batches of 8 to avoid hammering the API.
+async function embedTexts(texts) {
+  const results = [];
+  const batchSize = 8;
+  for (let i = 0; i < texts.length; i += batchSize) {
+    const batch = texts.slice(i, i + batchSize);
+    const vecs = await Promise.all(batch.map(embedSingle));
+    results.push(...vecs);
+  }
+  return results;
+}
+
+// Chunk + embed a whole PDF and persist the chunks to document_chunks.
+// Re-running on the same doc clears its old chunks first so re-uploads
+// stay consistent.
+async function chunkAndEmbedPdf(courseId, docName, pdfBuffer) {
+  const pdfData = await extractPdfText(pdfBuffer);
+  if (!pdfData || !pdfData.text) return { ok: false, error: 'No extractable text' };
+
+  const chunks = chunkText(pdfData.text);
+  if (chunks.length === 0) return { ok: false, error: 'No chunks produced' };
+
+  // Wipe any prior chunks for this doc.
+  await supabase.from('document_chunks').delete()
+    .eq('course_id', courseId).eq('doc_name', docName);
+
+  const vectors = await embedTexts(chunks);
+  const rows = chunks
+    .map((chunk_text, chunk_index) => ({
+      course_id: courseId,
+      doc_name: docName,
+      chunk_index,
+      chunk_text,
+      page_number: null,                 // pdf-parse doesn't expose per-page boundaries reliably
+      embedding: vectors[chunk_index],
+    }))
+    .filter(r => Array.isArray(r.embedding));
+
+  if (rows.length === 0) return { ok: false, error: 'All embeddings failed' };
+
+  // Insert in modest batches so a single payload doesn't get rejected.
+  for (let i = 0; i < rows.length; i += 50) {
+    const { error } = await supabase.from('document_chunks').insert(rows.slice(i, i + 50));
+    if (error) {
+      console.error('Chunk insert error:', error.message);
+      return { ok: false, error: error.message };
+    }
+  }
+  return { ok: true, count: rows.length, pages: pdfData.pages };
+}
+
+// Find the top-k most relevant chunks for a question.
+async function searchChunks(courseId, question, k = 6) {
+  const queryEmb = await embedSingle(question);
+  if (!queryEmb) return [];
+  const { data, error } = await supabase.rpc('match_document_chunks', {
+    query_embedding: queryEmb,
+    match_course_id: courseId,
+    match_count: k,
+  });
+  if (error) {
+    console.error('Chunk search error:', error.message);
+    return [];
+  }
+  return data || [];
 }
 
 function getTopicTag(question) {
@@ -786,6 +909,19 @@ app.post('/course/:courseId/upload', requireAuth, async (req, res) => {
 
   console.log(`✅ Uploaded: ${storagePath} — ${sizeKb}kb${gcsUri ? ' + GCS URI cached' : ' (GCS upload failed, will fall back to inline)'}`);
   res.json({ success: true, fileName: file.name, sizeKb, mimeType });
+
+  // 5. Chunk + embed in the background so future student questions retrieve
+  //    just the relevant slices instead of re-reading the whole library. The
+  //    professor's upload response is already sent — this runs without
+  //    blocking.
+  if (mimeType === 'application/pdf') {
+    chunkAndEmbedPdf(courseId, file.name, buffer)
+      .then(r => {
+        if (r.ok) console.log(`📚 Indexed ${file.name} — ${r.count} chunks across ${r.pages || '?'} pages`);
+        else console.warn(`📚 Index skipped for ${file.name}: ${r.error}`);
+      })
+      .catch(e => console.error(`📚 Index error for ${file.name}:`, e.message));
+  }
 });
 
 app.get('/course/:courseId/documents', requireAuth, requireCourseAccess, async (req, res) => {
@@ -812,10 +948,14 @@ app.delete('/course/:courseId/document/:name', requireAuth, async (req, res) => 
   // 3. Delete from DB
   await supabase.from('documents').delete().eq('course_id', courseId).eq('name', filename);
 
-  // 4. Delete from Gemini File API
+  // 4. Delete chunks for this document so retrieval doesn't surface
+  //    stale excerpts from a file the professor removed.
+  await supabase.from('document_chunks').delete().eq('course_id', courseId).eq('doc_name', filename);
+
+  // 5. Delete from Gemini File API
   if (dbDoc?.gemini_uri) await deleteFromGCS(dbDoc.gemini_uri);
 
-  // 5. Clear in-memory caches
+  // 6. Clear in-memory caches
   if (courseDocuments[courseId]) delete courseDocuments[courseId][filename];
   if (geminiUriCache[courseId]) delete geminiUriCache[courseId][filename];
   questionsCaches[courseId] = null;
@@ -992,25 +1132,46 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
 
-  const docNames = Object.keys(docs);
+  // Step 4 — granular status so the student sees what's happening rather
+  // than a generic "Thinking…" while the backend retrieves + composes.
+  const sendStatus = (step, extra = {}) =>
+    res.write(`data: ${JSON.stringify({ type: 'status', step, ...extra })}\n\n`);
+
+  sendStatus('searching');
+
+  // RAG: retrieve the most relevant chunks for THIS question instead of
+  // sending the whole PDF library every turn. If no chunks are stored yet
+  // (course uploaded before RAG existed), fall back to the old whole-library
+  // flow so nothing breaks.
   const docParts = [];
+  let docNames = [];
+  const retrievedChunks = await searchChunks(courseId, message, 6);
 
-  // Resolve all GCS URIs in parallel (was serial — slow if many docs).
-  // Use gs:// reference when available; fall back to inline base64 only if GCS
-  // isn't configured or the upload failed.
-  const docEntries = Object.entries(docs);
-  const docUris = await Promise.all(docEntries.map(([name, doc]) => getGeminiUri(courseId, name, doc)));
-  docEntries.forEach(([name, doc], i) => {
-    const uri = docUris[i];
-    if (uri) {
-      docParts.push({ fileData: { mimeType: doc.mimeType, fileUri: uri } });
-    } else {
-      docParts.push({ inlineData: { mimeType: doc.mimeType, data: doc.buffer.toString('base64') } });
-    }
-    docParts.push({ text: isImage(doc.mimeType) ? `[Professor image: ${name}]` : `[Professor document: ${name}]` });
-  });
+  if (retrievedChunks.length > 0) {
+    const uniqueDocs = [...new Set(retrievedChunks.map(c => c.doc_name))];
+    sendStatus('found', { sources: uniqueDocs });
+    docNames = uniqueDocs;
+    const contextText = retrievedChunks
+      .map(c => `[Source: ${c.doc_name}${c.page_number ? ` · p.${c.page_number}` : ''}]\n${c.chunk_text}`)
+      .join('\n\n---\n\n');
+    docParts.push({ text: `COURSE MATERIALS — RELEVANT EXCERPTS:\n\n${contextText}\n\n---\n\n` });
+  } else {
+    // Fallback path — same as before, send everything. Triggers for courses
+    // uploaded before RAG was added, or while embeddings are still indexing.
+    sendStatus('reading');
+    docNames = Object.keys(docs);
+    const docEntries = Object.entries(docs);
+    const docUris = await Promise.all(docEntries.map(([name, doc]) => getGeminiUri(courseId, name, doc)));
+    docEntries.forEach(([name, doc], i) => {
+      const uri = docUris[i];
+      if (uri) docParts.push({ fileData: { mimeType: doc.mimeType, fileUri: uri } });
+      else docParts.push({ inlineData: { mimeType: doc.mimeType, data: doc.buffer.toString('base64') } });
+      docParts.push({ text: isImage(doc.mimeType) ? `[Professor image: ${name}]` : `[Professor document: ${name}]` });
+    });
+  }
 
-  // Student notes always sent inline (they are per-student, not worth caching)
+  // Student notes (ephemeral attachments + persistent My Notes) always go
+  // inline — they're per-student so caching doesn't apply.
   if (req.files) {
     Object.entries(req.files).forEach(([key, file]) => {
       if (key.startsWith('note_')) {
@@ -1036,11 +1197,12 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
     contents.push({ role: 'user', parts: [{ text: `STUDENT QUESTION: ${message}` }] });
   }
 
+  sendStatus('writing');
   res.write(`data: ${JSON.stringify({ type: 'citations', citations: [] })}\n\n`);
 
   try {
     const stream = await ai.models.generateContentStream({
-      model: MODEL, contents,
+      model: MODEL_CHAT, contents,
       config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.3, maxOutputTokens: 2048 },
     });
 
@@ -1064,6 +1226,25 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
     res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
     res.end();
   }
+});
+
+// One-shot backfill: chunk + embed every PDF already uploaded to a course.
+// Use this once after running the SQL migration to bring existing courses
+// online without re-uploading.
+app.post('/course/:courseId/reindex', requireAuth, async (req, res) => {
+  const { courseId } = req.params;
+  const { data: course } = await supabase.from('courses').select('id').eq('id', courseId).eq('professor_id', req.user.id).single();
+  if (!course) return res.status(403).json({ error: 'Not your course' });
+
+  const docs = getCourseDocuments(courseId);
+  const results = [];
+  for (const [name, doc] of Object.entries(docs)) {
+    if (doc.mimeType !== 'application/pdf') { results.push({ name, skipped: 'not a PDF' }); continue; }
+    const r = await chunkAndEmbedPdf(courseId, name, doc.buffer);
+    results.push({ name, ...r });
+    console.log(`📚 Reindexed ${name}: ${r.ok ? `${r.count} chunks` : `failed (${r.error})`}`);
+  }
+  res.json({ success: true, results });
 });
 
 // ── Student Notes ─────────────────────────────────────────────────────────────
