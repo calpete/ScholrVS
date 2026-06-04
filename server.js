@@ -48,8 +48,14 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const PROJECT = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT_ID || 'scholr-dev';
 const LOCATION = process.env.GCP_LOCATION || 'us-central1';
-const MODEL = 'gemini-2.5-flash';            // heavy generation: quiz / test / cards / debrief
-const MODEL_CHAT = 'gemini-2.5-flash-lite';  // student Q&A — sub-second TTFT
+const MODEL = 'gemini-2.5-flash';            // heavy generation: quiz / test / cards / debrief / chat
+// NOTE: gemini-2.5-flash-lite would be ~half the TTFT here, but the
+// @google/genai SDK pinned to 0.7.0 in package.json predates that model
+// by months and chokes on its streaming wire format ("Incomplete JSON
+// segment at the end" after a few characters). Production logs show this
+// firing reliably. Until we bump @google/genai to a recent release and
+// re-test, run chat on the proven 2.5-flash. RAG keeps us at ~3s anyway.
+const MODEL_CHAT = MODEL;
 const MODEL_EMBED = 'text-embedding-004';    // 768-dim embeddings for retrieval
 
 const ai = new GoogleGenAI({ vertexai: true, project: PROJECT, location: LOCATION });
