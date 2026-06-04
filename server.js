@@ -498,35 +498,95 @@ async function embedTexts(texts) {
   return results;
 }
 
+// Generate per-page descriptions of a PDF using Gemini vision. Captures
+// the visual content of each page (diagrams, charts, equations rendered
+// as images, code screenshots, structural formulas, plots) as
+// searchable text. Returns an array of { page, description }. Uses
+// MODEL (flash, not flash-lite) because vision quality matters here.
+async function captionPdfPages(courseId, docName, mimeType, buffer, pageCount) {
+  if (!pageCount || pageCount === 0) return [];
+
+  // Prefer the cached GCS URI so Gemini doesn't have to process the
+  // inline base64 every time. Falls back to inlineData if GCS isn't set.
+  const cached = getGeminiUriCache(courseId)[docName]?.uri;
+  const docPart = cached
+    ? { fileData: { mimeType, fileUri: cached } }
+    : { inlineData: { mimeType, data: buffer.toString('base64') } };
+
+  // ~120 output tokens per page of description, capped on both ends so
+  // tiny PDFs still have headroom and massive PDFs don't blow the limit.
+  const maxOutput = Math.min(Math.max(pageCount * 120 + 500, 2000), 16000);
+
+  const prompt = `For each page of this PDF, write a concise 2-3 sentence description capturing BOTH the text content AND any visual elements — diagrams, charts, equations, figures, code screenshots, photographs, structural formulas, plots. If a page is mostly visual, describe what's depicted in specific terms a student might search for (proper nouns, technical terminology, named processes, components, labels). Skip filler like "this page shows…" and lead with the content.
+
+Return ONLY a JSON array, no preamble or markdown fences:
+[{"page":1,"description":"…"},{"page":2,"description":"…"}]`;
+
+  try {
+    const result = await ai.models.generateContent({
+      model: MODEL,
+      contents: [{ role: 'user', parts: [docPart, { text: prompt }] }],
+      config: { temperature: 0.2, maxOutputTokens: maxOutput },
+    });
+    const text = (result.text || '').trim();
+    // Tolerate Gemini wrapping the JSON in ```json fences or stray text.
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      console.warn(`No JSON array in captions for ${docName}`);
+      return [];
+    }
+    const parsed = JSON.parse(jsonMatch[0]);
+    return parsed
+      .filter(c => c && typeof c.page === 'number' && typeof c.description === 'string' && c.description.length > 20)
+      .slice(0, pageCount);
+  } catch (e) {
+    console.warn(`Vision captioning failed for ${docName}: ${e.message}`);
+    return [];
+  }
+}
+
 // Chunk + embed a whole PDF and persist the chunks to document_chunks.
-// Re-running on the same doc clears its old chunks first so re-uploads
-// stay consistent.
+// Now produces two kinds of chunks: extracted text (via pdfjs) AND
+// per-page visual captions (via Gemini vision). Both are embedded and
+// retrieved together so a student asking about a diagram on page 12
+// retrieves the caption chunk even when pdfjs found no text for it.
+// Re-running on the same doc clears its old chunks first.
 async function chunkAndEmbedPdf(courseId, docName, pdfBuffer) {
   const pdfData = await extractPdfText(pdfBuffer);
-  if (!pdfData || !pdfData.text) return { ok: false, error: 'No extractable text' };
+  if (!pdfData) return { ok: false, error: 'PDF extract failed' };
 
-  const chunks = chunkText(pdfData.text);
-  if (chunks.length === 0) return { ok: false, error: 'No chunks produced' };
+  const textChunks = chunkText(pdfData.text || '');
 
-  // Wipe any prior chunks for this doc.
+  // Generate per-page vision captions in parallel with the embedding of
+  // text chunks. Visual content (chemistry structures, flow charts,
+  // equations as images) becomes searchable alongside the bullet text.
+  const visionCaptions = await captionPdfPages(courseId, docName, 'application/pdf', pdfBuffer, pdfData.pages);
+
+  const allItems = [
+    ...textChunks.map(t => ({ text: t, page_number: null })),
+    ...visionCaptions.map(c => ({ text: `Page ${c.page}: ${c.description}`, page_number: c.page })),
+  ];
+
+  if (allItems.length === 0) return { ok: false, error: 'No chunks produced' };
+
+  // Wipe any prior chunks for this doc so re-uploads stay consistent.
   await supabase.from('document_chunks').delete()
     .eq('course_id', courseId).eq('doc_name', docName);
 
-  const vectors = await embedTexts(chunks);
-  const rows = chunks
-    .map((chunk_text, chunk_index) => ({
+  const vectors = await embedTexts(allItems.map(i => i.text));
+  const rows = allItems
+    .map((item, chunk_index) => ({
       course_id: courseId,
       doc_name: docName,
       chunk_index,
-      chunk_text,
-      page_number: null,                 // pdf-parse doesn't expose per-page boundaries reliably
+      chunk_text: item.text,
+      page_number: item.page_number,
       embedding: vectors[chunk_index],
     }))
     .filter(r => Array.isArray(r.embedding));
 
   if (rows.length === 0) return { ok: false, error: 'All embeddings failed' };
 
-  // Insert in modest batches so a single payload doesn't get rejected.
   for (let i = 0; i < rows.length; i += 50) {
     const { error } = await supabase.from('document_chunks').insert(rows.slice(i, i + 50));
     if (error) {
@@ -534,7 +594,13 @@ async function chunkAndEmbedPdf(courseId, docName, pdfBuffer) {
       return { ok: false, error: error.message };
     }
   }
-  return { ok: true, count: rows.length, pages: pdfData.pages };
+  return {
+    ok: true,
+    count: rows.length,
+    textChunks: textChunks.length,
+    visualChunks: visionCaptions.length,
+    pages: pdfData.pages,
+  };
 }
 
 // Find the top-k most relevant chunks for a question.
@@ -579,7 +645,7 @@ async function ensureCourseIndexed(courseId) {
     for (const [name, doc] of Object.entries(docs)) {
       if (doc.mimeType !== 'application/pdf') continue;
       const r = await chunkAndEmbedPdf(courseId, name, doc.buffer);
-      console.log(`📚 ${name}: ${r.ok ? `${r.count} chunks` : `skipped (${r.error})`}`);
+      console.log(`📚 ${name}: ${r.ok ? `${r.textChunks} text + ${r.visualChunks} visual chunks across ${r.pages} pages` : `skipped (${r.error})`}`);
     }
     reindexCompleted.add(courseId);
   } catch (e) {
@@ -1088,7 +1154,7 @@ app.post('/course/:courseId/upload', requireAuth, async (req, res) => {
   if (mimeType === 'application/pdf') {
     chunkAndEmbedPdf(courseId, file.name, buffer)
       .then(r => {
-        if (r.ok) console.log(`📚 Indexed ${file.name} — ${r.count} chunks across ${r.pages || '?'} pages`);
+        if (r.ok) console.log(`📚 Indexed ${file.name} — ${r.textChunks} text + ${r.visualChunks} visual chunks across ${r.pages} pages`);
         else console.warn(`📚 Index skipped for ${file.name}: ${r.error}`);
       })
       .catch(e => console.error(`📚 Index error for ${file.name}:`, e.message));
