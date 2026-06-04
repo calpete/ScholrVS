@@ -640,6 +640,45 @@ async function searchChunks(courseId, question, k = 6) {
 // same course is fast. Professors never touch a button.
 const reindexInFlight = new Set();
 const reindexCompleted = new Set();
+
+// Boot-time backfill — re-index any course whose document_chunks rows
+// are ALL text (no captions, i.e. page_number is null on every row).
+// Those were indexed before vision captioning shipped, so their tables /
+// diagrams / image-only slides are invisible to retrieval. Vision
+// captioning takes ~1 second per page so this only runs once after a
+// deploy; future boots find captions in place and exit immediately.
+async function backfillVisualCaptions() {
+  const candidates = Object.keys(courseDocuments);
+  if (candidates.length === 0) return;
+
+  for (const courseId of candidates) {
+    try {
+      const { count } = await supabase
+        .from('document_chunks')
+        .select('id', { count: 'exact', head: true })
+        .eq('course_id', courseId)
+        .not('page_number', 'is', null);
+
+      if (count && count > 0) continue; // course already has visual chunks
+
+      const docs = courseDocuments[courseId];
+      if (!docs || Object.keys(docs).length === 0) continue;
+
+      const pdfDocs = Object.entries(docs).filter(([_, d]) => d.mimeType === 'application/pdf');
+      if (pdfDocs.length === 0) continue;
+
+      console.log(`📚 Backfilling vision captions for ${pdfDocs.length} file(s) on course ${courseId}…`);
+      for (const [name, doc] of pdfDocs) {
+        const r = await chunkAndEmbedPdf(courseId, name, doc.buffer);
+        if (r.ok) console.log(`📚 Backfilled ${name}: ${r.textChunks} text + ${r.visualChunks} visual chunks across ${r.pages} pages`);
+        else console.warn(`📚 Backfill skipped ${name}: ${r.error}`);
+      }
+      reindexCompleted.add(courseId);
+    } catch (e) {
+      console.error(`Backfill error for ${courseId}:`, e.message);
+    }
+  }
+}
 async function ensureCourseIndexed(courseId) {
   if (reindexInFlight.has(courseId) || reindexCompleted.has(courseId)) return;
   reindexInFlight.add(courseId);
@@ -2022,4 +2061,12 @@ app.listen(PORT, async () => {
   setTimeout(() => {
     sweepOrphanBlobs().catch(e => console.error('Boot-time orphan sweep error:', e.message));
   }, 10000);
+  // ~30s after boot, re-index any courses whose chunks are all text
+  // (pre-vision-captioning indexing). Self-healing: PDFs uploaded before
+  // captioning shipped automatically get diagrams + tables added to
+  // retrieval the next time the server restarts. Cheap on subsequent
+  // boots — finds visuals already present and exits immediately.
+  setTimeout(() => {
+    backfillVisualCaptions().catch(e => console.error('Boot-time vision backfill error:', e.message));
+  }, 30000);
 });

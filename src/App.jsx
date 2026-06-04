@@ -338,11 +338,21 @@ function MarkdownMessage({ content }) {
     .replace(/\\textit\{([^{}]*)\}/g, '*$1*')
     // Currency rescue: when Gemini writes "$0.50" or "**$250**" the lone $
     // opens math mode and tangles with the surrounding markdown — the
-    // visible result is broken bold + math fragments. Escape any $ that's
-    // immediately followed by a digit (currency-shaped) so it stays literal
+    // visible result is broken bold + math fragments running through whole
+    // sentences. Escape any $ that's followed (optionally past a bold/italic
+    // marker or whitespace) by a digit or decimal point so it stays literal
     // text. Real LaTeX math variables lead with letters or backslashes, so
     // legitimate equations are untouched.
-    .replace(/\$(?=\d)/g, '\\$')
+    .replace(/\$(?=\s*\*{0,3}\s*[.\d])/g, '\\$')
+    // Defensive belt: also kill any LONE $ that has matching content
+    // running for >40 chars with no close — that's a clear sign math mode
+    // got accidentally opened and is eating prose. Escape both ends.
+    .replace(/\$([^$\n]{40,200}?)\$/g, (m, inner) => {
+      // If the captured content reads like prose (has multiple words +
+      // spaces), treat it as accidentally-opened math and neutralize.
+      if (/\s\w+\s\w+\s/.test(inner)) return `\\$${inner}\\$`;
+      return m;
+    })
     // Strip filler openers — the prompt says no filler but models still
     // slip "Alright, let's…" / "Sure! Let's dive into…" past the system
     // message sometimes. Cleaner to strip than to refight the prompt.
