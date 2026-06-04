@@ -1303,10 +1303,31 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
 
-  // Step 4 — granular status so the student sees what's happening rather
-  // than a generic "Thinking…" while the backend retrieves + composes.
+  // Track the connection so we can stop writing the moment the student
+  // closes their tab. Without this, the for-await loop below keeps reading
+  // Gemini chunks into a dead socket and the @google/genai SDK throws
+  // "Incomplete JSON segment at the end" trying to parse the truncated
+  // tail — which we then accidentally surface to the next student as an
+  // error. This bug is exactly what blew up the 10:52 chat in your logs.
+  let clientGone = false;
+  req.on('close', () => { clientGone = true; });
+  req.on('aborted', () => { clientGone = true; });
+
+  // Safe writer — silently no-ops once the client has disappeared, so we
+  // never trigger an EPIPE/ECONNRESET trying to write to a closed socket.
+  const safeWrite = (payload) => {
+    if (clientGone || res.writableEnded) return false;
+    try { res.write(payload); return true; }
+    catch { clientGone = true; return false; }
+  };
+  const safeEnd = () => {
+    if (!res.writableEnded) {
+      try { res.end(); } catch {}
+    }
+  };
+
   const sendStatus = (step, extra = {}) =>
-    res.write(`data: ${JSON.stringify({ type: 'status', step, ...extra })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ type: 'status', step, ...extra })}\n\n`);
 
   sendStatus('searching');
 
@@ -1372,33 +1393,58 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
   }
 
   sendStatus('writing');
-  res.write(`data: ${JSON.stringify({ type: 'citations', citations: [] })}\n\n`);
+  safeWrite(`data: ${JSON.stringify({ type: 'citations', citations: [] })}\n\n`);
 
+  let fullText = '';
+  let streamCutOff = false;
   try {
     const stream = await ai.models.generateContentStream({
       model: MODEL_CHAT, contents,
       config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.3, maxOutputTokens: 2048 },
     });
 
-    let fullText = '';
-    for await (const chunk of stream) {
-      const token = chunk.text;
-      if (token) { fullText += token; res.write(`data: ${JSON.stringify({ type: 'token', token })}\n\n`); }
+    // Inner try/catch so an SDK parse error mid-stream ("Incomplete JSON
+    // segment at the end" etc.) doesn't throw away the partial answer we
+    // already wrote out. If we have content, we treat it as a graceful cut
+    // and proceed to the done event.
+    try {
+      for await (const chunk of stream) {
+        if (clientGone) break;
+        const token = chunk.text;
+        if (token) {
+          fullText += token;
+          if (!safeWrite(`data: ${JSON.stringify({ type: 'token', token })}\n\n`)) break;
+        }
+      }
+    } catch (streamErr) {
+      streamCutOff = true;
+      console.warn(`Stream interrupted (${streamErr.message}) — partial answer length ${fullText.length}`);
+      // If we got nothing at all, rethrow so the outer catch surfaces the
+      // failure. Otherwise treat what we have as the answer.
+      if (fullText.length < 20) throw streamErr;
     }
+
+    // Client disconnected — don't bother finalizing or writing more.
+    if (clientGone) { safeEnd(); return; }
 
     const sourcesMatch = fullText.match(/\nSOURCES:\s*(.+)$/m);
     const sources = sourcesMatch ? sourcesMatch[1].split(',').map(s => s.trim()).filter(Boolean) : docNames;
     const confident = !fullText.toLowerCase().includes("doesn't appear to be in any of your uploaded");
 
-    await supabase.from('questions').insert({ course_id: courseId, question: message, confident });
+    try {
+      await supabase.from('questions').insert({ course_id: courseId, question: message, confident });
+    } catch (e) { console.warn('Question log failed:', e.message); }
 
-    res.write(`data: ${JSON.stringify({ type: 'sources', sources })}\n\n`);
-    res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
-    res.end();
+    safeWrite(`data: ${JSON.stringify({ type: 'sources', sources })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ type: 'done', truncated: streamCutOff })}\n\n`);
+    safeEnd();
   } catch (err) {
-    console.error('Chat error:', err.message);
-    res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
-    res.end();
+    console.error(`Chat error: ${err.message} (course ${courseId}, partial ${fullText.length} chars)`);
+    // Don't leak SDK error strings to the student. They got either nothing
+    // or a clean partial answer at this point.
+    if (clientGone) { safeEnd(); return; }
+    safeWrite(`data: ${JSON.stringify({ type: 'error', error: 'Lost the thread answering that — try again.' })}\n\n`);
+    safeEnd();
   }
 });
 
