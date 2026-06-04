@@ -146,7 +146,7 @@ Use your judgment. Markdown is available — headings, bold, lists, tables, pros
 Tables, bullets, headings, and structure are tools — use them when they help, skip them when prose is clearer. Don't force a table just because there are 3+ items.
 
 # MATH
-- Block formulas: \`$$equation$$\` on its own paragraph, with blank lines above and below. Never embed \`$$\` blocks inside a bullet or list item.
+- Block formulas: \`$$equation$$\` on its own paragraph, with blank lines above and below. NEVER use \`\\[...\\]\` or bare \`[...]\` as math delimiters — only \`$$...$$\`. Never embed a \`$$\` block inside a bullet or list item.
 - Inline math: \`$x$\` for short expressions.
 - Inside any math, write \`\\%\` not \`%\` (raw \`%\` is a LaTeX comment marker and breaks rendering).
 - Currency: never write a dollar amount with a leading \`$\` — \`$0.50\` collides with math mode. Write "0.50 dollars" or just "0.50".
@@ -563,6 +563,18 @@ async function searchChunks(courseId, question, k = 6) {
 // that command to end-of-line (minus stray $$) in proper block math.
 function rewriteEquations(text) {
   if (!text) return text;
+
+  // Bracket-style math → `$$...$$`. gpt-4o sometimes uses LaTeX block math
+  // syntax `\[ ... \]` (with backslash) or its corrupted variant `[ ... $$ ]`
+  // instead of the markdown `$$...$$` our renderer expects. Convert both to
+  // proper `$$...$$` blocks. The `[ ... ]` branch is conservative — only
+  // applied when the bracketed content contains a recognized LaTeX command,
+  // so we don't corrupt prose that legitimately uses square brackets.
+  text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, inner) => `$$${inner.trim()}$$`);
+  text = text.replace(
+    /(^|\n|\s)\[\s+([^\[\]]*?\\(?:text|frac|sum|prod|int|sqrt|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)[^\[\]]*?)\s+\]/g,
+    (_, lead, inner) => `${lead}$$${inner.replace(/\$+/g, '').trim()}$$`
+  );
 
   // Global pre-pass — collapse ANY run of 2+ backslashes anywhere in the
   // text before any LaTeX command. Gemini's "double-escape \\text"
