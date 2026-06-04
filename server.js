@@ -1658,7 +1658,7 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
   sendStatus('writing');
   safeWrite(`data: ${JSON.stringify({ type: 'citations', citations: [] })}\n\n`);
 
-  let fullText = '';
+  let rawText = '';
   let streamCutOff = false;
   try {
     const stream = await ai.models.generateContentStream({
@@ -1666,62 +1666,61 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
       config: { systemInstruction: SYSTEM_PROMPT, temperature: 0.3, maxOutputTokens: 2048 },
     });
 
-    // Inner try/catch so an SDK parse error mid-stream ("Incomplete JSON
-    // segment at the end" etc.) doesn't throw away the partial answer we
-    // already wrote out. If we have content, we treat it as a graceful cut
-    // and proceed to the done event.
+    // ── COLLECT first, STREAM cleaned ──
+    // Past attempts streamed Gemini's tokens directly and relied on a
+    // client-side renderer pass to fix broken patterns. That depends on
+    // the user having the latest frontend bundle, which is unreliable
+    // because of browser cache and CDN propagation. So instead we now
+    // buffer Gemini's full response on the server, run rewriteEquations
+    // to fix any \frac/\text math that was left unwrapped, and THEN
+    // stream the cleaned text as tokens. Every client (old, new, cached,
+    // fresh) receives already-clean tokens — there's no "client must
+    // be on the new bundle for the fix to work" anymore.
     try {
       for await (const chunk of stream) {
         if (clientGone) break;
         const token = chunk.text;
-        if (token) {
-          fullText += token;
-          if (!safeWrite(`data: ${JSON.stringify({ type: 'token', token })}\n\n`)) break;
-        }
+        if (token) rawText += token;
       }
     } catch (streamErr) {
       streamCutOff = true;
-      console.warn(`Stream interrupted (${streamErr.message}) — partial answer length ${fullText.length}`);
-      // If we got nothing at all, rethrow so the outer catch surfaces the
-      // failure. Otherwise treat what we have as the answer.
-      if (fullText.length < 20) throw streamErr;
+      console.warn(`Stream interrupted (${streamErr.message}) — partial answer length ${rawText.length}`);
+      if (rawText.length < 20) throw streamErr;
     }
 
-    // Client disconnected — don't bother finalizing or writing more.
+    if (clientGone) { safeEnd(); return; }
+
+    const fullText = rewriteEquations(rawText);
+
+    // Now stream the cleaned text in chunks so it still feels like
+    // streaming on the client even though we held the response until
+    // Gemini finished. ~80 chars per chunk with 12ms gaps feels natural.
+    const CHUNK = 80;
+    for (let i = 0; i < fullText.length; i += CHUNK) {
+      if (clientGone) break;
+      const tokenChunk = fullText.slice(i, i + CHUNK);
+      if (!safeWrite(`data: ${JSON.stringify({ type: 'token', token: tokenChunk })}\n\n`)) break;
+      if (i + CHUNK < fullText.length) {
+        await new Promise(r => setTimeout(r, 12));
+      }
+    }
+
     if (clientGone) { safeEnd(); return; }
 
     // Source attribution comes from what we ACTUALLY retrieved, not from
-    // the AI's self-reported SOURCES line. The model sometimes writes
-    // "SOURCES: None" when it answered from general knowledge, even though
-    // the retrieval did pull relevant chunks (e.g. the syllabus pointing
-    // at the right chapter) and those chunks DID shape the answer. Showing
-    // the docs that fed retrieval is the honest attribution.
+    // the AI's self-reported SOURCES line.
     const sources = docNames;
     const confident = !fullText.toLowerCase().includes("doesn't appear to be in any of your uploaded");
-
-    // ── REWRITE PASS — same math rescue the client renderer does, applied
-    // on the server so the SAVED message (the one that gets stored and
-    // shown again on chat reload) is also clean. Catches the "equation
-    // jammed inside a bullet" pattern Gemini keeps producing. We emit a
-    // `rewrite` event so the live UI replaces the streamed broken text
-    // with the cleaned version — works regardless of frontend bundle
-    // caching.
-    const rewrittenText = rewriteEquations(fullText);
 
     try {
       await supabase.from('questions').insert({ course_id: courseId, question: message, confident });
     } catch (e) { console.warn('Question log failed:', e.message); }
 
-    if (rewrittenText !== fullText) {
-      safeWrite(`data: ${JSON.stringify({ type: 'rewrite', content: rewrittenText })}\n\n`);
-    }
     safeWrite(`data: ${JSON.stringify({ type: 'sources', sources })}\n\n`);
     safeWrite(`data: ${JSON.stringify({ type: 'done', truncated: streamCutOff })}\n\n`);
     safeEnd();
   } catch (err) {
-    console.error(`Chat error: ${err.message} (course ${courseId}, partial ${fullText.length} chars)`);
-    // Don't leak SDK error strings to the student. They got either nothing
-    // or a clean partial answer at this point.
+    console.error(`Chat error: ${err.message} (course ${courseId}, partial ${rawText.length} chars)`);
     if (clientGone) { safeEnd(); return; }
     safeWrite(`data: ${JSON.stringify({ type: 'error', error: 'Lost the thread answering that — try again.' })}\n\n`);
     safeEnd();
