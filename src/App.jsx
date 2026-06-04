@@ -347,16 +347,25 @@ function MarkdownMessage({ content }) {
     // text. Real LaTeX math variables lead with letters or backslashes, so
     // legitimate equations are untouched.
     .replace(/\$(?=\s*\*{0,3}\s*[.\d])/g, '\\$')
-    // Math-mode rescue, take 4 — line-by-line scan. For each line, find
-    // the first LaTeX command (\frac, \text, \sum, etc.), then wrap
-    // everything from that command to end-of-line in $$ block math.
-    // Anything before the command (bullet markers, bold labels, prose)
-    // is preserved on its own line above. Skips lines already wrapped
-    // in matched $$ pairs or proper $...$ inline pairs.
+    // Math-mode rescue. Two-pass:
+    //   (1) Collapse \\ → \ inside any $$...$$ or $...$ math block, since
+    //       Gemini often over-escapes ("\\text" instead of "\text") which
+    //       KaTeX reads as a linebreak command and silently breaks render.
+    //   (2) Find any line containing a LaTeX command (\frac, \text, etc.)
+    //       that isn't properly wrapped and lift it into $$...$$.
+    // Mirrors the server-side rewriteEquations so saved messages loaded
+    // from chat history still render cleanly even though they were stored
+    // before the server fix shipped.
     .replace(/^[\s\S]*$/, (text) => {
+      // Pre-pass: collapse doubled backslashes inside math regions
+      text = text.replace(/\$\$([\s\S]+?)\$\$/g, (m, inner) =>
+        '$$' + inner.replace(/\\{2,}/g, '\\') + '$$');
+      text = text.replace(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g, (m, inner) =>
+        '$' + inner.replace(/\\{2,}/g, '\\') + '$');
+
       const lines = text.split('\n');
       const out = [];
-      const mathCmdRe = /\\(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)\b/;
+      const mathCmdRe = /\\+(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)\b/;
       for (const line of lines) {
         const matchIdx = line.search(mathCmdRe);
         if (matchIdx === -1) { out.push(line); continue; }
@@ -368,8 +377,9 @@ function MarkdownMessage({ content }) {
         if (singleDollars >= 2 && singleDollars % 2 === 0) { out.push(line); continue; }
         const prefix = line.slice(0, matchIdx).replace(/\s*\\?\s*$/, '').trimEnd();
         const math = line.slice(matchIdx)
-          .replace(/\$+\s*$/, '')
-          .replace(/(?<!\\)%/g, '\\%')
+          .replace(/\\{2,}/g, '\\')      // collapse \\text → \text
+          .replace(/\$+\s*$/, '')        // strip trailing $$
+          .replace(/(?<!\\)%/g, '\\%')   // escape unescaped %
           .trim();
         if (!math || math.length < 5) { out.push(line); continue; }
         if (prefix) { out.push(prefix); out.push(''); out.push(`$$${math}$$`); }
