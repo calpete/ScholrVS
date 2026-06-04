@@ -576,6 +576,17 @@ function rewriteEquations(text) {
     (_, lead, inner) => `${lead}$$${inner.replace(/\$+/g, '').trim()}$$`
   );
 
+  // Repair the `$math\$` pattern — model opens with `$` but escapes the
+  // closing dollar as `\$`. Markdown turns `\$` into a literal `$`, so the
+  // opening `$` never finds a math-mode close and the LaTeX falls through
+  // as raw text. We rewrite it to clean `$math$` (single dollars on both
+  // ends) so KaTeX's inline-math pass picks it up. Conservative: only fires
+  // when the wrapped content contains a recognized LaTeX command.
+  text = text.replace(
+    /\$([^\n$]*?\\(?:text|frac|sum|prod|int|sqrt|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)[^\n$]*?)\\\$/g,
+    (_, inner) => `$${inner}$`
+  );
+
   // Global pre-pass — collapse ANY run of 2+ backslashes anywhere in the
   // text before any LaTeX command. Gemini's "double-escape \\text"
   // pattern shows up in lots of variants (\\text, \\\\text after some
@@ -637,8 +648,12 @@ function rewriteEquations(text) {
     const dollarPairs = (line.match(/\$\$/g) || []).length;
     if (dollarPairs >= 2 && dollarPairs % 2 === 0) { out.push(line); continue; }
 
-    // Skip lines with single-$ math wrapping (inline math we don't want to break)
-    const singleDollars = (line.replace(/\$\$/g, '').match(/\$/g) || []).length;
+    // Skip lines with single-$ math wrapping (inline math we don't want to break).
+    // Exclude `\$` (escaped dollars) — those are NOT math delimiters, they're
+    // literal currency. Counting them was causing `$math\$` lines to look
+    // "already-wrapped" and skip the rewrite, which is exactly why they were
+    // rendering broken — the closing `\$` becomes a literal `$` in markdown.
+    const singleDollars = (line.replace(/\$\$/g, '').replace(/\\\$/g, '').match(/\$/g) || []).length;
     if (singleDollars >= 2 && singleDollars % 2 === 0) { out.push(line); continue; }
 
     // Identify the "prefix" — everything before the first math command.
@@ -653,7 +668,9 @@ function rewriteEquations(text) {
     const math = line
       .slice(matchIdx)
       .replace(/\\{2,}/g, '\\')      // collapse \\text → \text
+      .replace(/\\\$/g, '')          // strip escaped \$ — model artifact
       .replace(/\$+\s*$/, '')        // strip trailing $$
+      .replace(/\\+\s*$/, '')        // strip trailing \ — model artifact
       .replace(/(?<!\\)%/g, '\\%')   // escape unescaped %
       .trim();
 
