@@ -1690,7 +1690,22 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
 
     if (clientGone) { safeEnd(); return; }
 
-    const fullText = rewriteEquations(rawText);
+    // Apply the math-rescue rewrite. Wrapped in try/catch so any unexpected
+    // edge case in the regex doesn't take down the response — we'd fall
+    // back to streaming the raw text, which at least gets a (broken-looking
+    // but readable) answer to the student.
+    let fullText;
+    try {
+      fullText = rewriteEquations(rawText);
+      if (fullText !== rawText) {
+        console.log(`🧹 Rewrite applied to chat response (${rawText.length} → ${fullText.length} chars)`);
+      } else {
+        console.log(`🧹 Rewrite no-op for chat response (${rawText.length} chars)`);
+      }
+    } catch (e) {
+      console.error(`Rewrite threw — falling back to raw text: ${e.message}`);
+      fullText = rawText;
+    }
 
     // Now stream the cleaned text in chunks so it still feels like
     // streaming on the client even though we held the response until
