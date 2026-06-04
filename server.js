@@ -569,8 +569,11 @@ function rewriteEquations(text) {
   // renderer (remark-math + KaTeX) only parses `$$ ... $$` and `$ ... $`.
   // Convert both LaTeX styles, plus the corrupted `[ ... $$ ]` variant the
   // model sometimes emits when its escaping gets confused.
-  text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, inner) => `$$${inner.trim()}$$`);
-  text = text.replace(/\\\(([^\n]+?)\\\)/g, (_, inner) => `$${inner.trim()}$`);
+  // Eat any redundant trailing `$$` (or `$`) the model tacks on AFTER the
+  // LaTeX-style close — `\[ math \]$$` is a frequent variant that left a
+  // stray `$$` in the prefix and broke the lift-out logic downstream.
+  text = text.replace(/\\\[([\s\S]+?)\\\](?:\s*\$+)?/g, (_, inner) => `$$${inner.trim()}$$`);
+  text = text.replace(/\\\(([^\n]+?)\\\)(?:\s*\$)?/g, (_, inner) => `$${inner.trim()}$`);
   text = text.replace(
     /(^|\n|\s)\[\s+([^\[\]]*?\\(?:text|frac|sum|prod|int|sqrt|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)[^\[\]]*?)\s+\]/g,
     (_, lead, inner) => `${lead}$$${inner.replace(/\$+/g, '').trim()}$$`
@@ -657,9 +660,12 @@ function rewriteEquations(text) {
     if (singleDollars >= 2 && singleDollars % 2 === 0) { out.push(line); continue; }
 
     // Identify the "prefix" — everything before the first math command.
-    // Strip trailing " \ " filler that the model often writes before math.
+    // Strip trailing junk the model often leaves: backslashes (one or many,
+    // from `\\` line-break attempts or `\[` whose `[` got swallowed by the
+    // \[...\] conversion), and stray `$` or `$$` (from a redundant opening
+    // dollar that doesn't pair with anything).
     const rawPrefix = line.slice(0, matchIdx);
-    const prefix = rawPrefix.replace(/\s*\\?\s*$/, '').trimEnd();
+    const prefix = rawPrefix.replace(/[\s\\$]*$/, '').trimEnd();
 
     // Math portion = from the command to end of line, minus orphan $$.
     // Collapse runs of multiple backslashes back to one — KaTeX expects
