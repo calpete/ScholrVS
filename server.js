@@ -633,6 +633,32 @@ function rewriteEquations(text) {
   text = text.replace(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g, (m, inner) =>
     '$' + inner.replace(/\\{2,}/g, '\\').replace(/(?<!\\)%/g, '\\%') + '$');
 
+  // Ensure standalone `$$math$$` lines have blank lines before AND after.
+  // Without this, when the model emits a list item like:
+  //   `1. **Label:**\n$$ \text{...} $$\n2. **Label:**\n$$ ... $$`
+  // markdown treats the math line as a continuation of the list item's
+  // paragraph and remark-math doesn't recognize it as block math — the
+  // student sees raw `$$ \text{...} $$` text. Splitting line-by-line and
+  // re-joining with blank line padding is more reliable than chained
+  // lookbehind regexes.
+  {
+    const ls = text.split('\n');
+    const out = [];
+    const isStandalone = (l) => /^[ \t]*\$\$[^\n]+\$\$[ \t]*$/.test(l);
+    for (let i = 0; i < ls.length; i++) {
+      const cur = ls[i];
+      if (isStandalone(cur)) {
+        if (out.length > 0 && out[out.length - 1].trim() !== '') out.push('');
+        out.push(cur);
+        const next = ls[i + 1];
+        if (next !== undefined && next.trim() !== '') out.push('');
+      } else {
+        out.push(cur);
+      }
+    }
+    text = out.join('\n');
+  }
+
   const lines = text.split('\n');
   const out = [];
   // Match ONE OR MORE backslashes before the command. Gemini sometimes
