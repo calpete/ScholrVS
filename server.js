@@ -2182,6 +2182,36 @@ app.post('/professor/courses/:courseId/cover', requireAuth, async (req, res) => 
   res.json({ success: true, coverImage: cover });
 });
 
+// If a student already has a quiz / test / deck saved under this exact
+// topic in this course, append " (2)", " (3)" etc. so saved artifacts
+// never collide in the sidebar — "the syllabus" today and "the syllabus"
+// tomorrow get visibly different titles. Match is case-insensitive +
+// whitespace-trimmed; typo variants like "syllabus" vs "sllyabus" are
+// left alone (treated as legitimately different — students can rename).
+async function disambiguateTopic(table, studentId, courseId, proposed) {
+  if (!proposed || !proposed.trim()) return proposed;
+  const base = proposed.trim();
+  const norm = base.toLowerCase();
+  try {
+    const { data } = await supabase.from(table)
+      .select('topic')
+      .eq('student_id', studentId).eq('course_id', courseId);
+    const existing = new Set((data || [])
+      .map(r => (r.topic || '').toLowerCase().trim())
+      .filter(Boolean));
+    if (!existing.has(norm)) return base;
+    for (let i = 2; i < 100; i++) {
+      const candidate = `${base} (${i})`;
+      if (!existing.has(candidate.toLowerCase())) return candidate;
+    }
+    // Pathological case (100+ collisions) — fall back to a timestamp suffix.
+    return `${base} (${Date.now()})`;
+  } catch (e) {
+    console.warn(`disambiguateTopic(${table}) failed: ${e.message}`);
+    return base;
+  }
+}
+
 app.post('/course/:courseId/quiz', requireAuth, requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const { topic } = req.body;
@@ -2235,10 +2265,11 @@ Generate all 5 questions now:`;
     }).filter(q => q.question && q.options[0] !== 'A) ');
     if (questions.length === 0) return res.status(500).json({ error: 'Could not generate quiz questions' });
     // Persist so the student can revisit / retake from the Quizzes sidebar.
+    const finalTopic = await disambiguateTopic('quizzes', req.user.id, courseId, topic) || null;
     let savedId = null;
     try {
       const { data: saved } = await supabase.from('quizzes')
-        .insert({ student_id: req.user.id, course_id: courseId, topic: topic || null, questions })
+        .insert({ student_id: req.user.id, course_id: courseId, topic: finalTopic, questions })
         .select('id').single();
       savedId = saved?.id || null;
     } catch (e) { console.error('Quiz save error:', e.message); }
@@ -2292,10 +2323,11 @@ Keep each side under two sentences. Use plain text, no markdown inside the FRONT
       return { front: get('FRONT:'), back: get('BACK:'), source: get('SOURCE:') };
     }).filter(c => c.front && c.back).slice(0, 12);
     if (cards.length === 0) return res.status(500).json({ error: 'Could not generate flashcards' });
+    const finalTopic = await disambiguateTopic('flashcard_decks', req.user.id, courseId, topic) || null;
     let savedId = null;
     try {
       const { data: saved } = await supabase.from('flashcard_decks')
-        .insert({ student_id: req.user.id, course_id: courseId, topic: topic || null, cards })
+        .insert({ student_id: req.user.id, course_id: courseId, topic: finalTopic, cards })
         .select('id').single();
       savedId = saved?.id || null;
     } catch (e) { console.error('Deck save error:', e.message); }
@@ -2424,10 +2456,11 @@ Generate all 8 questions now:`;
       return { question, options, correct: correct === -1 ? 0 : correct, explanation };
     }).filter(q => q.question && q.options[0] !== 'A) ');
     if (questions.length === 0) return res.status(500).json({ error: 'Could not generate test questions' });
+    const finalTopic = await disambiguateTopic('tests', req.user.id, courseId, topic) || null;
     let savedId = null;
     try {
       const { data: saved } = await supabase.from('tests')
-        .insert({ student_id: req.user.id, course_id: courseId, topic: topic || null, questions })
+        .insert({ student_id: req.user.id, course_id: courseId, topic: finalTopic, questions })
         .select('id').single();
       savedId = saved?.id || null;
     } catch (e) { console.error('Test save error:', e.message); }
