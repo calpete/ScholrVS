@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import {
   MessageSquare, Send, LogOut, Trash2, Plus, BookOpen, FileText,
@@ -3081,30 +3081,46 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     if (!c) return true;
     return c.scrollHeight - c.scrollTop - c.clientHeight < 150;
   };
-  // `behavior: 'auto'` (instant) for the streaming-follow case — smooth
-  // animation lagged behind incoming tokens and each rAF check ran against
-  // a stale scroll position, causing autoscroll to "stick" mid-response.
-  // Smooth is used only when the user clicks the down-arrow button.
+  // Direct scrollTop assignment beats scrollIntoView during streaming —
+  // scrollIntoView can lag, get queued behind layout work, or quietly
+  // resolve to the wrong scroll container when there are nested
+  // overflow ancestors. scrollTop = scrollHeight is one instruction,
+  // happens immediately, and works on every browser.
   const scrollToBottom = (force = false, smooth = false) => {
-    requestAnimationFrame(() => {
-      if (force || isNearBottom()) {
-        bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'end' });
-      }
-    });
+    const c = scrollContainerRef.current;
+    if (!c) return;
+    if (!force && !isNearBottom()) return;
+    if (smooth) {
+      c.scrollTo({ top: c.scrollHeight, behavior: 'smooth' });
+    } else {
+      c.scrollTop = c.scrollHeight;
+    }
   };
-  useEffect(() => { if (active) scrollToBottom(); }, [active?.messages, isTyping]);
-  // When the user sends a message, force-scroll regardless of where they
-  // were — they expect to see their own question and the answer streaming
-  // in even if they were scrolled up reading history.
+  // Compute a "content fingerprint" that changes per token. Array-reference
+  // comparison on active?.messages was unreliable across React 18 batched
+  // updates — sometimes useEffect missed a re-render. Total content length
+  // is monotonically increasing during streaming and guaranteed to change.
+  const contentFingerprint = (active?.messages || []).reduce(
+    (n, m) => n + (m.content?.length || 0), 0
+  );
+  // useLayoutEffect (not useEffect) runs synchronously after DOM commit
+  // and BEFORE paint, so the scroll happens before the browser shows the
+  // new content. That's how Claude/ChatGPT keep the chat glued to the
+  // bottom without any visible jitter or "above the fold" flash.
+  useLayoutEffect(() => { if (active) scrollToBottom(); }, [contentFingerprint, isTyping]);
+
+  // When the user sends a new message, force-scroll regardless of where
+  // they were — sending always pulls you to the latest exchange, even if
+  // you were scrolled up reading older content.
   const lastUserMsgCount = useRef(0);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!active) return;
     const userMsgs = (active.messages || []).filter(m => m.role === 'user').length;
     if (userMsgs > lastUserMsgCount.current) {
       scrollToBottom(true);
     }
     lastUserMsgCount.current = userMsgs;
-  }, [active?.id, active?.messages]);
+  }, [active?.id, active?.messages?.length]);
   // Single scroll listener owns the button's visibility. rAF-throttled so
   // we don't thrash state on fast scroll-wheels or trackpad inertia.
   useEffect(() => {
