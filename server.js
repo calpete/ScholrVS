@@ -1796,15 +1796,39 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
 
   let rawText = '';
   let streamCutOff = false;
+  // Open the OpenAI stream. If images are attached and the request fails
+  // for any reason (corrupted PNG, rate limit on vision, region issue —
+  // all rare but possible at production scale), retry once WITHOUT images
+  // so the student still gets a text-grounded answer instead of an error.
+  let stream;
   try {
-    const stream = await openai.chat.completions.create({
+    stream = await openai.chat.completions.create({
       model: MODEL_CHAT,
       messages,
       temperature: 0.3,
       max_tokens: 2048,
       stream: true,
     });
+  } catch (openErr) {
+    if (imageParts.length === 0) throw openErr;
+    console.warn(`Multimodal request failed (${openErr.message}) — retrying text-only`);
+    const textOnlyMessages = messages.map(m => {
+      if (Array.isArray(m.content)) {
+        const textPart = m.content.find(p => p.type === 'text');
+        return { ...m, content: textPart ? textPart.text : '' };
+      }
+      return m;
+    });
+    stream = await openai.chat.completions.create({
+      model: MODEL_CHAT,
+      messages: textOnlyMessages,
+      temperature: 0.3,
+      max_tokens: 2048,
+      stream: true,
+    });
+  }
 
+  try {
     // ── COLLECT first, STREAM cleaned ──
     // We buffer the full response on the server, run rewriteEquations as a
     // safety net, then stream the cleaned text as tokens. Every client
