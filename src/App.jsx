@@ -3140,6 +3140,21 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   }, [active?.id]);
 
   const createNewChat = async () => {
+    // Reuse any existing empty chat instead of creating another. Without
+    // this, someone hammering "New chat" could spawn hundreds of empty
+    // rows in the DB. Prefer the currently-active chat if it's empty
+    // (zero friction — they're already there); otherwise reuse the first
+    // empty chat in the list. Only fall through to a real create when
+    // every existing chat has content.
+    const activeChat = chats.find(c => c.id === chatId);
+    if (activeChat && (!activeChat.messages || activeChat.messages.length === 0)) {
+      return activeChat;
+    }
+    const reusable = chats.find(c => !c.messages || c.messages.length === 0);
+    if (reusable) {
+      setChatId(reusable.id);
+      return reusable;
+    }
     try {
       const res = await fetch(`${API}/student/chats/${course.id}`, {
         method: 'POST',
@@ -3788,7 +3803,12 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
               View all<ChevronRight size={10} />
             </button>
           </div>
-          {chats.map(c => (
+          {/* Only show chats that have actual content. The currently-active
+              chat shows too even when empty (so the user can see where they
+              are after clicking "New chat"). Empty chats that aren't active
+              are hidden — prevents the sidebar from filling up with orphan
+              "New Chat" rows when the user clicks the button repeatedly. */}
+          {chats.filter(c => c.id === chatId || (c.messages && c.messages.length > 0)).map(c => (
             <div key={c.id} className="group relative mb-0.5">
               {renamingId === c.id ? (
                 <input
