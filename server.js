@@ -855,6 +855,39 @@ async function backfillVisualCaptions() {
     }
   }
 }
+// Boot-time backfill — render page-image PNGs for any PDF that doesn't
+// have them in Supabase Storage yet. Courses uploaded before page-image
+// rendering shipped have empty `course_pages/<courseId>/<doc>/` folders;
+// without this, chat would silently fall back to text-only forever.
+// Cheap check: list the storage folder, only re-render when nothing's
+// there. Each PDF runs in sequence per course to avoid Render OOM.
+async function backfillPageImages() {
+  const candidates = Object.keys(courseDocuments);
+  if (candidates.length === 0) return;
+
+  for (const courseId of candidates) {
+    try {
+      const docs = courseDocuments[courseId];
+      if (!docs || Object.keys(docs).length === 0) continue;
+      const pdfDocs = Object.entries(docs).filter(([_, d]) => d.mimeType === 'application/pdf');
+      if (pdfDocs.length === 0) continue;
+
+      for (const [name, doc] of pdfDocs) {
+        const { data: existing } = await supabase.storage
+          .from('documents')
+          .list(`course_pages/${courseId}/${name}`, { limit: 1 });
+        if (existing && existing.length > 0) continue; // already has images
+        console.log(`📸 Backfilling page images for ${name} on course ${courseId}…`);
+        const r = await renderAndUploadPdfPages(courseId, name, doc.buffer);
+        if (r.ok) console.log(`📸 Backfilled page images for ${name}: ${r.pages}/${r.total}`);
+        else console.warn(`📸 Page-image backfill skipped ${name}: ${r.error}`);
+      }
+    } catch (e) {
+      console.error(`Page-image backfill error for ${courseId}:`, e.message);
+    }
+  }
+}
+
 async function ensureCourseIndexed(courseId) {
   if (reindexInFlight.has(courseId) || reindexCompleted.has(courseId)) return;
   reindexInFlight.add(courseId);
@@ -2450,4 +2483,12 @@ app.listen(PORT, async () => {
   setTimeout(() => {
     backfillVisualCaptions().catch(e => console.error('Boot-time vision backfill error:', e.message));
   }, 30000);
+  // ~60s after boot, render page-image PNGs for any PDF that doesn't have
+  // them yet. Cheap to check (one storage list per PDF); only renders when
+  // the folder is empty. Lets visual-grounding chat work on courses
+  // uploaded before page rendering shipped, without requiring a manual
+  // reindex per course.
+  setTimeout(() => {
+    backfillPageImages().catch(e => console.error('Boot-time page-image backfill error:', e.message));
+  }, 60000);
 });
