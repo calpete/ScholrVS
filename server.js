@@ -1826,14 +1826,22 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
     .filter(c => c.page_number)
     .map(c => [`${c.doc_name}:::${c.page_number}`, { doc: c.doc_name, page: c.page_number }])).values()];
 
-  // Fetch all page images in parallel — sequential downloads would add
-  // ~300ms per image × 4 = 1.2s of avoidable wall-clock to every question.
-  // Promise.all collapses that to ~300ms total. nulls (missing/failed
-  // downloads) are filtered out before attaching to the request.
+  // Fetch all page images in parallel with a per-image timeout so a stuck
+  // Supabase Storage call can't hang the whole chat request. 5 seconds is
+  // generous for the ~300ms cold-cache case but short enough to fail-fast
+  // and fall back to text-only grounding if storage is down.
+  const withTimeout = (p, ms, label) => Promise.race([
+    p,
+    new Promise((_, rej) => setTimeout(() => rej(new Error(`${label} timeout`)), ms)),
+  ]);
   const imageParts = (await Promise.all(pageRefs.slice(0, 4).map(async (ref) => {
     try {
       const storagePath = `course_pages/${courseId}/${ref.doc}/page_${ref.page}.png`;
-      const { data, error } = await supabase.storage.from('documents').download(storagePath);
+      const { data, error } = await withTimeout(
+        supabase.storage.from('documents').download(storagePath),
+        5000,
+        `download ${ref.doc} p.${ref.page}`
+      );
       if (error || !data) return null;
       const buf = Buffer.from(await data.arrayBuffer());
       const dataUrl = `data:image/png;base64,${buf.toString('base64')}`;
@@ -1872,12 +1880,13 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
   sendStatus('writing');
   safeWrite(`data: ${JSON.stringify({ type: 'citations', citations: [] })}\n\n`);
 
-  let rawText = '';
+  let rawText = '';            // full response accumulator for DB + sources
+  let streamedToClient = '';   // what the student has seen so far
   let streamCutOff = false;
-  // Open the OpenAI stream. If images are attached and the request fails
-  // for any reason (corrupted PNG, rate limit on vision, region issue —
-  // all rare but possible at production scale), retry once WITHOUT images
-  // so the student still gets a text-grounded answer instead of an error.
+  // Open the OpenAI stream with a 90-second timeout. Vision requests can
+  // be slow on TTFT (5-15s); 90s gives plenty of margin while still
+  // killing genuinely hung requests instead of letting the student stare
+  // at a loading indicator forever.
   let stream;
   try {
     stream = await openai.chat.completions.create({
@@ -1886,7 +1895,7 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
       temperature: 0.3,
       max_tokens: 2048,
       stream: true,
-    });
+    }, { timeout: 90_000 });
   } catch (openErr) {
     if (imageParts.length === 0) throw openErr;
     console.warn(`Multimodal request failed (${openErr.message}) — retrying text-only`);
@@ -1903,104 +1912,94 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
       temperature: 0.3,
       max_tokens: 2048,
       stream: true,
-    });
+    }, { timeout: 90_000 });
   }
 
   try {
-    // ── COLLECT first, STREAM cleaned ──
-    // We buffer the full response on the server, run rewriteEquations as a
-    // safety net, then stream the cleaned text as tokens. Every client
-    // receives already-clean tokens regardless of browser bundle freshness.
+    // ── STREAM tokens directly to client as they arrive ──
+    // The old buffer-then-stream approach held the whole response on the
+    // server before flushing anything, which made the student stare at
+    // "Reading your materials..." for 10+ seconds while the model was
+    // generating. Now we stream as the model emits, buffering only the
+    // very first line (to parse and strip the MATERIALS: yes/no marker
+    // before it reaches the student).
+    let usedMaterials = false;
+    let markerParsed = false;
+    let markerBuffer = '';
+
+    const emitToken = (token) => {
+      streamedToClient += token;
+      if (!safeWrite(`data: ${JSON.stringify({ type: 'token', token })}\n\n`)) return false;
+      return true;
+    };
+
     try {
       for await (const chunk of stream) {
         if (clientGone) break;
         const token = chunk.choices?.[0]?.delta?.content;
-        if (token) rawText += token;
+        if (!token) continue;
+        rawText += token;
+
+        if (markerParsed) {
+          // Past the first line — send tokens straight through.
+          if (!emitToken(token)) break;
+          continue;
+        }
+
+        // Still hunting for the first newline so we can extract the
+        // MATERIALS marker. Keep buffering until we find it or the
+        // buffer grows past a sane bound (model didn't follow the rule).
+        markerBuffer += token;
+        const nlIdx = markerBuffer.indexOf('\n');
+        if (nlIdx >= 0) {
+          const firstLine = markerBuffer.slice(0, nlIdx);
+          const rest = markerBuffer.slice(nlIdx + 1);
+          const m = firstLine.match(/^\s*MATERIALS:\s*(yes|no)/i);
+          if (m) {
+            usedMaterials = m[1].toLowerCase() === 'yes';
+            if (rest && !emitToken(rest)) break;
+          } else {
+            // No marker — model forgot. Ship the whole buffer including
+            // the first line so the student doesn't lose content.
+            if (!emitToken(markerBuffer)) break;
+          }
+          markerParsed = true;
+          markerBuffer = '';
+        } else if (markerBuffer.length > 300) {
+          // First "line" is taking forever — bail and ship what we have.
+          if (!emitToken(markerBuffer)) break;
+          markerParsed = true;
+          markerBuffer = '';
+        }
+      }
+      // If we never got a newline (very short response, no marker), flush.
+      if (!markerParsed && markerBuffer.length > 0) {
+        emitToken(markerBuffer);
+        markerParsed = true;
       }
     } catch (streamErr) {
       streamCutOff = true;
-      console.warn(`Stream interrupted (${streamErr.message}) — partial answer length ${rawText.length}`);
-      if (rawText.length < 20) throw streamErr;
+      console.warn(`Stream interrupted (${streamErr.message}) — partial answer length ${streamedToClient.length}`);
+      if (streamedToClient.length < 20) throw streamErr;
     }
 
     if (clientGone) { safeEnd(); return; }
 
-    // Apply the math-rescue rewrite. Wrapped in try/catch so any unexpected
-    // edge case in the regex doesn't take down the response — we'd fall
-    // back to streaming the raw text, which at least gets a (broken-looking
-    // but readable) answer to the student.
-    // Parse and strip the MATERIALS marker the prompt requires. If yes, the
-    // answer drew from the course materials and we show source pills. If no,
-    // the model used general knowledge / refused / chatted, and we suppress
-    // sources so we don't falsely attribute (e.g. citing the syllabus for
-    // an answer about Tom Brady). Default to false if marker missing — safer
-    // to omit a source than hallucinate one.
-    let usedMaterials = false;
-    // Strip the WHOLE first line if it starts with the MATERIALS marker —
-    // even if the model wrote extra commentary after yes/no, we drop it
-    // rather than leaking it into the student view.
-    rawText = rawText.replace(/^\s*MATERIALS:\s*(yes|no)[^\n]*\n?/i, (_, val) => {
-      usedMaterials = val.toLowerCase() === 'yes';
-      return '';
-    });
-
-    // If the model returned only the marker (rare — but happened when the
-    // marker rule was interpreted as "don't respond at all to casual
-    // messages"), drop in a friendly fallback. Students should never see
-    // an empty assistant bubble.
-    if (rawText.trim().length === 0) {
-      console.warn(`Chat returned empty after marker strip — using fallback`);
-      rawText = `You got it — let me know if anything else comes up.`;
+    // Empty-response fallback. If nothing made it to the student (model
+    // returned just the marker and stopped, or the stream died early),
+    // ship a friendly default so they don't see an empty bubble.
+    if (streamedToClient.trim().length === 0) {
+      console.warn(`Chat returned empty after marker strip — sending fallback`);
+      const fallback = `You got it — let me know if anything else comes up.`;
+      emitToken(fallback);
     }
 
-    let fullText;
-    try {
-      fullText = rewriteEquations(rawText);
-      if (fullText !== rawText) {
-        console.log(`🧹 Rewrite v5 applied to chat response (${rawText.length} → ${fullText.length} chars, materials=${usedMaterials})`);
-      } else {
-        console.log(`🧹 Rewrite v5 no-op for chat response (${rawText.length} chars, materials=${usedMaterials})`);
-        // If the no-op surfaces but the text actually contains LaTeX, dump
-        // the relevant line so we can see the EXACT bytes the regex is
-        // failing to match against.
-        if (/\\(?:text|frac|sum)/.test(rawText)) {
-          const offendingLine = rawText.split('\n').find(l => /\\(?:text|frac|sum)/.test(l)) || '';
-          const chars = offendingLine.slice(0, 200).split('').map(c => {
-            const code = c.charCodeAt(0);
-            if (c === '\\') return '\\\\';
-            if (c === '\n') return '\\n';
-            if (code < 32 || code > 126) return `\\u${code.toString(16).padStart(4, '0')}`;
-            return c;
-          }).join('');
-          console.log(`📝 OFFENDING LINE BYTES: ${chars}`);
-        }
-      }
-    } catch (e) {
-      console.error(`Rewrite threw — falling back to raw text: ${e.message}`);
-      fullText = rawText;
-    }
-
-    // Now stream the cleaned text in chunks so it still feels like
-    // streaming on the client even though we held the response until
-    // Gemini finished. ~80 chars per chunk with 12ms gaps feels natural.
-    const CHUNK = 80;
-    for (let i = 0; i < fullText.length; i += CHUNK) {
-      if (clientGone) break;
-      const tokenChunk = fullText.slice(i, i + CHUNK);
-      if (!safeWrite(`data: ${JSON.stringify({ type: 'token', token: tokenChunk })}\n\n`)) break;
-      if (i + CHUNK < fullText.length) {
-        await new Promise(r => setTimeout(r, 12));
-      }
-    }
-
-    if (clientGone) { safeEnd(); return; }
-
-    // Source attribution: only show retrieved docs when the model says it
-    // actually drew from the materials (MATERIALS: yes marker). For off-topic
-    // refusals, general-knowledge answers, or chat-style turns, surface no
-    // sources so we don't hallucinate "the syllabus said this" attribution.
+    // Source attribution: only show retrieved docs when the model marked
+    // MATERIALS: yes. For off-topic refusals, general-knowledge answers,
+    // or chat-style turns, surface no sources so we don't hallucinate.
     const sources = usedMaterials ? docNames : [];
-    const confident = !fullText.toLowerCase().includes("doesn't appear to be in any of your uploaded");
+    const confident = !streamedToClient.toLowerCase().includes("doesn't appear to be in any of your uploaded");
+    console.log(`💬 Chat response: ${streamedToClient.length} chars streamed, materials=${usedMaterials}, sources=${sources.length}`);
 
     try {
       await supabase.from('questions').insert({ course_id: courseId, question: message, confident });
@@ -2010,7 +2009,7 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
     safeWrite(`data: ${JSON.stringify({ type: 'done', truncated: streamCutOff })}\n\n`);
     safeEnd();
   } catch (err) {
-    console.error(`Chat error: ${err.message} (course ${courseId}, partial ${rawText.length} chars)`);
+    console.error(`Chat error: ${err.message} (course ${courseId}, partial ${streamedToClient.length} chars)`);
     if (clientGone) { safeEnd(); return; }
     safeWrite(`data: ${JSON.stringify({ type: 'error', error: 'Lost the thread answering that — try again.' })}\n\n`);
     safeEnd();
