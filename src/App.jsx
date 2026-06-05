@@ -3344,6 +3344,20 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     const currentChatDbId = currentActive?.dbId || null;
     const refs = { cards: cardsChatRef, quiz: quizChatRef, test: testChatRef };
     if (refs[kind]) refs[kind].current = { id: currentChatId, dbId: currentChatDbId };
+
+    // Auto-rename the chat immediately so a "New Chat" that just spawned a
+    // quiz / test / deck doesn't sit in Recents with no title. Only fires
+    // when the chat still has a default name — never overwrites a title
+    // the student already cared enough to set.
+    const isDefaultTitle = !currentActive?.title || /^new chat$/i.test(currentActive.title.trim());
+    if (currentActive && isDefaultTitle) {
+      const kindLabel = kind === 'cards' ? 'Flashcards' : kind === 'test' ? 'Test' : 'Quiz';
+      const newTitle = topic
+        ? `${kindLabel}: ${topic}`.slice(0, 60)
+        : `${kindLabel} · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+      renameChat(currentActive.id, newTitle);
+    }
+
     const placeholder = kind === 'cards'
       ? `Built a deck of flashcards${topic ? ` on **${topic}**` : ''} — open **Flashcards** in the sidebar to study them.`
       : kind === 'test'
