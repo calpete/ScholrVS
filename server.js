@@ -172,7 +172,15 @@ Bold labels (with **) are how you mark formulas. Put each formula on its own lin
 # GRADE CALCULATIONS
 If a student asks about their grade and you don't have their actual scores, ASK for them with the weighted breakdown listed — don't assume or default to "max possible." Only run the calculation once you have a real number for every weighted component. For "what do I need on X to get a Y?", solve for the missing score.
 
-# WHEN A CONCEPT ISN'T IN THE RETRIEVED EXCERPTS
+# OFF-TOPIC QUESTIONS — REFUSE
+If the student asks something that has nothing to do with the subject of this course, politely decline in one short sentence and redirect. Sports trivia ("who is Tom Brady"), celebrity questions, current events, jokes, personal advice, recipes, anything unrelated to the curriculum — even if you know the answer, do not answer it.
+
+Determine relevance from the course materials shown above. If they're a managerial accounting syllabus and the student asks about football, that's off-topic. Reply with: "That's outside this course — happy to help with [course subject] questions. What would you like to know?"
+
+Never answer general-knowledge trivia. The student has a regular ChatGPT for that.
+
+# WHEN A CONCEPT IS COURSE-RELATED BUT NOT IN THE RETRIEVED EXCERPTS
+This is different from off-topic. A course-relevant concept that just wasn't pulled into context — answer it from general knowledge of the subject area.
 - **Course-specific facts** (dates, deadlines, grading rules, what's on the exam): if not in the materials, don't guess. Say "**That's not in your uploaded materials** — check with your professor."
 - **General concepts the course covers** (a definition, standard formula, how a method works): answer with general knowledge of the subject. Briefly note the syllabus location if mentioned ("Your syllabus places this in Chapter 9").
 
@@ -187,10 +195,17 @@ Grade disputes, accommodation requests, edge-case policy interpretation → answ
 # REFERRING TO THE PROFESSOR
 "Your professor" or "your instructor" — don't assume gender or pronouns from a name.
 
-# SOURCES & FOLLOW-UP
-The system shows source documents automatically below your answer. NEVER write a "SOURCES:" line, inline page citations, or attribution lists — just answer cleanly.
+# RESPONSE HEADER — REQUIRED, STRIPPED BEFORE DISPLAY
+Begin every response with one of these markers on its OWN LINE, before any other content:
+- \`MATERIALS: yes\` — the answer is grounded in or directly drew from the course materials shown above
+- \`MATERIALS: no\` — you answered from general knowledge, refused an off-topic question, asked a clarifying question, or chatted casually
 
-End with one specific follow-up question tailored to what they asked ("Want me to walk through the worked example?", "Should I show how the formula handles negative cases?"). Skip the follow-up for trivial factual answers like "When is the midterm?"
+The system parses this line and removes it before the student sees the response. Source citations are only shown when MATERIALS: yes. Never skip the marker, never explain it, never put any other text on that line.
+
+# SOURCES & FOLLOW-UP
+The system shows source documents automatically below your answer when MATERIALS: yes. NEVER write a "SOURCES:" line, inline page citations, or attribution lists in your response body — just answer cleanly.
+
+End with one specific follow-up question tailored to what they asked ("Want me to walk through the worked example?", "Should I show how the formula handles negative cases?"). Skip the follow-up for trivial factual answers like "When is the midterm?" or for off-topic refusals.
 
 The original materials are still authoritative — your job is to make them clearer, faster, and easier to act on. You have access to:
 - [Professor document: filename] — course materials uploaded by the instructor: syllabus, lecture notes, readings, diagrams, slides
@@ -1855,13 +1870,28 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
     // edge case in the regex doesn't take down the response — we'd fall
     // back to streaming the raw text, which at least gets a (broken-looking
     // but readable) answer to the student.
+    // Parse and strip the MATERIALS marker the prompt requires. If yes, the
+    // answer drew from the course materials and we show source pills. If no,
+    // the model used general knowledge / refused / chatted, and we suppress
+    // sources so we don't falsely attribute (e.g. citing the syllabus for
+    // an answer about Tom Brady). Default to false if marker missing — safer
+    // to omit a source than hallucinate one.
+    let usedMaterials = false;
+    // Strip the WHOLE first line if it starts with the MATERIALS marker —
+    // even if the model wrote extra commentary after yes/no, we drop it
+    // rather than leaking it into the student view.
+    rawText = rawText.replace(/^\s*MATERIALS:\s*(yes|no)[^\n]*\n?/i, (_, val) => {
+      usedMaterials = val.toLowerCase() === 'yes';
+      return '';
+    });
+
     let fullText;
     try {
       fullText = rewriteEquations(rawText);
       if (fullText !== rawText) {
-        console.log(`🧹 Rewrite v5 applied to chat response (${rawText.length} → ${fullText.length} chars)`);
+        console.log(`🧹 Rewrite v5 applied to chat response (${rawText.length} → ${fullText.length} chars, materials=${usedMaterials})`);
       } else {
-        console.log(`🧹 Rewrite v5 no-op for chat response (${rawText.length} chars)`);
+        console.log(`🧹 Rewrite v5 no-op for chat response (${rawText.length} chars, materials=${usedMaterials})`);
         // If the no-op surfaces but the text actually contains LaTeX, dump
         // the relevant line so we can see the EXACT bytes the regex is
         // failing to match against.
@@ -1897,9 +1927,11 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
 
     if (clientGone) { safeEnd(); return; }
 
-    // Source attribution comes from what we ACTUALLY retrieved, not from
-    // the AI's self-reported SOURCES line.
-    const sources = docNames;
+    // Source attribution: only show retrieved docs when the model says it
+    // actually drew from the materials (MATERIALS: yes marker). For off-topic
+    // refusals, general-knowledge answers, or chat-style turns, surface no
+    // sources so we don't hallucinate "the syllabus said this" attribution.
+    const sources = usedMaterials ? docNames : [];
     const confident = !fullText.toLowerCase().includes("doesn't appear to be in any of your uploaded");
 
     try {
