@@ -3070,31 +3070,40 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     return () => clearInterval(id);
   }, []);
   const active = chats.find(c => c.id === chatId) || chats[0];
-  // Smart autoscroll: only scroll to bottom if the user is already within
-  // 150px of the bottom. If they've scrolled up to re-read something, leave
-  // them alone — and pop a "↓ New" pill so they can jump back when ready.
+  // Smart autoscroll: only auto-pull to bottom if the user is already
+  // within 150px of the bottom. If they've scrolled up to re-read something,
+  // leave them alone — and show a fixed "scroll-to-bottom" button (like
+  // ChatGPT / Claude) so they can jump back when ready. The button visibility
+  // is driven ONLY by scroll position, never by streaming state — that
+  // avoids the flicker pattern where each arriving token toggled the pill.
   const isNearBottom = () => {
     const c = scrollContainerRef.current;
     if (!c) return true;
     return c.scrollHeight - c.scrollTop - c.clientHeight < 150;
   };
   const scrollToBottom = (force = false) => {
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       if (force || isNearBottom()) {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        setShowNewMessageIndicator(false);
-      } else {
-        // user is reading scrollback while a new message arrived; show jump pill
-        setShowNewMessageIndicator(true);
       }
-    }, 50);
+    });
   };
   useEffect(() => { if (active) scrollToBottom(); }, [active?.messages, isTyping]);
-  // When the user manually scrolls back to the bottom, hide the pill
+  // Single scroll listener owns the button's visibility. rAF-throttled so
+  // we don't thrash state on fast scroll-wheels or trackpad inertia.
   useEffect(() => {
     const c = scrollContainerRef.current;
     if (!c) return;
-    const onScroll = () => { if (isNearBottom()) setShowNewMessageIndicator(false); };
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        setShowNewMessageIndicator(!isNearBottom());
+        ticking = false;
+      });
+    };
+    onScroll(); // initial check
     c.addEventListener('scroll', onScroll, { passive: true });
     return () => c.removeEventListener('scroll', onScroll);
   }, [active?.id]);
@@ -4393,15 +4402,21 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
               <div ref={bottomRef} />
               </div>
             </div>
-            {showNewMessageIndicator && (
-              <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-20 fade-up">
-                <button
-                  onClick={() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); setShowNewMessageIndicator(false); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium shadow-lg transition-colors">
-                  ↓ New message
-                </button>
-              </div>
-            )}
+            {/* ChatGPT/Claude-style scroll-to-bottom button. Always rendered
+                so opacity transitions smoothly; visibility is driven by the
+                scroll listener above. No re-mount, no animation re-fire.
+                pointer-events disabled when hidden so it can't be clicked
+                in its faded state. */}
+            <button
+              type="button"
+              aria-label="Scroll to bottom"
+              onClick={() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }}
+              className={`absolute bottom-28 right-6 md:right-8 z-20 w-9 h-9 rounded-full bg-white border border-gray-200 text-gray-700 shadow-md flex items-center justify-center transition-opacity duration-200 hover:bg-gray-50 ${showNewMessageIndicator ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14M5 12l7 7 7-7" />
+              </svg>
+            </button>
             <div className="px-4 md:px-8 py-3 md:py-4 bg-[#F6F6F4] border-t border-gray-200/70 flex-shrink-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
               <div className="max-w-3xl mx-auto">{attachmentBar}{inputBox}</div>
               <p className="text-center text-[10px] text-gray-300 mt-2">Grounded in your course materials · Vertex AI</p>
