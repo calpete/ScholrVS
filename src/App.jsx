@@ -3994,36 +3994,42 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                       <p className="text-[14px] text-gray-500 mt-3 max-w-sm mx-auto leading-relaxed">Type <span className="font-mono text-[13px] text-[#2A4D8F] bg-[#2A4D8F]/[.06] px-1.5 py-0.5 rounded">/quiz</span> in the chat to generate one from your professor's materials.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                      {savedQuizzes.map(q => (
-                        <div key={q.id} className="group relative overflow-hidden rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.08)] hover:-translate-y-px transition-all cursor-pointer" onClick={() => openSavedQuiz(q.id)}>
-                          {/* Accent stripe — sky blue for quizzes */}
-                          <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500" />
-                          <div className="p-5 pt-[18px]">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="w-8 h-8 rounded-lg bg-sky-50 flex items-center justify-center flex-shrink-0"><ListChecks size={15} className="text-sky-600" /></div>
-                                <p className="serif text-[17px] text-gray-900 leading-tight truncate font-medium">{q.topic || 'Practice quiz'}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {savedQuizzes.map((q, idx) => (
+                        <div key={q.id} className="group relative rounded-3xl bg-white border border-gray-200/70 hover:border-gray-300 hover:shadow-[0_18px_48px_-24px_rgba(15,15,15,0.18)] transition-all duration-300 cursor-pointer overflow-hidden" onClick={() => openSavedQuiz(q.id)}>
+                          {/* Hairline left accent — slate for quizzes */}
+                          <div className="absolute top-6 bottom-6 left-0 w-[2px] bg-gradient-to-b from-transparent via-slate-400/70 to-transparent" />
+                          <div className="p-6 md:p-7 pl-7 md:pl-8">
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-2 text-[10px] font-bold tracking-[.22em] uppercase text-gray-400">
+                                <span className="block w-4 h-[1.5px] bg-current opacity-60 rounded-sm" />
+                                <span>Quiz N° {String(idx + 1).padStart(2, '0')}</span>
                               </div>
-                              <button onClick={e => { e.stopPropagation(); deleteSavedQuiz(q.id); }} aria-label="Delete quiz" className="opacity-0 group-hover:opacity-100 p-1.5 -mt-0.5 -mr-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"><Trash2 size={13} /></button>
+                              <button onClick={e => { e.stopPropagation(); deleteSavedQuiz(q.id); }} aria-label="Delete quiz" className="opacity-0 group-hover:opacity-100 p-1.5 -mt-1 -mr-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
                             </div>
+                            <h3 className="serif text-[22px] md:text-[23px] text-gray-900 leading-[1.15] tracking-tight font-medium mb-4 line-clamp-2">
+                              {q.topic || 'Practice quiz'}<span className="text-gray-400 italic">.</span>
+                            </h3>
                             {q.preview && (
-                              <p className="text-[13px] text-gray-500 leading-relaxed mt-3 line-clamp-2 italic">"{q.preview}"</p>
+                              <div className="flex gap-2.5 mb-5">
+                                <span className="serif text-[34px] text-gray-200 leading-none -mt-1 select-none">"</span>
+                                <p className="serif text-[14px] text-gray-500 italic leading-relaxed line-clamp-2 flex-1">{q.preview}</p>
+                              </div>
                             )}
-                            <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+                            <div className="flex items-baseline justify-between pt-4 border-t border-gray-100">
                               <div className="flex items-center gap-2 text-[11px] text-gray-400">
-                                <span className="font-medium tabular-nums text-gray-500">{q.questionCount || 5}</span>
+                                <span className="tabular-nums font-semibold text-gray-500">{q.questionCount || 5}</span>
                                 <span>questions</span>
                                 <span className="text-gray-300">·</span>
                                 <span>{formatRelativeDate(q.created_at)}</span>
                               </div>
                               {q.best_score != null ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100">
-                                  <span className="text-[9.5px] font-semibold tracking-[.1em] uppercase text-emerald-700">Best</span>
-                                  <span className="text-[11px] font-semibold text-emerald-800 tabular-nums">{q.best_score}</span>
-                                </span>
+                                <div className="flex items-baseline gap-1.5">
+                                  <span className="text-[9px] tracking-[.2em] uppercase text-gray-400 font-bold">Best</span>
+                                  <span className="serif text-[18px] text-gray-900 tabular-nums font-semibold">{q.best_score}</span>
+                                </div>
                               ) : (
-                                <span className="text-[10px] font-semibold tracking-[.1em] uppercase text-gray-400">Not taken</span>
+                                <span className="text-[9px] tracking-[.2em] uppercase text-gray-300 font-bold">Untaken</span>
                               )}
                             </div>
                           </div>
@@ -4152,36 +4158,42 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                       <p className="text-[14px] text-gray-500 mt-3 max-w-sm mx-auto leading-relaxed">Type <span className="font-mono text-[13px] text-[#2A4D8F] bg-[#2A4D8F]/[.06] px-1.5 py-0.5 rounded">/test</span> in the chat to generate a closed-book practice exam.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                      {savedTests.map(t => (
-                        <div key={t.id} className="group relative overflow-hidden rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.08)] hover:-translate-y-px transition-all cursor-pointer" onClick={() => openSavedTest(t.id)}>
-                          {/* Accent stripe — warm amber for tests (exam pressure) */}
-                          <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500" />
-                          <div className="p-5 pt-[18px]">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0"><GraduationCap size={15} className="text-amber-700" /></div>
-                                <p className="serif text-[17px] text-gray-900 leading-tight truncate font-medium">{t.topic || 'Practice test'}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {savedTests.map((t, idx) => (
+                        <div key={t.id} className="group relative rounded-3xl bg-white border border-gray-200/70 hover:border-gray-300 hover:shadow-[0_18px_48px_-24px_rgba(15,15,15,0.18)] transition-all duration-300 cursor-pointer overflow-hidden" onClick={() => openSavedTest(t.id)}>
+                          {/* Hairline left accent — warm stone for tests */}
+                          <div className="absolute top-6 bottom-6 left-0 w-[2px] bg-gradient-to-b from-transparent via-stone-500/70 to-transparent" />
+                          <div className="p-6 md:p-7 pl-7 md:pl-8">
+                            <div className="flex items-center justify-between mb-4">
+                              <div className="flex items-center gap-2 text-[10px] font-bold tracking-[.22em] uppercase text-gray-400">
+                                <span className="block w-4 h-[1.5px] bg-current opacity-60 rounded-sm" />
+                                <span>Exam N° {String(idx + 1).padStart(2, '0')}</span>
                               </div>
-                              <button onClick={e => { e.stopPropagation(); deleteSavedTest(t.id); }} aria-label="Delete test" className="opacity-0 group-hover:opacity-100 p-1.5 -mt-0.5 -mr-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"><Trash2 size={13} /></button>
+                              <button onClick={e => { e.stopPropagation(); deleteSavedTest(t.id); }} aria-label="Delete test" className="opacity-0 group-hover:opacity-100 p-1.5 -mt-1 -mr-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
                             </div>
+                            <h3 className="serif text-[22px] md:text-[23px] text-gray-900 leading-[1.15] tracking-tight font-medium mb-4 line-clamp-2">
+                              {t.topic || 'Practice test'}<span className="text-gray-400 italic">.</span>
+                            </h3>
                             {t.preview && (
-                              <p className="text-[13px] text-gray-500 leading-relaxed mt-3 line-clamp-2 italic">"{t.preview}"</p>
+                              <div className="flex gap-2.5 mb-5">
+                                <span className="serif text-[34px] text-gray-200 leading-none -mt-1 select-none">"</span>
+                                <p className="serif text-[14px] text-gray-500 italic leading-relaxed line-clamp-2 flex-1">{t.preview}</p>
+                              </div>
                             )}
-                            <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+                            <div className="flex items-baseline justify-between pt-4 border-t border-gray-100">
                               <div className="flex items-center gap-2 text-[11px] text-gray-400">
-                                <span className="font-medium tabular-nums text-gray-500">{t.questionCount || 8}</span>
+                                <span className="tabular-nums font-semibold text-gray-500">{t.questionCount || 8}</span>
                                 <span>questions</span>
                                 <span className="text-gray-300">·</span>
                                 <span>{formatRelativeDate(t.created_at)}</span>
                               </div>
                               {t.best_score != null ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100">
-                                  <span className="text-[9.5px] font-semibold tracking-[.1em] uppercase text-emerald-700">Best</span>
-                                  <span className="text-[11px] font-semibold text-emerald-800 tabular-nums">{t.best_score}</span>
-                                </span>
+                                <div className="flex items-baseline gap-1.5">
+                                  <span className="text-[9px] tracking-[.2em] uppercase text-gray-400 font-bold">Best</span>
+                                  <span className="serif text-[18px] text-gray-900 tabular-nums font-semibold">{t.best_score}</span>
+                                </div>
                               ) : (
-                                <span className="text-[10px] font-semibold tracking-[.1em] uppercase text-gray-400">Not taken</span>
+                                <span className="text-[9px] tracking-[.2em] uppercase text-gray-300 font-bold">Untaken</span>
                               )}
                             </div>
                           </div>
@@ -4348,32 +4360,40 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                       <p className="text-[14px] text-gray-500 mt-3 max-w-sm mx-auto leading-relaxed">Type <span className="font-mono text-[13px] text-[#2A4D8F] bg-[#2A4D8F]/[.06] px-1.5 py-0.5 rounded">/cards</span> in the chat to generate a deck from your professor's materials.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                      {savedDecks.map(d => {
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {savedDecks.map((d, idx) => {
                         const cardCount = d.cardCount ?? (d.cards || []).length;
                         return (
-                          <div key={d.id} className="group relative overflow-hidden rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_8px_30px_-12px_rgba(0,0,0,0.08)] hover:-translate-y-px transition-all cursor-pointer" onClick={() => openSavedDeck(d.id)}>
-                            {/* Accent stripe — indigo for flashcards (memorization) */}
-                            <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-indigo-400 via-violet-500 to-purple-500" />
-                            <div className="p-5 pt-[18px]">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0"><Layers size={15} className="text-indigo-600" /></div>
-                                  <p className="serif text-[17px] text-gray-900 leading-tight truncate font-medium">{d.topic || 'Flashcard deck'}</p>
+                          <div key={d.id} className="group relative rounded-3xl bg-white border border-gray-200/70 hover:border-gray-300 hover:shadow-[0_18px_48px_-24px_rgba(15,15,15,0.18)] transition-all duration-300 cursor-pointer overflow-hidden" onClick={() => openSavedDeck(d.id)}>
+                            {/* Hairline left accent — house navy for decks */}
+                            <div className="absolute top-6 bottom-6 left-0 w-[2px] bg-gradient-to-b from-transparent via-[#2A4D8F]/70 to-transparent" />
+                            {/* Stacked-card depth illusion on hover — subtle paper layers behind */}
+                            <div className="absolute top-2.5 left-2.5 right-2.5 bottom-2.5 rounded-3xl border border-gray-200/0 group-hover:border-gray-200/60 group-hover:translate-y-1.5 group-hover:translate-x-1.5 transition-all duration-300 -z-10 bg-white" />
+                            <div className="p-6 md:p-7 pl-7 md:pl-8 relative bg-white">
+                              <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2 text-[10px] font-bold tracking-[.22em] uppercase text-gray-400">
+                                  <span className="block w-4 h-[1.5px] bg-current opacity-60 rounded-sm" />
+                                  <span>Deck N° {String(idx + 1).padStart(2, '0')}</span>
                                 </div>
-                                <button onClick={e => { e.stopPropagation(); deleteSavedDeck(d.id); }} aria-label="Delete deck" className="opacity-0 group-hover:opacity-100 p-1.5 -mt-0.5 -mr-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all flex-shrink-0"><Trash2 size={13} /></button>
+                                <button onClick={e => { e.stopPropagation(); deleteSavedDeck(d.id); }} aria-label="Delete deck" className="opacity-0 group-hover:opacity-100 p-1.5 -mt-1 -mr-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
                               </div>
+                              <h3 className="serif text-[22px] md:text-[23px] text-gray-900 leading-[1.15] tracking-tight font-medium mb-4 line-clamp-2">
+                                {d.topic || 'Flashcard deck'}<span className="text-gray-400 italic">.</span>
+                              </h3>
                               {d.preview && (
-                                <p className="text-[13px] text-gray-500 leading-relaxed mt-3 line-clamp-2 italic">"{d.preview}"</p>
+                                <div className="flex gap-2.5 mb-5">
+                                  <span className="serif text-[34px] text-gray-200 leading-none -mt-1 select-none">"</span>
+                                  <p className="serif text-[14px] text-gray-500 italic leading-relaxed line-clamp-2 flex-1">{d.preview}</p>
+                                </div>
                               )}
-                              <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+                              <div className="flex items-baseline justify-between pt-4 border-t border-gray-100">
                                 <div className="flex items-center gap-2 text-[11px] text-gray-400">
-                                  <span className="font-medium tabular-nums text-gray-500">{cardCount}</span>
+                                  <span className="tabular-nums font-semibold text-gray-500">{cardCount}</span>
                                   <span>card{cardCount !== 1 ? 's' : ''}</span>
                                   <span className="text-gray-300">·</span>
                                   <span>{formatRelativeDate(d.created_at)}</span>
                                 </div>
-                                <span className="text-[10px] font-semibold tracking-[.1em] uppercase text-indigo-500/80">Study →</span>
+                                <span className="text-[9px] tracking-[.2em] uppercase text-[#2A4D8F]/70 font-bold group-hover:text-[#2A4D8F] transition-colors">Study →</span>
                               </div>
                             </div>
                           </div>
