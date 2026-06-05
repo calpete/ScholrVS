@@ -1752,19 +1752,23 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
     .filter(c => c.page_number)
     .map(c => [`${c.doc_name}:::${c.page_number}`, { doc: c.doc_name, page: c.page_number }])).values()];
 
-  const imageParts = [];
-  for (const ref of pageRefs.slice(0, 4)) {
+  // Fetch all page images in parallel — sequential downloads would add
+  // ~300ms per image × 4 = 1.2s of avoidable wall-clock to every question.
+  // Promise.all collapses that to ~300ms total. nulls (missing/failed
+  // downloads) are filtered out before attaching to the request.
+  const imageParts = (await Promise.all(pageRefs.slice(0, 4).map(async (ref) => {
     try {
       const storagePath = `course_pages/${courseId}/${ref.doc}/page_${ref.page}.png`;
       const { data, error } = await supabase.storage.from('documents').download(storagePath);
-      if (error || !data) continue;
+      if (error || !data) return null;
       const buf = Buffer.from(await data.arrayBuffer());
       const dataUrl = `data:image/png;base64,${buf.toString('base64')}`;
-      imageParts.push({ type: 'image_url', image_url: { url: dataUrl, detail: 'low' } });
+      return { type: 'image_url', image_url: { url: dataUrl, detail: 'low' } };
     } catch (e) {
       console.warn(`Page image fetch failed for ${ref.doc} p.${ref.page}: ${e.message}`);
+      return null;
     }
-  }
+  }))).filter(Boolean);
   if (imageParts.length > 0) console.log(`📸 Attached ${imageParts.length} page image(s) to chat request`);
 
   const messages = [{ role: 'system', content: SYSTEM_PROMPT }];
