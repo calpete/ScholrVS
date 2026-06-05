@@ -146,11 +146,28 @@ Use your judgment. Markdown is available — headings, bold, lists, tables, pros
 Tables, bullets, headings, and structure are tools — use them when they help, skip them when prose is clearer. Don't force a table just because there are 3+ items.
 
 # MATH
-- Block formulas: \`$$equation$$\` on its own paragraph, with blank lines above and below. NEVER use \`\\[...\\]\` or bare \`[...]\` as math delimiters — only \`$$...$$\`. Never embed a \`$$\` block inside a bullet or list item.
-- Inline math: \`$x$\` for short expressions. NEVER use \`\\(...\\)\` — only \`$...$\`.
-- Inside any math, write \`\\%\` not \`%\` (raw \`%\` is a LaTeX comment marker and breaks rendering).
-- Currency: never write a dollar amount with a leading \`$\` — \`$0.50\` collides with math mode. Write "0.50 dollars" or just "0.50".
-- For simple arithmetic and percentages, plain text is fine: "0.25 × 68% = 17 points".
+Write ALL math in plain text using Unicode characters. NEVER use LaTeX. NEVER use \`$\`, \`$$\`, \`\\frac\`, \`\\text\`, \`\\sum\`, \`\\sqrt\`, \`\\[\`, \`\\(\`, or any backslash command. The student's renderer does not run KaTeX or MathJax — anything in LaTeX syntax appears as raw text and looks broken.
+
+Use these Unicode characters for math:
+- Operators: × ÷ ± ≤ ≥ ≠ ≈ ≡ → ⇒ · ∞
+- Greek: α β γ δ ε θ λ μ π ρ σ τ φ ω Δ Σ Π Ω
+- Big operators: Σ ∏ ∫ √ ∂ ∇
+- Superscripts: ⁰ ¹ ² ³ ⁴ ⁵ ⁶ ⁷ ⁸ ⁹ ⁿ ⁱ ⁺ ⁻
+- Subscripts: ₀ ₁ ₂ ₃ ₄ ₅ ₆ ₇ ₈ ₉ ₜ ₙ ₓ
+
+Fractions: write inline as \`a / b\` or \`(numerator) / (denominator)\`. For named formulas, give it its own line and use bold labels:
+
+  **NPV** = Σ Cₜ / (1+r)ᵗ − C₀
+
+  **Margin of Safety** = Actual Sales − Break-even Sales
+
+  **Margin of Safety (%)** = (Actual Sales − Break-even Sales) / Actual Sales
+
+  **CM Ratio** = CM per Unit / Selling Price per Unit
+
+Currency: write the number followed by the currency word ("500 dollars", "0.50 dollars") — never lead with a \`$\` sign. Percentages: write the number followed by \`%\` ("20%", "0.25 × 68% = 17 points"). For exponents, use Unicode superscripts when possible (1.08², (1+r)ᵗ); for more complex cases write \`(1+r)^t\` with a caret.
+
+Bold labels (with **) are how you mark formulas. Put each formula on its own line so it stands out. No LaTeX, no \`$$\`, no backslash commands, ever.
 
 # GRADE CALCULATIONS
 If a student asks about their grade and you don't have their actual scores, ASK for them with the weighted breakdown listed — don't assume or default to "max possible." Only run the calculation once you have a real number for every weighted component. For "what do I need on X to get a Y?", solve for the missing score.
@@ -552,171 +569,132 @@ async function searchChunks(courseId, question, k = 6) {
   return data || [];
 }
 
-// Aggressive math-rescue transformation the client MarkdownMessage also
-// runs. Applied here on the server so the saved assistant message text
-// (DB + chat reload) is also clean. Catches every variant of the
-// "equation written without $$ wrapping" pattern Gemini keeps emitting:
-//   - "**Label:** \frac{a}{b}" inside a bullet
-//   - "\ \text{...} = \frac{...}{...} $$" on its own line with leading filler
-//   - Plain "\text{...}" or "\frac{...}{...}" on its own line
-// Goes line by line, finds the first LaTeX command, wraps everything from
-// that command to end-of-line (minus stray $$) in proper block math.
+// Convert any LaTeX the model emits into plain text + Unicode. Our prompt
+// tells gpt-4o to use Unicode/plaintext math (no `$$`, no `\frac`, no
+// `\text`) because remark-math+KaTeX can't be made reliable against the
+// long tail of LaTeX-variant bugs the model invents. This is the safety
+// net: if the model rebels and emits LaTeX anyway, we transform it to
+// readable plain text rather than wrap-and-pray.
+//
+// `\frac{a}{b}` → `a/b`, `\text{Foo}` → `Foo`, `\sum` → `Σ`, etc.
+// All `$$`, `$`, `\(`, `\)`, `\[`, `\]` delimiters are stripped — they're
+// just noise to the renderer.
 function rewriteEquations(text) {
   if (!text) return text;
 
-  // LaTeX-style math delimiters → markdown-style. gpt-4o defaults to LaTeX
-  // conventions: `\[ ... \]` for block math, `\( ... \)` for inline. Our
-  // renderer (remark-math + KaTeX) only parses `$$ ... $$` and `$ ... $`.
-  // Convert both LaTeX styles, plus the corrupted `[ ... $$ ]` variant the
-  // model sometimes emits when its escaping gets confused.
-  // Eat any redundant trailing `$$` (or `$`) the model tacks on AFTER the
-  // LaTeX-style close — `\[ math \]$$` is a frequent variant that left a
-  // stray `$$` in the prefix and broke the lift-out logic downstream.
-  text = text.replace(/\\\[([\s\S]+?)\\\](?:\s*\$+)?/g, (_, inner) => `$$${inner.trim()}$$`);
-  text = text.replace(/\\\(([^\n]+?)\\\)(?:\s*\$)?/g, (_, inner) => `$${inner.trim()}$`);
+  // ── 1. Strip LaTeX math delimiters ──────────────────────────────────────
+  // `\[ ... \]` block math → just the content. (No KaTeX involved anymore;
+  // the content itself, after the substitutions below, is plain text.)
+  text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, inner) => inner.trim());
+  // `\( ... \)` inline math → just the content.
+  text = text.replace(/\\\(([^\n]+?)\\\)/g, (_, inner) => inner.trim());
+  // Bare `[ \text{...} ]` block math — model wrote `\[ ... \]` but the
+  // leading `\` got swallowed. Conservative: only fires when the bracketed
+  // content contains a recognized LaTeX command, so prose with legitimate
+  // square brackets is untouched.
   text = text.replace(
-    /(^|\n|\s)\[\s+([^\[\]]*?\\(?:text|frac|sum|prod|int|sqrt|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)[^\[\]]*?)\s+\]/g,
-    (_, lead, inner) => `${lead}$$${inner.replace(/\$+/g, '').trim()}$$`
+    /\[\s+([^\[\]]*?\\(?:frac|text|sum|prod|int|sqrt|times|cdot|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|approx|leq|geq|neq|partial|nabla|equiv)[^\[\]]*?)\s+\]/g,
+    (_, inner) => inner.replace(/\$+/g, '').trim()
   );
+  // `$$ ... $$` block math → just the content.
+  text = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, inner) => inner.trim());
+  // `$ ... $` inline math (single $) → just the content. The lookbehinds
+  // avoid eating `$5` currency or `$$` boundaries.
+  text = text.replace(/(?<![\\$])\$([^$\n]+?)\$(?!\$)/g, (_, inner) => inner.trim());
+  // Stray escaped delimiters and orphan `$$` left by the model.
+  text = text.replace(/\\\$/g, '');
+  text = text.replace(/\\%/g, '%');
+  text = text.replace(/\$\$/g, '');
 
-  // Repair the `$math\$` pattern — model opens with `$` but escapes the
-  // closing dollar as `\$`. Markdown turns `\$` into a literal `$`, so the
-  // opening `$` never finds a math-mode close and the LaTeX falls through
-  // as raw text. We rewrite it to clean `$math$` (single dollars on both
-  // ends) so KaTeX's inline-math pass picks it up. Conservative: only fires
-  // when the wrapped content contains a recognized LaTeX command.
-  text = text.replace(
-    /\$([^\n$]*?\\(?:text|frac|sum|prod|int|sqrt|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)[^\n$]*?)\\\$/g,
-    (_, inner) => `$${inner}$`
-  );
-
-  // Global pre-pass — collapse ANY run of 2+ backslashes anywhere in the
-  // text before any LaTeX command. Gemini's "double-escape \\text"
-  // pattern shows up in lots of variants (\\text, \\\\text after some
-  // intermediate processing, etc.) and the safest move is to just
-  // normalize all of them down to a single \ before a recognized math
-  // command. Conservative: only collapse when the backslashes are
-  // immediately followed by a known LaTeX command name, so we don't
-  // touch any prose that happens to contain repeated backslashes.
-  text = text.replace(
-    /\\{2,}(?=(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)\b)/g,
-    '\\'
-  );
-
-  // Lift any `$$...$$` block out of a list item. Markdown renderers don't
-  // reliably parse math blocks embedded inline in `1. ` or `- ` list-item
-  // lines — they need to live as their own paragraph. Models routinely
-  // ignore the "never embed a formula in a bullet" prompt rule and write
-  // `1. **Label:** $$\text{...}$$`, which renders as raw text. So we
-  // detect that pattern and split it into a label line and a standalone
-  // math paragraph below.
-  // Use [ \t] (horizontal whitespace) instead of \s — \s would match \n and
-  // let the regex slurp into the next line through the trailing `\s*$`.
-  text = text.replace(
-    /^([ \t]*(?:\d+\.|[-*])[ \t]+)([^\n$]*?)[ \t]*(\$\$[^\n]+?\$\$)[ \t]*([^\n]*?)[ \t]*$/gm,
-    (_, marker, before, math, after) => {
-      const trailing = after.trim();
-      const labelLine = (marker + before.trim() + (trailing ? ' ' + trailing : '')).trimEnd();
-      return `${labelLine}\n\n${math}\n`;
-    }
-  );
-
-  // Then also collapse anything left inside already-wrapped math blocks
-  // (catches edge cases the global pass didn't reach). Also escape any
-  // raw `%` to `\%` — in LaTeX, `%` is a comment marker and an unescaped
-  // one kills the rest of the math block. Models love writing
-  // `\text{Margin of Safety (%)}` and that single `%` was the difference
-  // between a clean render and a broken raw-text fallback. The lookbehind
-  // skips already-escaped `\%` so we don't double-escape.
-  text = text.replace(/\$\$([\s\S]+?)\$\$/g, (m, inner) =>
-    '$$' + inner.replace(/\\{2,}/g, '\\').replace(/(?<!\\)%/g, '\\%') + '$$');
-  text = text.replace(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g, (m, inner) =>
-    '$' + inner.replace(/\\{2,}/g, '\\').replace(/(?<!\\)%/g, '\\%') + '$');
-
-  // Ensure standalone `$$math$$` lines have blank lines before AND after.
-  // Without this, when the model emits a list item like:
-  //   `1. **Label:**\n$$ \text{...} $$\n2. **Label:**\n$$ ... $$`
-  // markdown treats the math line as a continuation of the list item's
-  // paragraph and remark-math doesn't recognize it as block math — the
-  // student sees raw `$$ \text{...} $$` text. Splitting line-by-line and
-  // re-joining with blank line padding is more reliable than chained
-  // lookbehind regexes.
-  {
-    const ls = text.split('\n');
-    const out = [];
-    const isStandalone = (l) => /^[ \t]*\$\$[^\n]+\$\$[ \t]*$/.test(l);
-    for (let i = 0; i < ls.length; i++) {
-      const cur = ls[i];
-      if (isStandalone(cur)) {
-        if (out.length > 0 && out[out.length - 1].trim() !== '') out.push('');
-        out.push(cur);
-        const next = ls[i + 1];
-        if (next !== undefined && next.trim() !== '') out.push('');
-      } else {
-        out.push(cur);
-      }
-    }
-    text = out.join('\n');
+  // ── 2. Iteratively unwrap brace-content commands ─────────────────────────
+  // `\frac{a}{b}` → `a/b`, `\text{X}` → `X`, `\sqrt{x}` → `√(x)`. Loop until
+  // no more changes so nested commands (\frac{\text{a}}{\text{b}}) collapse
+  // correctly. Bounded loop in case input has pathological nesting.
+  for (let i = 0; i < 8; i++) {
+    const before = text;
+    text = text
+      .replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, '($1)/($2)')
+      .replace(/\\dfrac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, '($1)/($2)')
+      .replace(/\\tfrac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, '($1)/($2)')
+      .replace(/\\text\s*\{([^{}]*)\}/g, '$1')
+      .replace(/\\textbf\s*\{([^{}]*)\}/g, '**$1**')
+      .replace(/\\textit\s*\{([^{}]*)\}/g, '*$1*')
+      .replace(/\\mathrm\s*\{([^{}]*)\}/g, '$1')
+      .replace(/\\mathbf\s*\{([^{}]*)\}/g, '**$1**')
+      .replace(/\\mathit\s*\{([^{}]*)\}/g, '*$1*')
+      .replace(/\\sqrt\s*\{([^{}]+)\}/g, '√($1)')
+      .replace(/\\overline\s*\{([^{}]+)\}/g, '$1̅')
+      .replace(/\\bar\s*\{([^{}]+)\}/g, '$1̄')
+      .replace(/\\hat\s*\{([^{}]+)\}/g, '$1̂')
+      .replace(/\\vec\s*\{([^{}]+)\}/g, '$1⃗')
+      .replace(/\\left\s*([()\[\]|])/g, '$1')
+      .replace(/\\right\s*([()\[\]|])/g, '$1');
+    // Strip redundant `()/()` parens when numerator/denominator is a single
+    // simple token — `(a)/(b)` reads better than `((a))/((b))` when nesting
+    // produced unnecessary wrapping.
+    text = text.replace(/\(\(([^()]+)\)\)/g, '($1)');
+    if (text === before) break;
   }
 
-  const lines = text.split('\n');
-  const out = [];
-  // Match ONE OR MORE backslashes before the command. Gemini sometimes
-  // emits "\\text{...}" (double-escaped) when it tries to follow markdown
-  // backslash-escape rules. We catch both \text (correct) and \\text
-  // (over-escaped), and collapse the runs to a single \ in the math
-  // output below so KaTeX gets clean LaTeX.
-  const mathCmdRe = /\\+(?:frac|sum|prod|int|sqrt|text|alpha|beta|gamma|delta|sigma|mu|pi|theta|lambda|omega|infty|partial|nabla|cdot|times|div|leq|geq|neq|approx)\b/;
+  // Drop simple parens around single-token numerator/denominator for
+  // readability: `(NPV)/(rate)` → `NPV/rate`. Only when the token has no
+  // internal whitespace or operators that would change meaning.
+  text = text.replace(/\(([A-Za-zα-ωΑ-Ω₀-₉⁰-⁹]+)\)\/\(([A-Za-zα-ωΑ-Ω₀-₉⁰-⁹]+)\)/g, '$1/$2');
 
-  for (const line of lines) {
-    // Skip lines without any math command
-    const matchIdx = line.search(mathCmdRe);
-    if (matchIdx === -1) { out.push(line); continue; }
-
-    // Skip lines that are ALREADY properly wrapped in matched $$ pairs
-    const dollarPairs = (line.match(/\$\$/g) || []).length;
-    if (dollarPairs >= 2 && dollarPairs % 2 === 0) { out.push(line); continue; }
-
-    // Skip lines with single-$ math wrapping (inline math we don't want to break).
-    // Exclude `\$` (escaped dollars) — those are NOT math delimiters, they're
-    // literal currency. Counting them was causing `$math\$` lines to look
-    // "already-wrapped" and skip the rewrite, which is exactly why they were
-    // rendering broken — the closing `\$` becomes a literal `$` in markdown.
-    const singleDollars = (line.replace(/\$\$/g, '').replace(/\\\$/g, '').match(/\$/g) || []).length;
-    if (singleDollars >= 2 && singleDollars % 2 === 0) { out.push(line); continue; }
-
-    // Identify the "prefix" — everything before the first math command.
-    // Strip trailing junk the model often leaves: backslashes (one or many,
-    // from `\\` line-break attempts or `\[` whose `[` got swallowed by the
-    // \[...\] conversion), and stray `$` or `$$` (from a redundant opening
-    // dollar that doesn't pair with anything).
-    const rawPrefix = line.slice(0, matchIdx);
-    const prefix = rawPrefix.replace(/[\s\\$]*$/, '').trimEnd();
-
-    // Math portion = from the command to end of line, minus orphan $$.
-    // Collapse runs of multiple backslashes back to one — KaTeX expects
-    // \text, not \\text. Then strip the trailing $$ Gemini sometimes
-    // tacks on, and escape any % so KaTeX doesn't treat it as a comment.
-    const math = line
-      .slice(matchIdx)
-      .replace(/\\{2,}/g, '\\')      // collapse \\text → \text
-      .replace(/\\\$/g, '')          // strip escaped \$ — model artifact
-      .replace(/\$+\s*$/, '')        // strip trailing $$
-      .replace(/\\+\s*$/, '')        // strip trailing \ — model artifact
-      .replace(/(?<!\\)%/g, '\\%')   // escape unescaped %
-      .trim();
-
-    if (!math || math.length < 5) { out.push(line); continue; }
-
-    if (prefix) {
-      out.push(prefix);
-      out.push('');
-      out.push(`$$${math}$$`);
-    } else {
-      out.push(`$$${math}$$`);
-    }
+  // ── 3. Convert LaTeX symbol commands to Unicode ─────────────────────────
+  const symbols = {
+    '\\times': '×', '\\cdot': '·', '\\div': '÷', '\\pm': '±', '\\mp': '∓',
+    '\\leq': '≤', '\\le': '≤', '\\geq': '≥', '\\ge': '≥',
+    '\\neq': '≠', '\\ne': '≠', '\\approx': '≈', '\\equiv': '≡',
+    '\\sim': '∼', '\\propto': '∝',
+    '\\infty': '∞', '\\partial': '∂', '\\nabla': '∇',
+    '\\to': '→', '\\rightarrow': '→', '\\leftarrow': '←',
+    '\\Rightarrow': '⇒', '\\Leftarrow': '⇐', '\\Leftrightarrow': '⇔',
+    '\\sum': 'Σ', '\\prod': '∏', '\\int': '∫', '\\oint': '∮',
+    '\\bullet': '•', '\\cdots': '⋯', '\\ldots': '…', '\\dots': '…',
+    '\\Alpha': 'Α', '\\Beta': 'Β', '\\Gamma': 'Γ', '\\Delta': 'Δ',
+    '\\Epsilon': 'Ε', '\\Zeta': 'Ζ', '\\Eta': 'Η', '\\Theta': 'Θ',
+    '\\Iota': 'Ι', '\\Kappa': 'Κ', '\\Lambda': 'Λ', '\\Mu': 'Μ',
+    '\\Nu': 'Ν', '\\Xi': 'Ξ', '\\Pi': 'Π', '\\Rho': 'Ρ',
+    '\\Sigma': 'Σ', '\\Tau': 'Τ', '\\Upsilon': 'Υ', '\\Phi': 'Φ',
+    '\\Chi': 'Χ', '\\Psi': 'Ψ', '\\Omega': 'Ω',
+    '\\alpha': 'α', '\\beta': 'β', '\\gamma': 'γ', '\\delta': 'δ',
+    '\\epsilon': 'ε', '\\varepsilon': 'ε', '\\zeta': 'ζ', '\\eta': 'η',
+    '\\theta': 'θ', '\\vartheta': 'θ', '\\iota': 'ι', '\\kappa': 'κ',
+    '\\lambda': 'λ', '\\mu': 'μ', '\\nu': 'ν', '\\xi': 'ξ',
+    '\\pi': 'π', '\\varpi': 'π', '\\rho': 'ρ', '\\sigma': 'σ',
+    '\\tau': 'τ', '\\upsilon': 'υ', '\\phi': 'φ', '\\varphi': 'φ',
+    '\\chi': 'χ', '\\psi': 'ψ', '\\omega': 'ω',
+  };
+  // Replace longest names first so `\Delta` doesn't get half-eaten by `\D`.
+  const symKeys = Object.keys(symbols).sort((a, b) => b.length - a.length);
+  for (const k of symKeys) {
+    text = text.split(k).join(symbols[k]);
   }
-  return out.join('\n');
+
+  // ── 4. Subscripts and superscripts ──────────────────────────────────────
+  // Single-character `_n` / `^n` → Unicode where available.
+  const subMap = { 0: '₀', 1: '₁', 2: '₂', 3: '₃', 4: '₄', 5: '₅', 6: '₆', 7: '₇', 8: '₈', 9: '₉', a: 'ₐ', e: 'ₑ', h: 'ₕ', i: 'ᵢ', j: 'ⱼ', k: 'ₖ', l: 'ₗ', m: 'ₘ', n: 'ₙ', o: 'ₒ', p: 'ₚ', r: 'ᵣ', s: 'ₛ', t: 'ₜ', u: 'ᵤ', v: 'ᵥ', x: 'ₓ', '+': '₊', '-': '₋', '=': '₌' };
+  const supMap = { 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹', a: 'ᵃ', b: 'ᵇ', c: 'ᶜ', d: 'ᵈ', e: 'ᵉ', f: 'ᶠ', g: 'ᵍ', h: 'ʰ', i: 'ⁱ', j: 'ʲ', k: 'ᵏ', l: 'ˡ', m: 'ᵐ', n: 'ⁿ', o: 'ᵒ', p: 'ᵖ', r: 'ʳ', s: 'ˢ', t: 'ᵗ', u: 'ᵘ', v: 'ᵛ', w: 'ʷ', x: 'ˣ', y: 'ʸ', z: 'ᶻ', '+': '⁺', '-': '⁻', '=': '⁼' };
+
+  text = text.replace(/_([0-9A-Za-z+\-=])/g, (m, c) => subMap[c.toLowerCase()] ? subMap[c.toLowerCase()] : `_${c}`);
+  text = text.replace(/\^([0-9A-Za-z+\-=])/g, (m, c) => supMap[c.toLowerCase()] ? supMap[c.toLowerCase()] : `^${c}`);
+  // Multi-char braced forms → keep as `_(abc)` / `^(abc)` so they read.
+  text = text.replace(/_\{([^{}]+)\}/g, '_($1)');
+  text = text.replace(/\^\{([^{}]+)\}/g, '^($1)');
+
+  // ── 5. Residual cleanup ─────────────────────────────────────────────────
+  // LaTeX line break `\\` → newline.
+  text = text.replace(/\\\\/g, '\n');
+  // Lone `\` followed by space (LaTeX thin space) → just space.
+  text = text.replace(/\\ /g, ' ');
+  // Collapse runs of whitespace within a line (but preserve blank lines
+  // between paragraphs).
+  text = text.split('\n').map(l => l.replace(/[ \t]{2,}/g, ' ').trimEnd()).join('\n');
+  // Collapse 3+ consecutive blank lines down to 2.
+  text = text.replace(/\n{3,}/g, '\n\n');
+
+  return text;
 }
 
 // Lazy backfill: the first time the chat endpoint sees a course with no
