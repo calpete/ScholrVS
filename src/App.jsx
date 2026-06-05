@@ -2466,14 +2466,12 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const [mobileChatsOpen, setMobileChatsOpen] = useState(false);
   const isDesktop = useIsDesktop();
   const [sidebarW, startSidebarDrag] = useSidebarWidth('scholr_student_sidebar_w');
-  const [recentsOpen, setRecentsOpen] = useState(true);   // collapse the recents list
-  const [allChatsOpen, setAllChatsOpen] = useState(false); // full "Chats" page overlay
+  const [allChatsOpen, setAllChatsOpen] = useState(false); // full "Chats" page overlay (still used by the legacy entry points)
   const [notesOpen, setNotesOpen] = useState(false);       // full "My Notes" page overlay
   const [uploadingNote, setUploadingNote] = useState(null); // filename being uploaded via the composer
   const [chatMenuId, setChatMenuId] = useState(null);      // which chat's "..." menu is open
   const [renamingId, setRenamingId] = useState(null);      // which chat is being renamed
   const [renameVal, setRenameVal] = useState('');
-  const RECENT_LIMIT = 8;
 
   // Flashcard panel state — mirrors the quiz panel below. Mutually exclusive
   // with the quiz panel (only one opens at a time).
@@ -3776,19 +3774,12 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           <input ref={chatAttachRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e => { handleComposerAttach(e.target.files[0]); e.target.value = ''; }} />
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-3">
-          <div className="group/recents flex items-center justify-between px-2 mb-2">
-            <button onClick={() => setRecentsOpen(o => !o)} className="flex items-center gap-1 text-[11px] text-gray-500 font-semibold hover:text-gray-700 transition-colors">
-              <ChevronRight size={11} className={`transition-transform ${recentsOpen ? 'rotate-90' : ''}`} />Recents
-            </button>
-            {recentsOpen && (
-              <button
-                onClick={() => { closeOverlays(); setAllChatsOpen(true); closeMobile(); }}
-                className="flex items-center gap-0.5 text-[10px] text-gray-400 hover:text-gray-700 font-medium opacity-0 group-hover/recents:opacity-100 transition-opacity">
-                View all<ChevronRight size={10} />
-              </button>
-            )}
+          {/* Recents header is a plain label now — the list shows every chat
+              and scrolls internally when it overflows the sidebar height. */}
+          <div className="px-2 mb-2 text-[11px] text-gray-500 font-semibold uppercase tracking-wide">
+            Recents
           </div>
-          {recentsOpen && chats.slice(0, RECENT_LIMIT).map(c => (
+          {chats.map(c => (
             <div key={c.id} className="group relative mb-0.5">
               {renamingId === c.id ? (
                 <input
