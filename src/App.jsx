@@ -3487,23 +3487,26 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       return;
     }
 
-    // ── Natural-language intent → confirmation chip. We never auto-build
-    // anymore — the student has to click Yes. (Tests checked first so
-    // "make me an exam" doesn't get swallowed by the quiz detector.)
+    // ── Natural-language intent → count picker directly. Earlier this
+    // showed a "Want me to build?" Yes/No confirmation first and only
+    // routed to the count picker if the student clicked Yes — but that
+    // was two clicks for the same outcome. The picker IS the confirmation
+    // (pick a count = yes, Cancel = no). Tests checked first so "make me
+    // an exam" doesn't get swallowed by the quiz detector.
     if (!activeCmd) {
       if (isTestRequest(message)) {
         setInput('');
-        askConfirmation('test', extractTestTopic(message), message);
+        askCountPicker('test', extractTestTopic(message), message);
         return;
       }
       if (isFullQuizRequest(message)) {
         setInput('');
-        askConfirmation('quiz', extractQuizTopic(message), message);
+        askCountPicker('quiz', extractQuizTopic(message), message);
         return;
       }
       if (isFlashcardRequest(message)) {
         setInput('');
-        askConfirmation('cards', extractFlashcardTopic(message), message);
+        askCountPicker('cards', extractFlashcardTopic(message), message);
         return;
       }
     }

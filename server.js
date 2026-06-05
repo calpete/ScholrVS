@@ -2308,7 +2308,15 @@ Generate the TOPIC line then all ${quizCount} questions now:`;
       contents: [{ role: 'user', parts: [...docParts, { text: prompt }] }],
       config: { temperature: 0.3, maxOutputTokens: 3000 },
     });
-    const text = result.text.trim();
+    let text = result.text.trim();
+    // Extract the model's TOPIC line FIRST, then strip it from the text
+    // before parsing questions. Without this strip, the topic line was
+    // surviving the "block.length > 20" filter and getting consumed by
+    // the slice(quizCount) — the student asked for N questions and got
+    // N-1 because the first "block" was the topic header, not a question.
+    const modelTopicMatch = text.match(/^\s*TOPIC:\s*([^\n]+)/im);
+    const modelTopic = modelTopicMatch ? modelTopicMatch[1].trim().replace(/^["']|["']$/g, '') : '';
+    text = text.replace(/^\s*TOPIC:[^\n]*\n+/im, '');
     const blocks = text.split(/---+|\n(?=QUESTION:)/).map(b => b.trim()).filter(b => b.length > 20);
     const questions = blocks.slice(0, quizCount).map(block => {
       const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
@@ -2323,10 +2331,6 @@ Generate the TOPIC line then all ${quizCount} questions now:`;
     if (questions.length === 0) return res.status(500).json({ error: 'Could not generate quiz questions' });
     // Persist so the student can revisit / retake from the Quizzes sidebar.
     // Title preference: explicit user topic > model-generated TOPIC > dated fallback.
-    // Ensures every saved quiz has a meaningful title even when the student
-    // just typed "/quiz" with no topic.
-    const modelTopicMatch = text.match(/^\s*TOPIC:\s*([^\n]+)/im);
-    const modelTopic = modelTopicMatch ? modelTopicMatch[1].trim().replace(/^["']|["']$/g, '') : '';
     const effectiveTopic = (topic && topic.trim()) || modelTopic || `Practice Quiz · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
     const finalTopic = await disambiguateTopic('quizzes', req.user.id, courseId, effectiveTopic);
     let savedId = null;
@@ -2383,7 +2387,12 @@ Keep each side under two sentences. Use plain text, no markdown inside the FRONT
       contents: [{ role: 'user', parts: [...docParts, { text: prompt }] }],
       config: { temperature: 0.4, maxOutputTokens: 3000 },
     });
-    const text = result.text.trim();
+    let text = result.text.trim();
+    // Pull the TOPIC line out before parsing cards so it doesn't get
+    // counted as a partial card and steal a slot from the slice(cardCount).
+    const modelTopicMatch = text.match(/^\s*TOPIC:\s*([^\n]+)/im);
+    const modelTopic = modelTopicMatch ? modelTopicMatch[1].trim().replace(/^["']|["']$/g, '') : '';
+    text = text.replace(/^\s*TOPIC:[^\n]*\n+/im, '');
     const blocks = text.split(/---+|\n(?=FRONT:)/i).map(b => b.trim()).filter(b => b.length > 10);
     const cards = blocks.map(block => {
       const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
@@ -2391,8 +2400,6 @@ Keep each side under two sentences. Use plain text, no markdown inside the FRONT
       return { front: get('FRONT:'), back: get('BACK:'), source: get('SOURCE:') };
     }).filter(c => c.front && c.back).slice(0, cardCount);
     if (cards.length === 0) return res.status(500).json({ error: 'Could not generate flashcards' });
-    const modelTopicMatch = text.match(/^\s*TOPIC:\s*([^\n]+)/im);
-    const modelTopic = modelTopicMatch ? modelTopicMatch[1].trim().replace(/^["']|["']$/g, '') : '';
     const effectiveTopic = (topic && topic.trim()) || modelTopic || `Flashcard Deck · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
     const finalTopic = await disambiguateTopic('flashcard_decks', req.user.id, courseId, effectiveTopic);
     let savedId = null;
@@ -2540,7 +2547,11 @@ Generate all 8 questions now:`;
       contents: [{ role: 'user', parts: [...docParts, { text: prompt }] }],
       config: { temperature: 0.3, maxOutputTokens: 4000 },
     });
-    const text = result.text.trim();
+    let text = result.text.trim();
+    // Pull TOPIC out before splitting so the test count is correct.
+    const modelTopicMatch = text.match(/^\s*TOPIC:\s*([^\n]+)/im);
+    const modelTopic = modelTopicMatch ? modelTopicMatch[1].trim().replace(/^["']|["']$/g, '') : '';
+    text = text.replace(/^\s*TOPIC:[^\n]*\n+/im, '');
     const blocks = text.split(/---+|\n(?=QUESTION:)/).map(b => b.trim()).filter(b => b.length > 20);
     const questions = blocks.slice(0, testCount).map(block => {
       const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
@@ -2553,8 +2564,6 @@ Generate all 8 questions now:`;
       return { question, options, correct: correct === -1 ? 0 : correct, explanation };
     }).filter(q => q.question && q.options[0] !== 'A) ');
     if (questions.length === 0) return res.status(500).json({ error: 'Could not generate test questions' });
-    const modelTopicMatch = text.match(/^\s*TOPIC:\s*([^\n]+)/im);
-    const modelTopic = modelTopicMatch ? modelTopicMatch[1].trim().replace(/^["']|["']$/g, '') : '';
     const effectiveTopic = (topic && topic.trim()) || modelTopic || `Practice Test · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
     const finalTopic = await disambiguateTopic('tests', req.user.id, courseId, effectiveTopic);
     let savedId = null;
