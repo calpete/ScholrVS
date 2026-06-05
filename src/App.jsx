@@ -3774,10 +3774,17 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           <input ref={chatAttachRef} type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp" onChange={e => { handleComposerAttach(e.target.files[0]); e.target.value = ''; }} />
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-3">
-          {/* Recents header is a plain label now — the list shows every chat
-              and scrolls internally when it overflows the sidebar height. */}
-          <div className="px-2 mb-2 text-[11px] text-gray-500 font-semibold uppercase tracking-wide">
-            Recents
+          {/* Recents header: label + "View all" link to the dedicated chats
+              overlay, where students can search/browse the full history
+              even when the sidebar list is long. Sidebar shows every chat
+              and scrolls internally — the overlay is a richer browse. */}
+          <div className="group/recents flex items-center justify-between px-2 mb-2">
+            <span className="text-[11px] text-gray-500 font-semibold uppercase tracking-wide">Recents</span>
+            <button
+              onClick={() => { closeOverlays(); setAllChatsOpen(true); closeMobile(); }}
+              className="flex items-center gap-0.5 text-[10px] text-gray-400 hover:text-gray-700 font-medium opacity-0 group-hover/recents:opacity-100 transition-opacity">
+              View all<ChevronRight size={10} />
+            </button>
           </div>
           {chats.map(c => (
             <div key={c.id} className="group relative mb-0.5">
