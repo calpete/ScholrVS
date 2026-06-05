@@ -2284,7 +2284,10 @@ app.post('/course/:courseId/quiz', requireAuth, requireCourseAccess, async (req,
 
   const prompt = `Read these course documents and generate 5 multiple choice quiz questions${topic ? ` about: ${topic}` : ''}.
 
-For each question, write it in this EXACT format with no variations:
+Start with EXACTLY this line on its own (no markdown, no quotes):
+TOPIC: [a 3-5 word title summarizing the quiz — e.g. "Margin of Safety", "CVP Analysis", "Module 1 Concepts"]
+
+Then for each question, write it in this EXACT format with no variations:
 QUESTION: [question text]
 A: [option a]
 B: [option b]
@@ -2294,7 +2297,7 @@ CORRECT: [A or B or C or D]
 EXPLANATION: [one sentence explanation]
 ---
 
-Generate all 5 questions now:`;
+Generate the TOPIC line then all 5 questions now:`;
 
   try {
     const result = await ai.models.generateContent({
@@ -2316,7 +2319,13 @@ Generate all 5 questions now:`;
     }).filter(q => q.question && q.options[0] !== 'A) ');
     if (questions.length === 0) return res.status(500).json({ error: 'Could not generate quiz questions' });
     // Persist so the student can revisit / retake from the Quizzes sidebar.
-    const finalTopic = await disambiguateTopic('quizzes', req.user.id, courseId, topic) || null;
+    // Title preference: explicit user topic > model-generated TOPIC > dated fallback.
+    // Ensures every saved quiz has a meaningful title even when the student
+    // just typed "/quiz" with no topic.
+    const modelTopicMatch = text.match(/^\s*TOPIC:\s*([^\n]+)/im);
+    const modelTopic = modelTopicMatch ? modelTopicMatch[1].trim().replace(/^["']|["']$/g, '') : '';
+    const effectiveTopic = (topic && topic.trim()) || modelTopic || `Practice Quiz · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    const finalTopic = await disambiguateTopic('quizzes', req.user.id, courseId, effectiveTopic);
     let savedId = null;
     try {
       const { data: saved } = await supabase.from('quizzes')
@@ -2352,13 +2361,16 @@ app.post('/course/:courseId/flashcards', requireAuth, requireCourseAccess, async
 
   const prompt = `Read these course documents and generate 10 study flashcards${topic ? ` about: ${topic}` : ' covering the most exam-worthy concepts'}.
 
-For each card, write it in this EXACT format with no variations:
+Start with EXACTLY this line on its own (no markdown, no quotes):
+TOPIC: [a 3-5 word title summarizing the deck — e.g. "Cost Behavior", "Variance Analysis", "Module 1 Key Terms"]
+
+Then for each card, write it in this EXACT format with no variations:
 FRONT: [a concise term, concept, or question]
 BACK: [the definition or answer in 1-2 sentences]
 SOURCE: [one short citation like "Lecture 6 · slide 14" or "Chapter 4 · p. 132"]
 ---
 
-Keep each side under two sentences. Use plain text, no markdown inside the FRONT/BACK fields. Generate all 10 cards now:`;
+Keep each side under two sentences. Use plain text, no markdown inside the FRONT/BACK fields. Generate the TOPIC line then all 10 cards now:`;
 
   try {
     const result = await ai.models.generateContent({
@@ -2374,7 +2386,10 @@ Keep each side under two sentences. Use plain text, no markdown inside the FRONT
       return { front: get('FRONT:'), back: get('BACK:'), source: get('SOURCE:') };
     }).filter(c => c.front && c.back).slice(0, 12);
     if (cards.length === 0) return res.status(500).json({ error: 'Could not generate flashcards' });
-    const finalTopic = await disambiguateTopic('flashcard_decks', req.user.id, courseId, topic) || null;
+    const modelTopicMatch = text.match(/^\s*TOPIC:\s*([^\n]+)/im);
+    const modelTopic = modelTopicMatch ? modelTopicMatch[1].trim().replace(/^["']|["']$/g, '') : '';
+    const effectiveTopic = (topic && topic.trim()) || modelTopic || `Flashcard Deck · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    const finalTopic = await disambiguateTopic('flashcard_decks', req.user.id, courseId, effectiveTopic);
     let savedId = null;
     try {
       const { data: saved } = await supabase.from('flashcard_decks')
@@ -2476,6 +2491,10 @@ app.post('/course/:courseId/test', requireAuth, requireCourseAccess, async (req,
   // mix of difficulty. Same answer schema so the client can reuse the renderer.
   const prompt = `Read these course documents and generate an 8-question closed-book practice test${topic ? ` about: ${topic}` : ''}. Vary the difficulty — some recall, some application, some synthesis.
 
+Start with EXACTLY this line on its own (no markdown, no quotes):
+TOPIC: [a 3-5 word title summarizing the test — e.g. "Cost Accounting Midterm", "Module 2 Concepts", "Variance Practice"]
+
+
 For each question, write it in this EXACT format with no variations:
 QUESTION: [question text]
 A: [option a]
@@ -2507,7 +2526,10 @@ Generate all 8 questions now:`;
       return { question, options, correct: correct === -1 ? 0 : correct, explanation };
     }).filter(q => q.question && q.options[0] !== 'A) ');
     if (questions.length === 0) return res.status(500).json({ error: 'Could not generate test questions' });
-    const finalTopic = await disambiguateTopic('tests', req.user.id, courseId, topic) || null;
+    const modelTopicMatch = text.match(/^\s*TOPIC:\s*([^\n]+)/im);
+    const modelTopic = modelTopicMatch ? modelTopicMatch[1].trim().replace(/^["']|["']$/g, '') : '';
+    const effectiveTopic = (topic && topic.trim()) || modelTopic || `Practice Test · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    const finalTopic = await disambiguateTopic('tests', req.user.id, courseId, effectiveTopic);
     let savedId = null;
     try {
       const { data: saved } = await supabase.from('tests')
