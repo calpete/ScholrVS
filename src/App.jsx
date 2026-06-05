@@ -2467,6 +2467,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const isDesktop = useIsDesktop();
   const [sidebarW, startSidebarDrag] = useSidebarWidth('scholr_student_sidebar_w');
   const [allChatsOpen, setAllChatsOpen] = useState(false); // full "Chats" page overlay (still used by the legacy entry points)
+  const [materialsOpen, setMaterialsOpen] = useState(false); // full "Course Materials" page overlay (professor uploads)
   const [notesOpen, setNotesOpen] = useState(false);       // full "My Notes" page overlay
   const [uploadingNote, setUploadingNote] = useState(null); // filename being uploaded via the composer
   const [chatMenuId, setChatMenuId] = useState(null);      // which chat's "..." menu is open
@@ -3611,7 +3612,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   // active-taking / studying states). Called from any sidebar action that
   // navigates somewhere else, so clicking a chat while you're in Quizzes
   // doesn't leave the overlay floating on top of the new chat.
-  const closeOverlays = () => { setNotesOpen(false); setQuizzesOpen(false); setTestsOpen(false); setDecksOpen(false); setQuizTaking(false); setTestTaking(false); setDeckStudying(false); setAllChatsOpen(false); };
+  const closeOverlays = () => { setNotesOpen(false); setMaterialsOpen(false); setQuizzesOpen(false); setTestsOpen(false); setDecksOpen(false); setQuizTaking(false); setTestTaking(false); setDeckStudying(false); setAllChatsOpen(false); };
 
   const isEmpty = !active || active.messages.length === 0;
   // Shared composer — rendered centered with the greeting on an empty chat, or
@@ -3734,7 +3735,8 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         </div>
         <div className="px-3 pt-3 space-y-0.5">
           <button onClick={() => { createNewChat(); closeOverlays(); closeMobile(); }} className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-gray-700 text-[13px] font-medium hover:bg-gray-200/60 transition-colors"><Plus size={15} className="text-gray-500" />New chat</button>
-          <button onClick={() => { setNotesOpen(true); setAllChatsOpen(false); setQuizzesOpen(false); setTestsOpen(false); setDecksOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${notesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}><FolderOpen size={15} className="text-gray-500" />My Notes{myNotes.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{myNotes.length}</span>}</button>
+          <button onClick={() => { closeOverlays(); setMaterialsOpen(true); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${materialsOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}><BookOpen size={15} className="text-gray-500" />Course Materials{documents.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{documents.length}</span>}</button>
+          <button onClick={() => { closeOverlays(); setNotesOpen(true); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${notesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}><FolderOpen size={15} className="text-gray-500" />My Notes{myNotes.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{myNotes.length}</span>}</button>
           <button onClick={() => { setQuizzesOpen(true); setQuizTaking(false); setAllChatsOpen(false); setNotesOpen(false); setTestsOpen(false); setDecksOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${quizzesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
             {quizGenState === 'generating' ? (
               <span className="w-[15px] h-[15px] inline-block border-[1.5px] border-gray-400 border-t-transparent rounded-full animate-spin" />
@@ -3798,7 +3800,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                 />
               ) : (
                 <>
-                  <button onClick={() => { setChatId(c.id); closeOverlays(); closeMobile(); }} className={`flex items-center w-full text-left px-2.5 py-2 rounded-lg text-[13px] transition-colors pr-8 ${c.id === chatId && !notesOpen && !quizzesOpen && !testsOpen && !decksOpen ? 'bg-gray-200 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-200/60'}`}>
+                  <button onClick={() => { setChatId(c.id); closeOverlays(); closeMobile(); }} className={`flex items-center w-full text-left px-2.5 py-2 rounded-lg text-[13px] transition-colors pr-8 ${c.id === chatId && !notesOpen && !materialsOpen && !quizzesOpen && !testsOpen && !decksOpen ? 'bg-gray-200 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-200/60'}`}>
                     <span className="truncate">{c.title || 'New Chat'}</span>
                   </button>
                   <button onClick={e => { e.stopPropagation(); setChatMenuId(chatMenuId === c.id ? null : c.id); }}
@@ -3844,6 +3846,41 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                     <button onClick={e => { e.stopPropagation(); deleteChat(c.id); }} className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-300 hover:text-red-400 transition-all"><Trash2 size={12} /></button>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+        {materialsOpen && (
+          <div className="absolute inset-0 z-40 bg-[#F6F6F4] flex flex-col">
+            <header className="flex items-start justify-between px-6 md:px-10 pt-8 md:pt-10 pb-6 border-b border-gray-200/70 flex-shrink-0 gap-4" style={{ paddingTop: 'max(2rem, env(safe-area-inset-top))' }}>
+              <div className="min-w-0 max-w-2xl">
+                <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />From your professor</div>
+                <h2 className="serif text-3xl md:text-[40px] text-gray-900 leading-none tracking-tight">Course Materials<span className="italic">.</span></h2>
+                <p className="text-[14.5px] text-gray-500 mt-3 leading-relaxed">Every document your professor uploaded for {course.name}. Scholr grounds every answer in these — they're the source of truth for anything course-specific.</p>
+              </div>
+              <button onClick={() => setMaterialsOpen(false)} aria-label="Close" className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"><X size={18} /></button>
+            </header>
+            <div className="flex-1 overflow-y-auto">
+              <div className="max-w-3xl mx-auto w-full px-6 md:px-10 py-7">
+                {documents.length === 0 ? (
+                  <div className="text-center py-20">
+                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#F3F2EF] mb-5"><BookOpen size={22} className="text-gray-400" /></div>
+                    <h3 className="serif text-2xl text-gray-900 leading-none tracking-tight">Nothing here <span className="italic">yet</span>.</h3>
+                    <p className="text-[14px] text-gray-500 mt-3 max-w-sm mx-auto leading-relaxed">Your professor hasn't uploaded any documents for this course. Once they do, you'll see them listed here.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {documents.map((doc, i) => (
+                      <div key={i} className="flex items-center gap-4 px-5 py-4 rounded-2xl bg-white border border-gray-200 hover:border-gray-400 hover:shadow-sm transition-all">
+                        <div className="w-11 h-11 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0"><FileText size={17} className="text-gray-700" /></div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[15px] text-gray-900 font-medium truncate">{cleanFileName(doc.name)}</p>
+                          {doc.sizeKb ? <p className="text-[12px] text-gray-400 mt-0.5">{doc.sizeKb >= 1024 ? `${(doc.sizeKb / 1024).toFixed(1)} MB` : `${doc.sizeKb} KB`}</p> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
