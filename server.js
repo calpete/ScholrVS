@@ -2182,29 +2182,80 @@ app.post('/professor/courses/:courseId/cover', requireAuth, async (req, res) => 
   res.json({ success: true, coverImage: cover });
 });
 
-// If a student already has a quiz / test / deck saved under this exact
-// topic in this course, append " (2)", " (3)" etc. so saved artifacts
-// never collide in the sidebar — "the syllabus" today and "the syllabus"
-// tomorrow get visibly different titles. Match is case-insensitive +
-// whitespace-trimmed; typo variants like "syllabus" vs "sllyabus" are
-// left alone (treated as legitimately different — students can rename).
+// Normalize a topic for collision detection: lowercase, trim, strip a
+// leading article ("the syllabus" → "syllabus"), and collapse internal
+// whitespace. Two topics that normalize to the same string are treated
+// as the same intent and get auto-disambiguated.
+function normalizeTopic(s) {
+  return (s || '').toLowerCase().trim()
+    .replace(/^(the|a|an)\s+/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Levenshtein distance — for typo-fuzzy collision detection. Iterative DP
+// implementation; tight loop over short strings, no perf concern at our
+// scale (a few dozen topics per student max).
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const prev = new Array(b.length + 1);
+  const curr = new Array(b.length + 1);
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+    }
+    for (let j = 0; j <= b.length; j++) prev[j] = curr[j];
+  }
+  return prev[b.length];
+}
+
+// Treat two topics as "the same" if either:
+//  (a) they normalize to the same string ("the syllabus" ≡ "syllabus"), or
+//  (b) their normalized forms are within Levenshtein distance 2 AND both
+//      are long enough that random collision is unlikely (≥6 chars).
+// Carve-out: if both end in DIFFERENT trailing digits ("midterm 1" vs
+// "midterm 2"), keep them distinct — the digits are intentional.
+function topicsCollide(a, b) {
+  const na = normalizeTopic(a);
+  const nb = normalizeTopic(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  const tailA = na.match(/(\d+)\s*$/);
+  const tailB = nb.match(/(\d+)\s*$/);
+  if (tailA && tailB && tailA[1] !== tailB[1]) return false;
+  if (Math.min(na.length, nb.length) < 6) return false;
+  return levenshtein(na, nb) <= 2;
+}
+
+// If a student already has a quiz / test / deck saved under a colliding
+// topic in this course, append " (2)", " (3)" etc. Catches exact dupes
+// ("the syllabus" + "the syllabus") AND near-typo dupes ("the syllabus"
+// + "the sllyabus") AND article-stripped dupes ("syllabus" + "the
+// syllabus"). Different topics like "midterm 1" vs "midterm 2" remain
+// distinct thanks to the trailing-digit carve-out in topicsCollide.
 async function disambiguateTopic(table, studentId, courseId, proposed) {
   if (!proposed || !proposed.trim()) return proposed;
   const base = proposed.trim();
-  const norm = base.toLowerCase();
   try {
     const { data } = await supabase.from(table)
       .select('topic')
       .eq('student_id', studentId).eq('course_id', courseId);
-    const existing = new Set((data || [])
-      .map(r => (r.topic || '').toLowerCase().trim())
-      .filter(Boolean));
-    if (!existing.has(norm)) return base;
+    const existingTopics = (data || []).map(r => r.topic).filter(Boolean);
+    const collides = (candidate) => existingTopics.some(t => topicsCollide(candidate, t));
+    if (!collides(base)) return base;
     for (let i = 2; i < 100; i++) {
       const candidate = `${base} (${i})`;
-      if (!existing.has(candidate.toLowerCase())) return candidate;
+      // Only check exact collision on the suffixed form — `(N)` carries the
+      // disambiguation, no need to fuzzy-match it against everything else.
+      if (!existingTopics.some(t => normalizeTopic(t) === normalizeTopic(candidate))) {
+        return candidate;
+      }
     }
-    // Pathological case (100+ collisions) — fall back to a timestamp suffix.
     return `${base} (${Date.now()})`;
   } catch (e) {
     console.warn(`disambiguateTopic(${table}) failed: ${e.message}`);
