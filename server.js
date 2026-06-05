@@ -2411,11 +2411,21 @@ Keep each side under two sentences. Use plain text, no markdown inside the FRONT
 app.get('/student/quizzes', requireAuth, async (req, res) => {
   const { courseId } = req.query;
   if (!courseId) return res.status(400).json({ error: 'courseId required' });
+  // Fetch questions too so we can derive a 1-line preview + count for the
+  // card. Strip the full questions array from the response to keep the
+  // payload small — only preview + count travel to the client.
   const { data } = await supabase.from('quizzes')
-    .select('id, topic, attempts, last_score, best_score, created_at')
+    .select('id, topic, attempts, last_score, best_score, created_at, questions')
     .eq('student_id', req.user.id).eq('course_id', courseId)
     .order('created_at', { ascending: false });
-  res.json(data || []);
+  const enriched = (data || []).map(({ questions, ...rest }) => ({
+    ...rest,
+    questionCount: Array.isArray(questions) ? questions.length : 0,
+    preview: Array.isArray(questions) && questions[0]?.question
+      ? String(questions[0].question).slice(0, 140)
+      : null,
+  }));
+  res.json(enriched);
 });
 
 app.get('/student/quizzes/:id', requireAuth, async (req, res) => {
@@ -2451,7 +2461,17 @@ app.get('/student/flashcard-decks', requireAuth, async (req, res) => {
     .select('id, topic, cards, created_at')
     .eq('student_id', req.user.id).eq('course_id', courseId)
     .order('created_at', { ascending: false });
-  res.json(data || []);
+  // Strip the full cards array from the list response — we only need the
+  // first card's FRONT for the preview and the count for the badge. Full
+  // cards still come back from the per-deck GET when the student opens it.
+  const enriched = (data || []).map(({ cards, ...rest }) => ({
+    ...rest,
+    cardCount: Array.isArray(cards) ? cards.length : 0,
+    preview: Array.isArray(cards) && cards[0]?.front
+      ? String(cards[0].front).slice(0, 140)
+      : null,
+  }));
+  res.json(enriched);
 });
 
 app.get('/student/flashcard-decks/:id', requireAuth, async (req, res) => {
@@ -2548,10 +2568,17 @@ app.get('/student/tests', requireAuth, async (req, res) => {
   const { courseId } = req.query;
   if (!courseId) return res.status(400).json({ error: 'courseId required' });
   const { data } = await supabase.from('tests')
-    .select('id, topic, attempts, last_score, best_score, created_at')
+    .select('id, topic, attempts, last_score, best_score, created_at, questions')
     .eq('student_id', req.user.id).eq('course_id', courseId)
     .order('created_at', { ascending: false });
-  res.json(data || []);
+  const enriched = (data || []).map(({ questions, ...rest }) => ({
+    ...rest,
+    questionCount: Array.isArray(questions) ? questions.length : 0,
+    preview: Array.isArray(questions) && questions[0]?.question
+      ? String(questions[0].question).slice(0, 140)
+      : null,
+  }));
+  res.json(enriched);
 });
 
 app.get('/student/tests/:id', requireAuth, async (req, res) => {
