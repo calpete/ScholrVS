@@ -495,6 +495,95 @@ Return ONLY a JSON array, no preamble or markdown fences:
   }
 }
 
+// Lazy-load the canvas module. @napi-rs/canvas ships prebuilt binaries
+// for every platform Render runs (linux/x64, darwin, etc.) so there's no
+// native compile step at install time and no system-library dependency
+// — important because the standard `canvas` package requires
+// libcairo/libpango on the host, and Render's build images don't have
+// every variant. If the module fails to load for any reason, we skip
+// page-image rendering entirely and the chat falls back to text-only
+// grounding (no functionality breaks).
+let _canvasMod = null;
+async function getCanvas() {
+  if (_canvasMod !== null) return _canvasMod || null;
+  try {
+    _canvasMod = await import('@napi-rs/canvas');
+    return _canvasMod;
+  } catch (e) {
+    console.warn('⚠️  @napi-rs/canvas unavailable — page image rendering disabled:', e.message);
+    _canvasMod = false;
+    return null;
+  }
+}
+
+// pdfjs needs a canvas factory to know how to allocate canvases when
+// rendering pages. Default factory hardcodes `require('canvas')` which
+// we don't ship; this adapter routes through @napi-rs/canvas instead.
+class NapiCanvasFactory {
+  constructor(canvasMod) { this.mod = canvasMod; }
+  create(width, height) {
+    const canvas = this.mod.createCanvas(width, height);
+    return { canvas, context: canvas.getContext('2d') };
+  }
+  reset(cc, width, height) { cc.canvas.width = width; cc.canvas.height = height; }
+  destroy(cc) { cc.canvas.width = 0; cc.canvas.height = 0; }
+}
+
+// Render every page of a PDF to PNG and upload to Supabase Storage at
+// `course_pages/{courseId}/{docName}/page_{N}.png`. Used to give gpt-4o
+// direct visual access to slides at chat time — the model SEES the
+// formula/diagram instead of reading a flattened text extraction. Called
+// in the background from chunkAndEmbedPdf so uploads don't block.
+async function renderAndUploadPdfPages(courseId, docName, pdfBuffer) {
+  const pdfjs = await getPdfjs();
+  const canvasMod = await getCanvas();
+  if (!pdfjs || !canvasMod) return { ok: false, error: 'pdfjs or canvas unavailable' };
+
+  try {
+    const factory = new NapiCanvasFactory(canvasMod);
+    const loadingTask = pdfjs.getDocument({
+      data: new Uint8Array(pdfBuffer),
+      canvasFactory: factory,
+      verbosity: 0,
+    });
+    const pdf = await loadingTask.promise;
+    const total = pdf.numPages;
+
+    let uploaded = 0;
+    for (let i = 1; i <= total; i++) {
+      try {
+        const page = await pdf.getPage(i);
+        // 1.5× scale keeps formulas/text legible without ballooning bytes.
+        // OpenAI vision low-detail is 85 tokens per image regardless of
+        // resolution, so this is purely about upload/storage size.
+        const viewport = page.getViewport({ scale: 1.5 });
+        const cc = factory.create(viewport.width, viewport.height);
+        await page.render({
+          canvasContext: cc.context,
+          viewport,
+          canvasFactory: factory,
+        }).promise;
+        const png = cc.canvas.toBuffer('image/png');
+        factory.destroy(cc);
+
+        const storagePath = `course_pages/${courseId}/${docName}/page_${i}.png`;
+        const { error } = await supabase.storage.from('documents').upload(storagePath, png, {
+          contentType: 'image/png',
+          upsert: true,
+        });
+        if (!error) uploaded++;
+        else console.warn(`Page ${i} upload failed: ${error.message}`);
+      } catch (pageErr) {
+        console.warn(`Page ${i} render failed: ${pageErr.message}`);
+      }
+    }
+    return { ok: true, pages: uploaded, total };
+  } catch (e) {
+    console.error(`Page render error for ${docName}:`, e.message);
+    return { ok: false, error: e.message };
+  }
+}
+
 // Chunk + embed a whole PDF and persist the chunks to document_chunks.
 // Now produces two kinds of chunks: extracted text (via pdfjs) AND
 // per-page visual captions (via Gemini vision). Both are embedded and
@@ -504,6 +593,15 @@ Return ONLY a JSON array, no preamble or markdown fences:
 async function chunkAndEmbedPdf(courseId, docName, pdfBuffer) {
   const pdfData = await extractPdfText(pdfBuffer);
   if (!pdfData) return { ok: false, error: 'PDF extract failed' };
+
+  // Kick off page-image rendering in the background — used at chat time
+  // to give gpt-4o direct visual access to slides. Fire-and-forget so it
+  // doesn't slow the indexing pipeline; first questions on a freshly
+  // uploaded PDF will fall back to text-only grounding, subsequent
+  // questions get visual grounding once renders finish.
+  renderAndUploadPdfPages(courseId, docName, pdfBuffer)
+    .then(r => console.log(`📸 Page images for ${docName}: ${r.ok ? `${r.pages}/${r.total}` : `failed (${r.error})`}`))
+    .catch(e => console.error(`Page render scheduling error for ${docName}:`, e.message));
 
   const textChunks = chunkText(pdfData.text || '');
 
@@ -1133,6 +1231,27 @@ app.delete('/professor/courses/:id', requireAuth, async (req, res) => {
     await Promise.all(docs.map(d => d.gemini_uri ? deleteFromGCS(d.gemini_uri) : Promise.resolve()));
   }
 
+  // Course-page PNG images live at `course_pages/<courseId>/<docName>/page_N.png`
+  // and aren't tracked in the documents table — clean them up by listing the
+  // course's subtree under course_pages/ and removing every file found.
+  try {
+    const { data: docFolders } = await supabase.storage.from('documents').list(`course_pages/${id}`, { limit: 1000 });
+    const pagePaths = [];
+    for (const folder of docFolders || []) {
+      if (folder.id) continue; // direct files at this level (shouldn't be any)
+      const { data: pages } = await supabase.storage.from('documents').list(`course_pages/${id}/${folder.name}`, { limit: 1000 });
+      for (const f of pages || []) {
+        if (f.id) pagePaths.push(`course_pages/${id}/${folder.name}/${f.name}`);
+      }
+    }
+    if (pagePaths.length > 0) {
+      const { error } = await supabase.storage.from('documents').remove(pagePaths);
+      if (error) console.error('Course delete — page-image cleanup:', error.message);
+    }
+  } catch (e) {
+    console.error('Course delete — page-image cleanup failed:', e.message);
+  }
+
   await supabase.from('courses').delete().eq('id', id);
   delete courseDocuments[id];
   delete geminiUriCache[id];
@@ -1149,13 +1268,17 @@ async function sweepOrphanBlobs() {
   const report = { liveCourses: liveIds.size, supabase: [], gcs: [] };
 
   // ── Supabase Storage sweep ──
-  // The `documents` bucket is structured as <courseId>/<filename>. List
-  // the top-level folders, drop any whose name isn't in liveIds,
-  // recursively delete their contents.
+  // The `documents` bucket has two top-level layouts:
+  //   - <courseId>/<filename>                       — uploaded PDFs
+  //   - course_pages/<courseId>/<docName>/page_N    — rendered page images
+  // For each layout, find courseIds that aren't live and delete everything
+  // under them. Treat `course_pages` as a special sibling, not a courseId,
+  // so it isn't mistakenly nuked on every sweep.
   try {
     const { data: folders } = await supabase.storage.from('documents').list('', { limit: 1000 });
     for (const folder of folders || []) {
       if (folder.id) continue; // skip files at root
+      if (folder.name === 'course_pages') continue; // handled below
       const courseId = folder.name;
       if (liveIds.has(courseId)) continue;
       const { data: files } = await supabase.storage.from('documents').list(courseId, { limit: 1000 });
@@ -1164,6 +1287,28 @@ async function sweepOrphanBlobs() {
         const { error } = await supabase.storage.from('documents').remove(paths);
         if (error) console.error(`Sweep — Supabase delete failed for ${courseId}:`, error.message);
         else report.supabase.push({ courseId, files: paths.length });
+      }
+    }
+    // course_pages subtree — direct children are courseIds.
+    const { data: pageCourses } = await supabase.storage.from('documents').list('course_pages', { limit: 1000 });
+    for (const courseFolder of pageCourses || []) {
+      if (courseFolder.id) continue;
+      const courseId = courseFolder.name;
+      if (liveIds.has(courseId)) continue;
+      // Direct children of course_pages/<courseId>/ are docName folders.
+      const { data: docFolders } = await supabase.storage.from('documents').list(`course_pages/${courseId}`, { limit: 1000 });
+      const allPaths = [];
+      for (const df of docFolders || []) {
+        if (df.id) continue;
+        const { data: pages } = await supabase.storage.from('documents').list(`course_pages/${courseId}/${df.name}`, { limit: 1000 });
+        for (const f of pages || []) {
+          if (f.id) allPaths.push(`course_pages/${courseId}/${df.name}/${f.name}`);
+        }
+      }
+      if (allPaths.length > 0) {
+        const { error } = await supabase.storage.from('documents').remove(allPaths);
+        if (error) console.error(`Sweep — page-image delete failed for ${courseId}:`, error.message);
+        else report.supabase.push({ courseId: `pages/${courseId}`, files: allPaths.length });
       }
     }
   } catch (e) {
@@ -1309,7 +1454,20 @@ app.delete('/course/:courseId/document/:name', requireAuth, async (req, res) => 
   // 5. Delete from Gemini File API
   if (dbDoc?.gemini_uri) await deleteFromGCS(dbDoc.gemini_uri);
 
-  // 6. Clear in-memory caches
+  // 6. Delete the rendered page-image PNGs for this document so they don't
+  //    orphan when the professor removes a single file from the course.
+  try {
+    const { data: pages } = await supabase.storage.from('documents').list(`course_pages/${courseId}/${filename}`, { limit: 1000 });
+    const paths = (pages || []).filter(p => p.id).map(p => `course_pages/${courseId}/${filename}/${p.name}`);
+    if (paths.length > 0) {
+      const { error } = await supabase.storage.from('documents').remove(paths);
+      if (error) console.error('Page-image cleanup error:', error.message);
+    }
+  } catch (e) {
+    console.error('Page-image cleanup failed:', e.message);
+  }
+
+  // 7. Clear in-memory caches
   if (courseDocuments[courseId]) delete courseDocuments[courseId][filename];
   if (geminiUriCache[courseId]) delete geminiUriCache[courseId][filename];
   questionsCaches[courseId] = null;
@@ -1583,11 +1741,48 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
   }
   const contextBlock = contextChunks.join('\n');
 
+  // ── Multimodal grounding: attach the actual slide images for the pages
+  // ── the retrieved chunks came from. gpt-4o SEES the formula/diagram
+  // ── instead of reading flattened pdfjs text. Dedup by (doc, page),
+  // ── cap at 4 images to keep token cost bounded (low-detail mode =
+  // ── 85 tokens/image flat). Falls back silently to text-only if any
+  // ── image is missing — courses uploaded before page-rendering shipped
+  // ── still work, just without visual grounding.
+  const pageRefs = [...new Map(retrievedChunks
+    .filter(c => c.page_number)
+    .map(c => [`${c.doc_name}:::${c.page_number}`, { doc: c.doc_name, page: c.page_number }])).values()];
+
+  const imageParts = [];
+  for (const ref of pageRefs.slice(0, 4)) {
+    try {
+      const storagePath = `course_pages/${courseId}/${ref.doc}/page_${ref.page}.png`;
+      const { data, error } = await supabase.storage.from('documents').download(storagePath);
+      if (error || !data) continue;
+      const buf = Buffer.from(await data.arrayBuffer());
+      const dataUrl = `data:image/png;base64,${buf.toString('base64')}`;
+      imageParts.push({ type: 'image_url', image_url: { url: dataUrl, detail: 'low' } });
+    } catch (e) {
+      console.warn(`Page image fetch failed for ${ref.doc} p.${ref.page}: ${e.message}`);
+    }
+  }
+  if (imageParts.length > 0) console.log(`📸 Attached ${imageParts.length} page image(s) to chat request`);
+
   const messages = [{ role: 'system', content: SYSTEM_PROMPT }];
-  if (history.length === 0) {
-    messages.push({ role: 'user', content: `${contextBlock}\nSTUDENT QUESTION: ${message}` });
+  // Build the first user turn. If we have images, OpenAI requires a
+  // content ARRAY with text + image_url parts. Otherwise plain string.
+  const firstUserText = history.length === 0
+    ? `${contextBlock}\nSTUDENT QUESTION: ${message}`
+    : `${contextBlock}\nSTUDENT QUESTION: ${history[0].content}`;
+  if (imageParts.length > 0) {
+    messages.push({
+      role: 'user',
+      content: [{ type: 'text', text: firstUserText }, ...imageParts],
+    });
   } else {
-    messages.push({ role: 'user', content: `${contextBlock}\nSTUDENT QUESTION: ${history[0].content}` });
+    messages.push({ role: 'user', content: firstUserText });
+  }
+
+  if (history.length > 0) {
     for (let i = 1; i < history.length; i++) {
       const msg = history[i];
       const content = msg.role === 'assistant' ? msg.content.replace(/\nSOURCES:.*$/m, '').trim() : msg.content;
