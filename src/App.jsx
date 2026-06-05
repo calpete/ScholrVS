@@ -3081,14 +3081,30 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     if (!c) return true;
     return c.scrollHeight - c.scrollTop - c.clientHeight < 150;
   };
-  const scrollToBottom = (force = false) => {
+  // `behavior: 'auto'` (instant) for the streaming-follow case — smooth
+  // animation lagged behind incoming tokens and each rAF check ran against
+  // a stale scroll position, causing autoscroll to "stick" mid-response.
+  // Smooth is used only when the user clicks the down-arrow button.
+  const scrollToBottom = (force = false, smooth = false) => {
     requestAnimationFrame(() => {
       if (force || isNearBottom()) {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'end' });
       }
     });
   };
   useEffect(() => { if (active) scrollToBottom(); }, [active?.messages, isTyping]);
+  // When the user sends a message, force-scroll regardless of where they
+  // were — they expect to see their own question and the answer streaming
+  // in even if they were scrolled up reading history.
+  const lastUserMsgCount = useRef(0);
+  useEffect(() => {
+    if (!active) return;
+    const userMsgs = (active.messages || []).filter(m => m.role === 'user').length;
+    if (userMsgs > lastUserMsgCount.current) {
+      scrollToBottom(true);
+    }
+    lastUserMsgCount.current = userMsgs;
+  }, [active?.id, active?.messages]);
   // Single scroll listener owns the button's visibility. rAF-throttled so
   // we don't thrash state on fast scroll-wheels or trackpad inertia.
   useEffect(() => {
@@ -4410,7 +4426,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             <button
               type="button"
               aria-label="Scroll to bottom"
-              onClick={() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }}
+              onClick={() => { scrollToBottom(true, true); }}
               className={`absolute bottom-28 right-6 md:right-8 z-20 w-9 h-9 rounded-full bg-white border border-gray-200 text-gray-700 shadow-md flex items-center justify-center transition-opacity duration-200 hover:bg-gray-50 ${showNewMessageIndicator ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
