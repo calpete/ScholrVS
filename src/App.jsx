@@ -2611,7 +2611,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     topic = topic.replace(/[.!?]$/, '').trim();
     return topic.slice(0, 120);
   };
-  const generateFlashcards = async (topic) => {
+  const generateFlashcards = async (topic, count) => {
     // No side-panel anymore — the deck saves quietly to the Flashcards folder
     // in the sidebar. The icon morphs to a spinner → green check → idle as
     // visible feedback that something just landed.
@@ -2626,7 +2626,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       const res = await fetch(`${API}/course/${course.id}/flashcards`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${studentToken}` },
-        body: JSON.stringify({ topic }),
+        body: JSON.stringify({ topic, count }),
       });
       const data = await res.json();
       if (data.cards?.length) setCards(data.cards);
@@ -2732,7 +2732,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     try { await fetch(`${API}/student/tests/${id}`, { method: 'DELETE', headers: jsonHeaders }); } catch {}
     setSavedTests(prev => prev.filter(t => t.id !== id));
   };
-  const generateTest = async (topic) => {
+  const generateTest = async (topic, count) => {
     setTestLoading(true);
     setTestQuestions([]);
     setTestIndex(0);
@@ -2747,7 +2747,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       const res = await fetch(`${API}/course/${course.id}/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${studentToken}` },
-        body: JSON.stringify({ topic }),
+        body: JSON.stringify({ topic, count }),
       });
       const data = await res.json();
       if (data.questions?.length) setTestQuestions(data.questions);
@@ -2811,7 +2811,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const nextCard = () => { setCardsFlipped(false); setCardsIndex(i => Math.min(i + 1, cards.length - 1)); };
   const prevCard = () => { setCardsFlipped(false); setCardsIndex(i => Math.max(i - 1, 0)); };
 
-  const generateQuiz = async (topic) => {
+  const generateQuiz = async (topic, count) => {
     // Same as decks — no side-panel. Saves to the Quizzes folder so the
     // student takes it from there, not in the middle of a chat.
     setQuizLoading(true);
@@ -2827,7 +2827,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       const res = await fetch(`${API}/course/${course.id}/quiz`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${studentToken}` },
-        body: JSON.stringify({ topic }),
+        body: JSON.stringify({ topic, count }),
       });
       const data = await res.json();
       if (data.questions?.length) setQuizQuestions(data.questions);
@@ -3375,9 +3375,11 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     if (!opts.suppressUserMessage && currentChatDbId && !String(currentChatDbId).startsWith('local-')) {
       try { await fetch(`${API}/student/chats/${currentChatDbId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'user', content: originalMessage }) }); } catch {}
     }
-    if (kind === 'cards') generateFlashcards(topic);
-    else if (kind === 'test') generateTest(topic);
-    else generateQuiz(topic);
+    // Forward the student's chosen count (or undefined if they used the
+    // default path). Backend clamps and defaults appropriately.
+    if (kind === 'cards') generateFlashcards(topic, opts.count);
+    else if (kind === 'test') generateTest(topic, opts.count);
+    else generateQuiz(topic, opts.count);
   };
 
   // Confirmation chip — pushed into the chat when natural language matches
@@ -3400,14 +3402,14 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     }
   };
 
-  // Click handler for the Yes button on a confirmation chip — strips the
-  // chip from the assistant message and triggers the generation.
+  // Click handler for the Yes button on a confirmation chip — swap the
+  // chip for a COUNT PICKER so the student can choose how many questions
+  // or cards they want before we generate. No silent default values.
   const acceptConfirmation = (msgId, kind, topic, originalMessage) => {
     setChats(prev => prev.map(c => c.id === chatId ? {
       ...c,
-      messages: c.messages.filter(m => (m.id || 0) !== msgId),
+      messages: c.messages.map(m => (m.id || 0) === msgId ? { id: m.id, role: 'assistant', pickCount: { kind, topic, originalMessage }, ts: m.ts } : m),
     } : c));
-    runGeneration(kind, topic, originalMessage, { suppressUserMessage: true });
   };
   // No button — replace the chip with a plain "Got it" so the student can
   // ask their question normally without the prompt lingering.
@@ -3415,6 +3417,44 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     setChats(prev => prev.map(c => c.id === chatId ? {
       ...c,
       messages: c.messages.map(m => (m.id || 0) === msgId ? { id: m.id, role: 'assistant', content: 'Got it — what would you like to know instead?', sources: [], ts: m.ts } : m),
+    } : c));
+  };
+
+  // Show the count picker directly (used by slash commands which skip the
+  // initial confirm step — the slash itself confirms intent, all we need
+  // is the count). Pushes the user message into the chat, then the picker.
+  const askCountPicker = async (kind, topic, originalMessage) => {
+    const currentChatId = chatId;
+    const currentActive = chats.find(c => c.id === currentChatId) || chats[0];
+    const currentChatDbId = currentActive?.dbId || null;
+    setChats(prev => prev.map(c => c.id === currentChatId ? {
+      ...c,
+      messages: [
+        ...c.messages,
+        { role: 'user', content: originalMessage, ts: Date.now() },
+        { id: Date.now(), role: 'assistant', pickCount: { kind, topic, originalMessage }, ts: Date.now() },
+      ],
+    } : c));
+    if (currentChatDbId && !String(currentChatDbId).startsWith('local-')) {
+      try { await fetch(`${API}/student/chats/${currentChatDbId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'user', content: originalMessage }) }); } catch {}
+    }
+  };
+
+  // Student picked a count from the chip — strip the picker, fire the
+  // generation with that count (passed through opts to runGeneration).
+  const submitCountChoice = (msgId, kind, topic, originalMessage, count) => {
+    setChats(prev => prev.map(c => c.id === chatId ? {
+      ...c,
+      messages: c.messages.filter(m => (m.id || 0) !== msgId),
+    } : c));
+    runGeneration(kind, topic, originalMessage, { suppressUserMessage: true, count });
+  };
+
+  // Cancel button on the count picker — replace with a "Got it" line.
+  const cancelCountPicker = (msgId) => {
+    setChats(prev => prev.map(c => c.id === chatId ? {
+      ...c,
+      messages: c.messages.map(m => (m.id || 0) === msgId ? { id: m.id, role: 'assistant', content: 'No problem — what else can I help with?', sources: [], ts: m.ts } : m),
     } : c));
   };
 
@@ -3428,22 +3468,22 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
 
     // ── Slash commands that build saved artifacts always win — no
     // confirmation needed; the slash itself is the confirmation.
+    // Slash commands skip the "are you sure" step (the slash is the intent)
+    // but still drop a COUNT PICKER chip so the student chooses how many
+    // questions / cards before we hit the model.
     if (activeCmd?.name === 'cards') {
       setInput('');
-      const topic = extractFlashcardTopic(message);
-      runGeneration('cards', topic, message);
+      askCountPicker('cards', extractFlashcardTopic(message), message);
       return;
     }
     if (activeCmd?.name === 'quiz') {
       setInput('');
-      const topic = extractQuizTopic(message);
-      runGeneration('quiz', topic, message);
+      askCountPicker('quiz', extractQuizTopic(message), message);
       return;
     }
     if (activeCmd?.name === 'test') {
       setInput('');
-      const topic = extractTestTopic(message);
-      runGeneration('test', topic, message);
+      askCountPicker('test', extractTestTopic(message), message);
       return;
     }
 
@@ -4505,6 +4545,59 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                             </div>
                           </div>
                         );
+                      })() : m.pickCount ? (() => {
+                        // Count picker chip — shown after slash command OR after the
+                        // student says "yes, build it" on a natural-language confirm.
+                        // Student picks a preset count or types a custom one.
+                        const pc = m.pickCount;
+                        const kindLabel = pc.kind === 'cards' ? 'flashcards' : pc.kind === 'test' ? 'questions' : 'questions';
+                        const KindIcon = pc.kind === 'cards' ? Layers : pc.kind === 'test' ? GraduationCap : ListChecks;
+                        const presets = pc.kind === 'cards' ? [5, 10, 15, 20] : pc.kind === 'test' ? [5, 8, 12, 20] : [3, 5, 8, 10];
+                        const maxAllowed = pc.kind === 'cards' ? 30 : pc.kind === 'test' ? 25 : 20;
+                        const customRef = `custom_${m.id}`;
+                        return (
+                          <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-5 w-full max-w-md">
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0"><KindIcon size={17} className="text-gray-700" /></div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[11px] font-bold tracking-[.16em] uppercase text-gray-400">How many?</p>
+                                <p className="serif text-[17px] text-gray-900 leading-snug mt-0.5">Building {pc.kind === 'cards' ? 'a deck' : pc.kind === 'test' ? 'a practice test' : 'a quiz'}{pc.topic ? <> on <span className="italic">{pc.topic}</span></> : ''}.</p>
+                                <p className="text-[12.5px] text-gray-500 mt-1 leading-relaxed">Pick a number of {kindLabel} — or type your own (max {maxAllowed}).</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center flex-wrap gap-2 mt-4 pl-[52px]">
+                              {presets.map(n => (
+                                <button key={n} onClick={() => submitCountChoice(m.id, pc.kind, pc.topic, pc.originalMessage, n)} className="px-3.5 py-2 rounded-full bg-gray-900 hover:bg-gray-800 text-white text-[13px] font-medium tabular-nums transition-colors">{n}</button>
+                              ))}
+                              <div className="inline-flex items-center gap-1.5 rounded-full bg-white border border-gray-200 pl-3 pr-1.5 py-1">
+                                <input
+                                  type="number"
+                                  min="3"
+                                  max={maxAllowed}
+                                  placeholder="custom"
+                                  className="w-16 text-[13px] tabular-nums outline-none placeholder:text-gray-300 bg-transparent"
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                      const n = parseInt(e.currentTarget.value, 10);
+                                      if (Number.isFinite(n) && n >= 3 && n <= maxAllowed) submitCountChoice(m.id, pc.kind, pc.topic, pc.originalMessage, n);
+                                    }
+                                  }}
+                                  ref={el => { if (el) el.dataset.ref = customRef; }}
+                                />
+                                <button
+                                  onClick={e => {
+                                    const input = e.currentTarget.previousElementSibling;
+                                    const n = parseInt(input?.value, 10);
+                                    if (Number.isFinite(n) && n >= 3 && n <= maxAllowed) submitCountChoice(m.id, pc.kind, pc.topic, pc.originalMessage, n);
+                                  }}
+                                  aria-label="Submit custom count"
+                                  className="px-2.5 py-1 rounded-full bg-gray-900 hover:bg-gray-800 text-white text-[11px] font-medium transition-colors"
+                                >Go</button>
+                              </div>
+                              <button onClick={() => cancelCountPicker(m.id)} className="ml-1 px-3 py-2 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 text-[13px] font-medium transition-colors">Cancel</button>
+                            </div>
+                          </div>
+                        );
                       })() : quizMatch ? (
                         <div className="inline-flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
                           <div className="w-9 h-9 rounded-xl bg-gray-900 flex items-center justify-center flex-shrink-0">{isTestResult ? <GraduationCap size={16} className="text-white" /> : <ListChecks size={16} className="text-white" />}</div>
@@ -4538,7 +4631,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                           {m.role === 'user' && <span className="block text-[10px] mt-1.5 text-gray-400">{formatTime(m.ts)}</span>}
                         </div>
                       )}
-                      {m.role === 'assistant' && !m.streaming && m.content && !isError && !quizMatch && !m.confirm && (
+                      {m.role === 'assistant' && !m.streaming && m.content && !isError && !quizMatch && !m.confirm && !m.pickCount && (
                         <div className="flex items-center gap-0.5 mt-1 overflow-hidden max-h-8 opacity-100 md:max-h-0 md:opacity-0 md:group-hover:max-h-8 md:group-hover:opacity-100 transition-all duration-200">
                           <button onClick={() => { navigator.clipboard.writeText(m.content.replace(/\nSOURCES:.*$/m, '').trim()); setCopiedId(msgId); setTimeout(() => setCopiedId(null), 2000); }} className={`p-1.5 rounded-lg transition-colors ${copiedId === msgId ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>{copiedId === msgId ? <Check size={12} /> : <Copy size={12} />}</button>
                           <button onClick={() => setFeedback(prev => ({ ...prev, [msgId]: prev[msgId] === 'up' ? null : 'up' }))} className={`p-1.5 rounded-lg transition-colors ${feedback[msgId] === 'up' ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}><ThumbsUp size={12} /></button>

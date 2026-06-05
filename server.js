@@ -2266,6 +2266,9 @@ async function disambiguateTopic(table, studentId, courseId, proposed) {
 app.post('/course/:courseId/quiz', requireAuth, requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const { topic } = req.body;
+  // Clamp count so the model never sees an absurd value (cost + UX guard).
+  const requestedCount = parseInt(req.body.count, 10);
+  const quizCount = Number.isFinite(requestedCount) ? Math.min(20, Math.max(3, requestedCount)) : 5;
   const docs = getCourseDocuments(courseId);
   if (Object.keys(docs).length === 0) return res.status(400).json({ error: 'No documents uploaded yet' });
 
@@ -2282,7 +2285,7 @@ app.post('/course/:courseId/quiz', requireAuth, requireCourseAccess, async (req,
     docParts.push({ text: `[Document: ${name}]` });
   });
 
-  const prompt = `Read these course documents and generate 5 multiple choice quiz questions${topic ? ` about: ${topic}` : ''}.
+  const prompt = `Read these course documents and generate ${quizCount} multiple choice quiz questions${topic ? ` about: ${topic}` : ''}.
 
 Start with EXACTLY this line on its own (no markdown, no quotes):
 TOPIC: [a 3-5 word title summarizing the quiz — e.g. "Margin of Safety", "CVP Analysis", "Module 1 Concepts"]
@@ -2297,7 +2300,7 @@ CORRECT: [A or B or C or D]
 EXPLANATION: [one sentence explanation]
 ---
 
-Generate the TOPIC line then all 5 questions now:`;
+Generate the TOPIC line then all ${quizCount} questions now:`;
 
   try {
     const result = await ai.models.generateContent({
@@ -2307,7 +2310,7 @@ Generate the TOPIC line then all 5 questions now:`;
     });
     const text = result.text.trim();
     const blocks = text.split(/---+|\n(?=QUESTION:)/).map(b => b.trim()).filter(b => b.length > 20);
-    const questions = blocks.slice(0, 5).map(block => {
+    const questions = blocks.slice(0, quizCount).map(block => {
       const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
       const get = (prefix) => { const line = lines.find(l => l.startsWith(prefix)); return line ? line.slice(prefix.length).trim() : ''; };
       const question = get('QUESTION:');
@@ -2346,6 +2349,8 @@ Generate the TOPIC line then all 5 questions now:`;
 app.post('/course/:courseId/flashcards', requireAuth, requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const { topic } = req.body;
+  const requestedCount = parseInt(req.body.count, 10);
+  const cardCount = Number.isFinite(requestedCount) ? Math.min(30, Math.max(3, requestedCount)) : 10;
   const docs = getCourseDocuments(courseId);
   if (Object.keys(docs).length === 0) return res.status(400).json({ error: 'No documents uploaded yet' });
 
@@ -2359,7 +2364,7 @@ app.post('/course/:courseId/flashcards', requireAuth, requireCourseAccess, async
     docParts.push({ text: `[Document: ${name}]` });
   });
 
-  const prompt = `Read these course documents and generate 10 study flashcards${topic ? ` about: ${topic}` : ' covering the most exam-worthy concepts'}.
+  const prompt = `Read these course documents and generate ${cardCount} study flashcards${topic ? ` about: ${topic}` : ' covering the most exam-worthy concepts'}.
 
 Start with EXACTLY this line on its own (no markdown, no quotes):
 TOPIC: [a 3-5 word title summarizing the deck — e.g. "Cost Behavior", "Variance Analysis", "Module 1 Key Terms"]
@@ -2370,7 +2375,7 @@ BACK: [the definition or answer in 1-2 sentences]
 SOURCE: [one short citation like "Lecture 6 · slide 14" or "Chapter 4 · p. 132"]
 ---
 
-Keep each side under two sentences. Use plain text, no markdown inside the FRONT/BACK fields. Generate the TOPIC line then all 10 cards now:`;
+Keep each side under two sentences. Use plain text, no markdown inside the FRONT/BACK fields. Generate the TOPIC line then all ${cardCount} cards now:`;
 
   try {
     const result = await ai.models.generateContent({
@@ -2384,7 +2389,7 @@ Keep each side under two sentences. Use plain text, no markdown inside the FRONT
       const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
       const get = (prefix) => { const line = lines.find(l => l.toUpperCase().startsWith(prefix)); return line ? line.slice(prefix.length).trim() : ''; };
       return { front: get('FRONT:'), back: get('BACK:'), source: get('SOURCE:') };
-    }).filter(c => c.front && c.back).slice(0, 12);
+    }).filter(c => c.front && c.back).slice(0, cardCount);
     if (cards.length === 0) return res.status(500).json({ error: 'Could not generate flashcards' });
     const modelTopicMatch = text.match(/^\s*TOPIC:\s*([^\n]+)/im);
     const modelTopic = modelTopicMatch ? modelTopicMatch[1].trim().replace(/^["']|["']$/g, '') : '';
@@ -2494,6 +2499,8 @@ app.delete('/student/flashcard-decks/:id', requireAuth, async (req, res) => {
 app.post('/course/:courseId/test', requireAuth, requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const { topic } = req.body;
+  const requestedCount = parseInt(req.body.count, 10);
+  const testCount = Number.isFinite(requestedCount) ? Math.min(25, Math.max(3, requestedCount)) : 8;
   const docs = getCourseDocuments(courseId);
   if (Object.keys(docs).length === 0) return res.status(400).json({ error: 'No documents uploaded yet' });
 
@@ -2509,7 +2516,7 @@ app.post('/course/:courseId/test', requireAuth, requireCourseAccess, async (req,
 
   // Tests are slightly longer + more midterm-shaped than quizzes — 8 questions,
   // mix of difficulty. Same answer schema so the client can reuse the renderer.
-  const prompt = `Read these course documents and generate an 8-question closed-book practice test${topic ? ` about: ${topic}` : ''}. Vary the difficulty — some recall, some application, some synthesis.
+  const prompt = `Read these course documents and generate a ${testCount}-question closed-book practice test${topic ? ` about: ${topic}` : ''}. Vary the difficulty — some recall, some application, some synthesis.
 
 Start with EXACTLY this line on its own (no markdown, no quotes):
 TOPIC: [a 3-5 word title summarizing the test — e.g. "Cost Accounting Midterm", "Module 2 Concepts", "Variance Practice"]
@@ -2535,7 +2542,7 @@ Generate all 8 questions now:`;
     });
     const text = result.text.trim();
     const blocks = text.split(/---+|\n(?=QUESTION:)/).map(b => b.trim()).filter(b => b.length > 20);
-    const questions = blocks.slice(0, 8).map(block => {
+    const questions = blocks.slice(0, testCount).map(block => {
       const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
       const get = (prefix) => { const line = lines.find(l => l.startsWith(prefix)); return line ? line.slice(prefix.length).trim() : ''; };
       const question = get('QUESTION:');
