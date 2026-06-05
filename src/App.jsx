@@ -4034,44 +4034,29 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                       <p className="text-[14px] text-gray-500 mt-3 max-w-sm mx-auto leading-relaxed">Type <span className="font-mono text-[13px] text-[#2A4D8F] bg-[#2A4D8F]/[.06] px-1.5 py-0.5 rounded">/quiz</span> in the chat to generate one from your professor's materials.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {savedQuizzes.map((q, idx) => (
-                        <div key={q.id} className="group relative rounded-3xl bg-white border border-gray-200/70 hover:border-gray-300 hover:shadow-[0_18px_48px_-24px_rgba(15,15,15,0.18)] transition-all duration-300 cursor-pointer overflow-hidden" onClick={() => openSavedQuiz(q.id)}>
-                          {/* Hairline left accent — slate for quizzes */}
-                          <div className="absolute top-6 bottom-6 left-0 w-[2px] bg-gradient-to-b from-transparent via-slate-400/70 to-transparent" />
-                          <div className="p-6 md:p-7 pl-7 md:pl-8">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center gap-2 text-[10px] font-bold tracking-[.22em] uppercase text-gray-400">
-                                <span className="block w-4 h-[1.5px] bg-current opacity-60 rounded-sm" />
-                                <span>Quiz N° {String(idx + 1).padStart(2, '0')}</span>
-                              </div>
-                              <button onClick={e => { e.stopPropagation(); deleteSavedQuiz(q.id); }} aria-label="Delete quiz" className="opacity-0 group-hover:opacity-100 p-1.5 -mt-1 -mr-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
+                    <div className="space-y-2.5">
+                      {savedQuizzes.map(q => (
+                        <div key={q.id} className="group flex items-start gap-4 px-5 py-4 rounded-2xl bg-white border border-gray-200 hover:border-gray-400 hover:shadow-sm transition-all cursor-pointer" onClick={() => openSavedQuiz(q.id)}>
+                          <div className="w-11 h-11 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0 mt-0.5"><ListChecks size={17} className="text-gray-700" /></div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[15px] text-gray-900 font-medium truncate">{q.topic || 'Practice quiz'}</p>
+                            {q.preview && <p className="text-[12.5px] text-gray-500 mt-0.5 truncate italic">"{q.preview}"</p>}
+                            <div className="flex items-center gap-2 text-[11px] text-gray-400 mt-1">
+                              <span className="tabular-nums">{q.questionCount || 5} questions</span>
+                              <span className="text-gray-300">·</span>
+                              <span>{formatRelativeDate(q.created_at)}</span>
                             </div>
-                            <h3 className="serif text-[22px] md:text-[23px] text-gray-900 leading-[1.15] tracking-tight font-medium mb-4 line-clamp-2">
-                              {q.topic || 'Practice quiz'}<span className="text-gray-400 italic">.</span>
-                            </h3>
-                            {q.preview && (
-                              <div className="flex gap-2.5 mb-5">
-                                <span className="serif text-[34px] text-gray-200 leading-none -mt-1 select-none">"</span>
-                                <p className="serif text-[14px] text-gray-500 italic leading-relaxed line-clamp-2 flex-1">{q.preview}</p>
-                              </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0 mt-1">
+                            {q.best_score != null ? (
+                              <span className="inline-flex items-baseline gap-1 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-100">
+                                <span className="text-[9.5px] font-semibold tracking-[.12em] uppercase text-emerald-700">Best</span>
+                                <span className="text-[12px] font-semibold text-emerald-800 tabular-nums">{q.best_score}</span>
+                              </span>
+                            ) : (
+                              <span className="text-[9.5px] font-semibold tracking-[.12em] uppercase text-gray-300">Untaken</span>
                             )}
-                            <div className="flex items-baseline justify-between pt-4 border-t border-gray-100">
-                              <div className="flex items-center gap-2 text-[11px] text-gray-400">
-                                <span className="tabular-nums font-semibold text-gray-500">{q.questionCount || 5}</span>
-                                <span>questions</span>
-                                <span className="text-gray-300">·</span>
-                                <span>{formatRelativeDate(q.created_at)}</span>
-                              </div>
-                              {q.best_score != null ? (
-                                <div className="flex items-baseline gap-1.5">
-                                  <span className="text-[9px] tracking-[.2em] uppercase text-gray-400 font-bold">Best</span>
-                                  <span className="serif text-[18px] text-gray-900 tabular-nums font-semibold">{q.best_score}</span>
-                                </div>
-                              ) : (
-                                <span className="text-[9px] tracking-[.2em] uppercase text-gray-300 font-bold">Untaken</span>
-                              )}
-                            </div>
+                            <button onClick={e => { e.stopPropagation(); deleteSavedQuiz(q.id); }} aria-label="Delete quiz" className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={14} /></button>
                           </div>
                         </div>
                       ))}
@@ -4198,44 +4183,29 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                       <p className="text-[14px] text-gray-500 mt-3 max-w-sm mx-auto leading-relaxed">Type <span className="font-mono text-[13px] text-[#2A4D8F] bg-[#2A4D8F]/[.06] px-1.5 py-0.5 rounded">/test</span> in the chat to generate a closed-book practice exam.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {savedTests.map((t, idx) => (
-                        <div key={t.id} className="group relative rounded-3xl bg-white border border-gray-200/70 hover:border-gray-300 hover:shadow-[0_18px_48px_-24px_rgba(15,15,15,0.18)] transition-all duration-300 cursor-pointer overflow-hidden" onClick={() => openSavedTest(t.id)}>
-                          {/* Hairline left accent — warm stone for tests */}
-                          <div className="absolute top-6 bottom-6 left-0 w-[2px] bg-gradient-to-b from-transparent via-stone-500/70 to-transparent" />
-                          <div className="p-6 md:p-7 pl-7 md:pl-8">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center gap-2 text-[10px] font-bold tracking-[.22em] uppercase text-gray-400">
-                                <span className="block w-4 h-[1.5px] bg-current opacity-60 rounded-sm" />
-                                <span>Exam N° {String(idx + 1).padStart(2, '0')}</span>
-                              </div>
-                              <button onClick={e => { e.stopPropagation(); deleteSavedTest(t.id); }} aria-label="Delete test" className="opacity-0 group-hover:opacity-100 p-1.5 -mt-1 -mr-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
+                    <div className="space-y-2.5">
+                      {savedTests.map(t => (
+                        <div key={t.id} className="group flex items-start gap-4 px-5 py-4 rounded-2xl bg-white border border-gray-200 hover:border-gray-400 hover:shadow-sm transition-all cursor-pointer" onClick={() => openSavedTest(t.id)}>
+                          <div className="w-11 h-11 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0 mt-0.5"><GraduationCap size={17} className="text-gray-700" /></div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[15px] text-gray-900 font-medium truncate">{t.topic || 'Practice test'}</p>
+                            {t.preview && <p className="text-[12.5px] text-gray-500 mt-0.5 truncate italic">"{t.preview}"</p>}
+                            <div className="flex items-center gap-2 text-[11px] text-gray-400 mt-1">
+                              <span className="tabular-nums">{t.questionCount || 8} questions</span>
+                              <span className="text-gray-300">·</span>
+                              <span>{formatRelativeDate(t.created_at)}</span>
                             </div>
-                            <h3 className="serif text-[22px] md:text-[23px] text-gray-900 leading-[1.15] tracking-tight font-medium mb-4 line-clamp-2">
-                              {t.topic || 'Practice test'}<span className="text-gray-400 italic">.</span>
-                            </h3>
-                            {t.preview && (
-                              <div className="flex gap-2.5 mb-5">
-                                <span className="serif text-[34px] text-gray-200 leading-none -mt-1 select-none">"</span>
-                                <p className="serif text-[14px] text-gray-500 italic leading-relaxed line-clamp-2 flex-1">{t.preview}</p>
-                              </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0 mt-1">
+                            {t.best_score != null ? (
+                              <span className="inline-flex items-baseline gap-1 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-100">
+                                <span className="text-[9.5px] font-semibold tracking-[.12em] uppercase text-emerald-700">Best</span>
+                                <span className="text-[12px] font-semibold text-emerald-800 tabular-nums">{t.best_score}</span>
+                              </span>
+                            ) : (
+                              <span className="text-[9.5px] font-semibold tracking-[.12em] uppercase text-gray-300">Untaken</span>
                             )}
-                            <div className="flex items-baseline justify-between pt-4 border-t border-gray-100">
-                              <div className="flex items-center gap-2 text-[11px] text-gray-400">
-                                <span className="tabular-nums font-semibold text-gray-500">{t.questionCount || 8}</span>
-                                <span>questions</span>
-                                <span className="text-gray-300">·</span>
-                                <span>{formatRelativeDate(t.created_at)}</span>
-                              </div>
-                              {t.best_score != null ? (
-                                <div className="flex items-baseline gap-1.5">
-                                  <span className="text-[9px] tracking-[.2em] uppercase text-gray-400 font-bold">Best</span>
-                                  <span className="serif text-[18px] text-gray-900 tabular-nums font-semibold">{t.best_score}</span>
-                                </div>
-                              ) : (
-                                <span className="text-[9px] tracking-[.2em] uppercase text-gray-300 font-bold">Untaken</span>
-                              )}
-                            </div>
+                            <button onClick={e => { e.stopPropagation(); deleteSavedTest(t.id); }} aria-label="Delete test" className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={14} /></button>
                           </div>
                         </div>
                       ))}
@@ -4400,41 +4370,23 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                       <p className="text-[14px] text-gray-500 mt-3 max-w-sm mx-auto leading-relaxed">Type <span className="font-mono text-[13px] text-[#2A4D8F] bg-[#2A4D8F]/[.06] px-1.5 py-0.5 rounded">/cards</span> in the chat to generate a deck from your professor's materials.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {savedDecks.map((d, idx) => {
+                    <div className="space-y-2.5">
+                      {savedDecks.map(d => {
                         const cardCount = d.cardCount ?? (d.cards || []).length;
                         return (
-                          <div key={d.id} className="group relative rounded-3xl bg-white border border-gray-200/70 hover:border-gray-300 hover:shadow-[0_18px_48px_-24px_rgba(15,15,15,0.18)] transition-all duration-300 cursor-pointer overflow-hidden" onClick={() => openSavedDeck(d.id)}>
-                            {/* Hairline left accent — house navy for decks */}
-                            <div className="absolute top-6 bottom-6 left-0 w-[2px] bg-gradient-to-b from-transparent via-[#2A4D8F]/70 to-transparent" />
-                            {/* Stacked-card depth illusion on hover — subtle paper layers behind */}
-                            <div className="absolute top-2.5 left-2.5 right-2.5 bottom-2.5 rounded-3xl border border-gray-200/0 group-hover:border-gray-200/60 group-hover:translate-y-1.5 group-hover:translate-x-1.5 transition-all duration-300 -z-10 bg-white" />
-                            <div className="p-6 md:p-7 pl-7 md:pl-8 relative bg-white">
-                              <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-2 text-[10px] font-bold tracking-[.22em] uppercase text-gray-400">
-                                  <span className="block w-4 h-[1.5px] bg-current opacity-60 rounded-sm" />
-                                  <span>Deck N° {String(idx + 1).padStart(2, '0')}</span>
-                                </div>
-                                <button onClick={e => { e.stopPropagation(); deleteSavedDeck(d.id); }} aria-label="Delete deck" className="opacity-0 group-hover:opacity-100 p-1.5 -mt-1 -mr-1 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={13} /></button>
+                          <div key={d.id} className="group flex items-start gap-4 px-5 py-4 rounded-2xl bg-white border border-gray-200 hover:border-gray-400 hover:shadow-sm transition-all cursor-pointer" onClick={() => openSavedDeck(d.id)}>
+                            <div className="w-11 h-11 rounded-xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0 mt-0.5"><Layers size={17} className="text-gray-700" /></div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[15px] text-gray-900 font-medium truncate">{d.topic || 'Flashcard deck'}</p>
+                              {d.preview && <p className="text-[12.5px] text-gray-500 mt-0.5 truncate italic">"{d.preview}"</p>}
+                              <div className="flex items-center gap-2 text-[11px] text-gray-400 mt-1">
+                                <span className="tabular-nums">{cardCount} card{cardCount !== 1 ? 's' : ''}</span>
+                                <span className="text-gray-300">·</span>
+                                <span>{formatRelativeDate(d.created_at)}</span>
                               </div>
-                              <h3 className="serif text-[22px] md:text-[23px] text-gray-900 leading-[1.15] tracking-tight font-medium mb-4 line-clamp-2">
-                                {d.topic || 'Flashcard deck'}<span className="text-gray-400 italic">.</span>
-                              </h3>
-                              {d.preview && (
-                                <div className="flex gap-2.5 mb-5">
-                                  <span className="serif text-[34px] text-gray-200 leading-none -mt-1 select-none">"</span>
-                                  <p className="serif text-[14px] text-gray-500 italic leading-relaxed line-clamp-2 flex-1">{d.preview}</p>
-                                </div>
-                              )}
-                              <div className="flex items-baseline justify-between pt-4 border-t border-gray-100">
-                                <div className="flex items-center gap-2 text-[11px] text-gray-400">
-                                  <span className="tabular-nums font-semibold text-gray-500">{cardCount}</span>
-                                  <span>card{cardCount !== 1 ? 's' : ''}</span>
-                                  <span className="text-gray-300">·</span>
-                                  <span>{formatRelativeDate(d.created_at)}</span>
-                                </div>
-                                <span className="text-[9px] tracking-[.2em] uppercase text-[#2A4D8F]/70 font-bold group-hover:text-[#2A4D8F] transition-colors">Study →</span>
-                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0 mt-1">
+                              <button onClick={e => { e.stopPropagation(); deleteSavedDeck(d.id); }} aria-label="Delete deck" className="opacity-0 group-hover:opacity-100 p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={14} /></button>
                             </div>
                           </div>
                         );
