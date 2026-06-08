@@ -1981,12 +1981,27 @@ function CourseManager({ token, course, onBack, authHeaders }) {
 // Smooth weekly activity rendered as a single continuous line (with a soft
 // fill underneath). Replaces the chunky bar chart with something that reads
 // like a sentence of data — useful for catching peaks at a glance.
+// Mirror of the backend's getTopicTag — used to label recent questions in
+// the Question Stream when the backend didn't pre-tag them. Keeping this
+// in sync with server.js getTopicTag is intentional; both run the same
+// keyword regexes so a question always lands in the same bucket.
+function getTopicTagClient(question) {
+  const q = (question || '').toLowerCase();
+  if (/grade|gpa|score|point|percent|weight|exam|midterm|final|quiz|assignment|homework|rubric|curve/.test(q)) return 'Grading';
+  if (/deadline|due|when|date|schedule|syllabus|office hour|location|room|time/.test(q)) return 'Logistics';
+  if (/how|explain|what is|define|concept|theory|mean|understand|work/.test(q)) return 'Concepts';
+  if (/reading|chapter|lecture|slide|note|material|textbook/.test(q)) return 'Materials';
+  return 'General';
+}
+
 function InsightPulseStrip({ dailyActivity }) {
-  const fallback = [
-    { day: 'Wed', questions: 6 }, { day: 'Thu', questions: 54 }, { day: 'Fri', questions: 9 },
-    { day: 'Sat', questions: 1 }, { day: 'Sun', questions: 4 }, { day: 'Mon', questions: 18 }, { day: 'Tue', questions: 3 },
-  ];
-  const data = (dailyActivity?.length === 7 ? dailyActivity : fallback);
+  // Use the real backend buckets. If we don't have 7 days of data yet (new
+  // course / freshly cleared), show a flat baseline so the strip stays
+  // visually present but honest — no fabricated peaks.
+  const data = (dailyActivity?.length === 7 ? dailyActivity : [
+    { day: 'Sun', questions: 0 }, { day: 'Mon', questions: 0 }, { day: 'Tue', questions: 0 },
+    { day: 'Wed', questions: 0 }, { day: 'Thu', questions: 0 }, { day: 'Fri', questions: 0 }, { day: 'Sat', questions: 0 },
+  ]);
   const max = Math.max(...data.map(x => x.questions), 1);
   const W = 1200, H = 64;
   const step = W / (data.length - 1);
@@ -2029,67 +2044,54 @@ function InsightPulseStrip({ dailyActivity }) {
   );
 }
 
-// The Concept Constellation — radial network of topics. Hottest topic
-// centered with an indigo halo; satellites positioned around it. Lines
-// fade out to suggest connection without dominating.
-function ConceptConstellation({ topics }) {
-  const fallback = [
-    { topic: 'Discounted cash flow', count: 14 },
-    { topic: 'Income statement', count: 11 },
-    { topic: 'Terminal value', count: 9 },
-    { topic: 'Cost of capital', count: 8 },
-    { topic: 'Working capital', count: 6 },
-    { topic: 'Inventory accounting', count: 5 },
-    { topic: 'Depreciation', count: 4 },
-    { topic: 'Matching principle', count: 3 },
-  ];
-  const t = (topics?.length > 0 ? topics : fallback).slice(0, 8);
-  const max = Math.max(...t.map(x => x.count), 1);
-  const W = 900, H = 460;
-  const cx = W / 2, cy = H / 2;
-  const positions = t.map((topic, i) => {
-    if (i === 0) return { x: cx, y: cy, r: 16 + Math.sqrt(topic.count / max) * 16 };
-    const ringIdx = i <= 3 ? 0 : 1;
-    const idxInRing = ringIdx === 0 ? i - 1 : i - 4;
-    const ringCount = ringIdx === 0 ? 3 : 4;
-    const baseAngle = ringIdx === 0 ? -Math.PI / 2 : -Math.PI / 3;
-    const angle = baseAngle + (idxInRing / ringCount) * Math.PI * 2;
-    const radius = ringIdx === 0 ? 145 : 215;
-    return {
-      x: cx + Math.cos(angle) * radius,
-      y: cy + Math.sin(angle) * radius * 0.72,
-      r: 8 + Math.sqrt(topic.count / max) * 12,
-    };
-  });
+// The Topic Ledger — replaces the abstract Constellation viz with an
+// editorial ranked list that's actually readable. Each row: a big serif
+// rank number, the topic name in italic, a thin proportional volume bar,
+// and the count in tabular figures. Renders an empty state when no
+// questions exist yet (no fake demo data).
+function TopicLedger({ topics, totalQuestions }) {
+  if (!topics || topics.length === 0) {
+    return (
+      <div className="py-16 text-center">
+        <div className="inline-flex items-center gap-2 text-[10px] font-bold tracking-[.22em] uppercase text-gray-300 mb-4">
+          <span className="block w-6 h-[1.5px] bg-current opacity-60 rounded-sm" />
+          <span>Awaiting student questions</span>
+          <span className="block w-6 h-[1.5px] bg-current opacity-60 rounded-sm" />
+        </div>
+        <p className="serif text-[20px] text-gray-700 leading-snug">The ledger fills as your class asks<span className="italic">.</span></p>
+        <p className="text-[13px] text-gray-400 mt-2.5 max-w-md mx-auto leading-relaxed">Once students start sending questions to the AI, you'll see them sorted by topic here — with the heaviest concentration at the top.</p>
+      </div>
+    );
+  }
+  const ranked = [...topics].sort((a, b) => b.count - a.count).slice(0, 8);
+  const max = Math.max(...ranked.map(t => t.count), 1);
+  const totalAsked = totalQuestions || ranked.reduce((s, t) => s + t.count, 0);
   return (
-    <div className="relative w-full" style={{ aspectRatio: '900 / 460' }}>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full">
-        {/* faint connector lines from the hottest node */}
-        {positions.slice(1).map((p, i) => (
-          <line key={i} x1={positions[0].x} y1={positions[0].y} x2={p.x} y2={p.y}
-            stroke="#15161B" strokeOpacity="0.10" strokeWidth="0.8" />
-        ))}
-        {/* halo behind hottest */}
-        <circle cx={positions[0].x} cy={positions[0].y} r={positions[0].r * 3.5} fill="#2A4D8F" fillOpacity="0.04" />
-        <circle cx={positions[0].x} cy={positions[0].y} r={positions[0].r * 2.3} fill="#2A4D8F" fillOpacity="0.07" />
-        <circle cx={positions[0].x} cy={positions[0].y} r={positions[0].r * 1.5} fill="#2A4D8F" fillOpacity="0.10" />
-        {/* nodes + labels */}
-        {positions.map((p, i) => (
-          <g key={i}>
-            <circle cx={p.x} cy={p.y} r={p.r} fill={i === 0 ? '#2A4D8F' : '#15161B'} fillOpacity={i === 0 ? 1 : 0.88} />
-            <text x={p.x} y={p.y + p.r + 20} textAnchor="middle"
-              fontFamily="Newsreader, serif" fontSize="17" fontStyle="italic"
-              fill="#15161B" fillOpacity={i === 0 ? 1 : 0.78}>
-              {t[i].topic}
-            </text>
-            <text x={p.x} y={p.y + p.r + 38} textAnchor="middle"
-              fontFamily="Hanken Grotesk, sans-serif" fontSize="10" letterSpacing="0.14em"
-              fill="#9CA3AF" fontWeight="600">
-              {t[i].count} {t[i].count === 1 ? 'ASK' : 'ASKS'}
-            </text>
-          </g>
-        ))}
-      </svg>
+    <div>
+      <div className="divide-y divide-gray-100">
+        {ranked.map((t, i) => {
+          const share = totalAsked > 0 ? (t.count / totalAsked) : 0;
+          const widthPct = (t.count / max) * 100;
+          return (
+            <div key={t.topic} className="group grid grid-cols-[42px_1fr_56px] md:grid-cols-[56px_1fr_88px] gap-4 md:gap-6 items-baseline py-5">
+              <span className="serif text-[26px] md:text-[30px] text-gray-300 group-hover:text-gray-500 leading-none tabular-nums tracking-tight transition-colors">{String(i + 1).padStart(2, '0')}</span>
+              <div className="min-w-0">
+                <p className="serif italic text-[18px] md:text-[20px] text-gray-900 leading-snug truncate">{t.topic}</p>
+                <div className="mt-3 h-[2px] bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-[#2A4D8F]/80 rounded-full transition-all duration-500" style={{ width: `${widthPct}%` }} />
+                </div>
+                {share > 0.01 && (
+                  <p className="text-[10.5px] tracking-[.14em] uppercase text-gray-400 font-semibold mt-2">{Math.round(share * 100)}% of this week</p>
+                )}
+              </div>
+              <div className="text-right">
+                <span className="serif text-[24px] md:text-[28px] text-gray-900 tabular-nums leading-none">{t.count}</span>
+                <p className="text-[10px] tracking-[.18em] uppercase text-gray-400 font-semibold mt-1.5">{t.count === 1 ? 'Ask' : 'Asks'}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -2269,31 +2271,21 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
   const timeSaved = d.timeSavedHours > 0 ? `${d.timeSavedHours}h ${d.timeSavedMinutes}m` : `${d.timeSavedMinutes}m`;
   const topTopic = d.topTopics?.[0]?.topic || '—';
 
-  // Curated stream excerpts used when the backend hasn't surfaced real
-  // recent question text yet — keeps the preview compelling on cold data.
-  const fallbackStream = [
-    { q: "I still don't get the difference between gross and net margin.", topic: 'Margins',           when: 'Mon 3:02 PM' },
-    { q: "How do you actually derive terminal value in a DCF?",            topic: 'DCF',               when: 'Mon 11:18 PM' },
-    { q: "Why does the income statement use accrual but cash flow doesn't?", topic: 'Accrual basis',   when: 'Sun 9:44 PM' },
-    { q: "What's the intuition behind weighted-average cost of capital?",  topic: 'WACC',              when: 'Sun 4:30 PM' },
-    { q: "Can you walk through the matching principle with an example?",   topic: 'Matching principle',when: 'Sat 8:11 PM' },
-  ];
-  const stream = (d.recent && d.recent.length > 0
-    ? d.recent.slice(0, 5).map((r, i) => ({ q: r.question || r.content || '', topic: r.topic || fallbackStream[i % fallbackStream.length].topic, when: r.when || r.timestamp || '' }))
-    : fallbackStream);
+  // Real stream from the backend, no fake fallback. If empty, the section
+  // renders an empty state instead of made-up DCF questions.
+  const stream = (d.recent && d.recent.length > 0)
+    ? d.recent.slice(0, 5).map((r) => ({
+        q: r.question || r.content || '',
+        topic: r.topic || getTopicTagClient(r.question || r.content || ''),
+        when: r.when || r.timestamp || ''
+      }))
+    : [];
 
-  // Reading Map — chapters/PDFs colored by engagement. If we don't have
-  // real per-document counts, fall back to a representative spread.
-  const readingMap = (d.topTopics && d.topTopics.length > 0
+  // Reading Map — built strictly from real topic counts. Empty state
+  // renders when no questions have been asked yet.
+  const readingMap = (d.topTopics && d.topTopics.length > 0)
     ? d.topTopics.slice(0, 6).map((t, i) => ({ chapter: `Ch ${i + 1}`, title: t.topic, count: t.count }))
-    : [
-        { chapter: 'Ch 1', title: 'Foundations',     count: 3 },
-        { chapter: 'Ch 2', title: 'Accrual basis',   count: 8 },
-        { chapter: 'Ch 3', title: 'Income statement',count: 11 },
-        { chapter: 'Ch 4', title: 'Cash flow',       count: 14 },
-        { chapter: 'Ch 5', title: 'Cost of capital', count: 8 },
-        { chapter: 'Ch 6', title: 'Margins',         count: 6 },
-      ]);
+    : [];
   const maxRead = Math.max(...readingMap.map(c => c.count), 1);
 
   // Course Health — derived signal that summarizes the whole class at a
@@ -2307,7 +2299,9 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
   // the professor can fire to a teaching assistant in two clicks.
   const buildSharePayload = () => {
     const subject = `Scholr Morning Debrief — ${course.name} — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-    const briefBody = summary || `Tuesday's class is stuck on DCF.\n\nFourteen questions about discounted cash flow this week — up from three last week. Students grasp the formula but stall at terminal-value assumptions; three asked the same question within 90 minutes Tuesday night.\n\nThe income statement thread is healthy. Accrual-vs-cash questions dropped ~40% week-over-week, which suggests the Sunday review worked.\n\nWorth front-loading: weighted average cost of capital. Eight asks already, and the exam is in twelve days.`;
+    // If the AI hasn't generated a debrief yet (no questions or summary
+    // still loading), share the raw numbers — no fabricated DCF text.
+    const briefBody = summary || `No AI debrief yet — share your join code to start collecting student questions, then the morning debrief composes from real activity.`;
     const body = `Morning Debrief — ${course.name}\n${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}\n\n${briefBody}\n\n—\nQuestions this week: ${d.weekQuestions}\nHours freed up: ${timeSaved}\nTop topic: ${topTopic}\n\nSent from Scholr · scholr.study`;
     return { subject, body };
   };
@@ -2335,20 +2329,36 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
         <section className="px-6 md:px-12 pt-7 pb-6 border-b border-gray-200/70">
           <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
             <div className="flex items-center gap-3 text-[10px] font-bold tracking-[.18em] uppercase text-gray-400"><span className="block w-5 h-[1.5px] bg-current opacity-60 rounded-sm" />Live pulse · last 7 days</div>
-            <p className="text-[12px] text-gray-500 italic">Peak <span className="not-italic font-semibold text-[#2A4D8F]">Thursday</span> — 54 questions in a single afternoon.</p>
+            {(() => {
+              // Real peak-day stat from the daily activity buckets. Skip the
+              // line entirely if there's no activity to summarize.
+              const days = d.dailyActivity?.length === 7 ? d.dailyActivity : [];
+              const peak = days.reduce((best, day) => day.questions > (best?.questions || 0) ? day : best, null);
+              if (!peak || peak.questions === 0) return null;
+              const dayNames = { Sun: 'Sunday', Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday' };
+              return (
+                <p className="text-[12px] text-gray-500 italic">Peak <span className="not-italic font-semibold text-[#2A4D8F]">{dayNames[peak.day] || peak.day}</span> — {peak.questions} question{peak.questions !== 1 ? 's' : ''}.</p>
+              );
+            })()}
           </div>
           <InsightPulseStrip dailyActivity={d.dailyActivity} />
         </section>
 
-        {/* CONSTELLATION HERO */}
+        {/* TOPIC LEDGER — ranked editorial table of where the class is leaning */}
         <section className="px-6 md:px-12 pt-10 pb-12 border-b border-gray-200/70">
           <div className="max-w-3xl mb-6">
-            <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Concept constellation</div>
-            <h3 className="serif text-[28px] md:text-[34px] text-gray-900 leading-tight tracking-tight"><span className="italic">{(d.topTopics?.[0]?.topic || 'Discounted cash flow')}</span> is the gravity well<span className="italic">.</span></h3>
-            <p className="text-[14px] text-gray-500 mt-2.5 leading-relaxed">Every concept your class touched this week, sized by question volume. The center pulls hardest — that's where most of the confusion sits, and where one extra lecture pays the highest dividend.</p>
+            <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Topic ledger · this week</div>
+            <h3 className="serif text-[28px] md:text-[34px] text-gray-900 leading-tight tracking-tight">
+              {d.topTopics?.[0]?.topic ? (
+                <><span className="italic">{d.topTopics[0].topic}</span> is doing the heavy lifting<span className="italic">.</span></>
+              ) : (
+                <>Where your class is leaning<span className="italic">.</span></>
+              )}
+            </h3>
+            <p className="text-[14px] text-gray-500 mt-2.5 leading-relaxed">Every topic your students touched this week, ranked by question volume. The top of the list is where one extra lecture moves the needle the most.</p>
           </div>
-          <div className="bg-white border border-gray-200/80 rounded-3xl p-4 md:p-8 shadow-[0_2px_24px_-12px_rgba(15,15,15,0.08)]">
-            <ConceptConstellation topics={d.topTopics} />
+          <div className="bg-white border border-gray-200/80 rounded-3xl px-5 md:px-8 py-3 md:py-4 shadow-[0_2px_24px_-12px_rgba(15,15,15,0.08)]">
+            <TopicLedger topics={d.topTopics} totalQuestions={d.weekQuestions} />
           </div>
         </section>
 
@@ -2364,10 +2374,9 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
               ) : summary ? (
                 <div className="text-[16px] leading-[1.7] text-white/90 whitespace-pre-line">{summary}</div>
               ) : (
-                <div className="text-[16px] leading-[1.7] text-white/90 space-y-5">
-                  <p><span className="font-semibold text-white">Tuesday's class is stuck on DCF.</span> Fourteen questions about discounted cash flow this week — up from three last week. Students grasp the formula but stall at <span className="italic text-white">terminal-value assumptions</span>; three asked the same question within 90 minutes Tuesday night.</p>
-                  <p>The income statement thread is healthy. Accrual-vs-cash questions dropped 40% week-over-week, which suggests the Sunday review worked.</p>
-                  <p>Worth front-loading: <span className="italic text-white">weighted average cost of capital</span>. Eight asks already, and the exam is in twelve days.</p>
+                <div className="text-[16px] leading-[1.7] text-white/70 space-y-4">
+                  <p>The morning debrief composes from real student activity. Once your class starts asking the AI questions, this column will summarize the patterns — what's clicking, what isn't, and where one extra lecture moves the most students forward.</p>
+                  <p className="text-[14px] text-white/50 italic">Share your join code from the Materials page to get students into the chat. The first debrief lands once the AI has answered a handful of questions.</p>
                 </div>
               )}
               <div className="flex flex-wrap items-center gap-2 mt-8 pt-7 border-t border-white/10">
@@ -2381,32 +2390,21 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
           </div>
         </section>
 
-        {/* READING MAP */}
-        <section className="px-6 md:px-12 pt-10 pb-12 border-b border-gray-200/70">
-          <div className="max-w-3xl mb-6">
-            <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Reading map</div>
-            <h3 className="serif text-[28px] text-gray-900 leading-tight tracking-tight">Where your class is actually reading<span className="italic">.</span></h3>
-            <p className="text-[14px] text-gray-500 mt-2.5 leading-relaxed">Each chapter of your materials, glow-intensity scaled to how often the AI cited it answering students. The pale ones are the parts of the syllabus your class hasn't touched yet.</p>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {readingMap.map((c, i) => {
-              const intensity = c.count / maxRead;
-              return (
-                <div key={i} className="relative rounded-2xl border border-gray-200/80 bg-white p-5 overflow-hidden transition-all hover:border-gray-300 cursor-pointer">
-                  {intensity > 0.15 && <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(circle at 70% 30%, rgba(42,77,143,${0.10 + intensity * 0.18}) 0%, transparent 60%)` }} />}
-                  <div className="relative">
-                    <div className="text-[10px] font-bold tracking-[.18em] uppercase text-gray-400 mb-1.5">{c.chapter}</div>
-                    <p className="serif text-[16px] text-gray-900 leading-tight">{c.title}</p>
-                    <div className="flex items-baseline justify-between mt-4 pt-4 border-t border-gray-100">
-                      <span className="serif text-[22px] text-gray-900 tabular-nums leading-none">{c.count}</span>
-                      <span className="text-[10px] tracking-[.14em] uppercase text-gray-400 font-semibold">{c.count === 1 ? 'Ask' : 'Asks'}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+        {/* RECENT QUESTIONS — actual student questions from the last 7 days */}
+        {stream.length > 0 && (
+          <section className="px-6 md:px-12 pt-10 pb-12 border-b border-gray-200/70">
+            <div className="max-w-3xl mb-6">
+              <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Question stream</div>
+              <h3 className="serif text-[28px] text-gray-900 leading-tight tracking-tight">What your class actually asked<span className="italic">.</span></h3>
+              <p className="text-[14px] text-gray-500 mt-2.5 leading-relaxed">The five most recent questions students sent the AI. Real questions, in their words — the surest way to feel where the class is.</p>
+            </div>
+            <div className="bg-white border border-gray-200/80 rounded-3xl px-5 md:px-8 py-2 md:py-3 shadow-[0_2px_24px_-12px_rgba(15,15,15,0.08)]">
+              {stream.map((row, i) => (
+                <StreamRow key={i} q={row.q} topic={row.topic} when={row.when || formatRelativeDate(d.recent?.[i]?.ts)} idx={i} />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* STATS STRIP — kept lean: just the two numbers professors actually quote */}
         <section className="px-6 md:px-12 pt-12 pb-14 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
