@@ -2056,11 +2056,15 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
     }
 
     // Safety net: if the model emitted MATERIALS: no but the response
-    // doesn't actually look like a refusal / casual reply (it's long-form
-    // and lacks the "outside this course" / "I don't have that" phrases),
-    // override to YES. Catches the common bug where the model writes a
-    // legitimate course-concept explanation with an analogy and then
-    // self-reports as "no" because it didn't directly quote the chunks.
+    // doesn't actually look like a refusal or pure casual chat, override
+    // to YES. Earlier this had a 250-char threshold which missed brief
+    // factual lookups ("Your professor is Jeff Clark, PhD, CPA." — 54
+    // chars, definitely a syllabus-grounded answer). New rule:
+    //   - response contains a refusal phrase → leave at NO
+    //   - response is ≥ 35 chars AND no refusal phrases AND docs available
+    //     → override to YES (catches one-liner factual answers)
+    //   - shorter than 35 → trust the model's marker (casual chat /
+    //     "thanks" / "you got it" stays NO)
     const refusalSignals = [
       "outside this course",
       "outside the scope",
@@ -2070,9 +2074,9 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
       "i can help with",  // common redirect phrasing
     ];
     const looksLikeRefusal = refusalSignals.some(s => streamedToClient.toLowerCase().includes(s));
-    const looksSubstantive = streamedToClient.length > 250 && !looksLikeRefusal;
+    const looksSubstantive = streamedToClient.trim().length >= 35 && !looksLikeRefusal;
     if (!usedMaterials && looksSubstantive && docNames.length > 0) {
-      console.log(`💬 Override materials=false → true (response is substantive ${streamedToClient.length} chars, no refusal phrasing)`);
+      console.log(`💬 Override materials=false → true (substantive ${streamedToClient.length} chars, no refusal phrasing)`);
       usedMaterials = true;
     }
 
