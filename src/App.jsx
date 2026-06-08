@@ -1378,7 +1378,16 @@ function ProfessorDashboard({ token, user, onLogout }) {
 
   useEffect(() => {
     fetch(`${API}/professor/courses`, { headers: authHeaders })
-      .then(r => r.json()).then(data => { setCourses(Array.isArray(data) ? data : []); setLoading(false); })
+      .then(async r => {
+        if (r.status === 401) {
+          // Session expired — boot to login instead of silently showing
+          // an empty course list as if the professor had no classes.
+          if (onLogout) onLogout();
+          return [];
+        }
+        return r.json();
+      })
+      .then(data => { setCourses(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
 
@@ -1402,11 +1411,25 @@ function ProfessorDashboard({ token, user, onLogout }) {
   };
 
   const deleteCourse = async (id) => {
-    await fetch(`${API}/professor/courses/${id}`, { method: 'DELETE', headers: authHeaders });
-    setCourses(prev => prev.filter(c => c.id !== id));
-    if (selectedCourse?.id === id) setSelectedCourse(null);
-    setConfirmDelete(null);
-    showToast('Course deleted');
+    // Await + check response before mutating UI state — the previous fire-
+    // and-forget pattern showed "Course deleted" even on 403/500 and left
+    // the professor thinking they deleted something they didn't.
+    try {
+      const res = await fetch(`${API}/professor/courses/${id}`, { method: 'DELETE', headers: authHeaders });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        showToast(errBody.error || `Couldn't delete (${res.status})`, 'error');
+        setConfirmDelete(null);
+        return;
+      }
+      setCourses(prev => prev.filter(c => c.id !== id));
+      if (selectedCourse?.id === id) setSelectedCourse(null);
+      setConfirmDelete(null);
+      showToast('Course deleted');
+    } catch (e) {
+      showToast(`Delete failed: ${e.message}`, 'error');
+      setConfirmDelete(null);
+    }
   };
 
   const copyLink = (course) => {
@@ -1616,9 +1639,24 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   };
 
   const onDelete = async (mod) => {
+    // Optimistic remove, but ROLLBACK on failure and tell the professor.
+    // Without this, a 403/500 silently left the UI state inconsistent
+    // with the server and "removed" toast was always shown.
+    const snapshot = mod;
     setMods(prev => prev.filter(m => m.id !== mod.id));
-    await fetch(`${API}/course/${course.id}/document/${encodeURIComponent(mod.name)}`, { method: 'DELETE', headers: authHeaders });
-    showToast(`${cleanFileName(mod.name)} removed`);
+    try {
+      const res = await fetch(`${API}/course/${course.id}/document/${encodeURIComponent(mod.name)}`, { method: 'DELETE', headers: authHeaders });
+      if (!res.ok) {
+        setMods(prev => [snapshot, ...prev.filter(m => m.id !== snapshot.id)]);
+        const errBody = await res.json().catch(() => ({}));
+        showToast(errBody.error || `Couldn't delete (${res.status})`, 'error');
+        return;
+      }
+      showToast(`${cleanFileName(mod.name)} removed`);
+    } catch (e) {
+      setMods(prev => [snapshot, ...prev.filter(m => m.id !== snapshot.id)]);
+      showToast(`Delete failed: ${e.message}`, 'error');
+    }
   };
 
   const copyLink = () => {
@@ -2148,20 +2186,36 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
   // the mailto opens (since the actual send happens in the user's mail app).
   const [sharedToast, setSharedToast] = useState(false);
 
+  // Track lastCount in a ref so the polling effect doesn't reset every
+  // time the count changes (which was recreating the setInterval on every
+  // poll — a slow leak of intervals + duplicate fetches).
+  const lastCountRef = useRef(0);
+  const [fetchError, setFetchError] = useState(null);
   const fetchInsights = async () => {
     try {
       const res = await fetch(`${API}/course/${courseId}/insights`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      if (lastCount > 0 && data.totalQuestions > lastCount) setNewCount(data.totalQuestions - lastCount);
+      const prevCount = lastCountRef.current;
+      if (prevCount > 0 && data.totalQuestions > prevCount) setNewCount(data.totalQuestions - prevCount);
+      lastCountRef.current = data.totalQuestions;
       setLastCount(data.totalQuestions);
-      setInsights(data); setLoading(false);
-    } catch { setLoading(false); }
+      setInsights(data);
+      setLoading(false);
+      setFetchError(null);
+    } catch (e) {
+      setLoading(false);
+      // Surface fetch failures so the page isn't silently blank. Soft
+      // error UI so a transient network hiccup doesn't nuke the page.
+      setFetchError(e.message || 'Failed to fetch insights');
+    }
   };
 
   const fetchSummary = async () => {
     setSummaryLoading(true);
     try {
       const res = await fetch(`${API}/course/${courseId}/ai-summary`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.summary) {
         setSummary(data.summary);
@@ -2169,7 +2223,11 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
       } else {
         setSummary(null);
       }
-    } catch {}
+    } catch (e) {
+      // Don't nuke an existing summary on transient fetch failures —
+      // just stop the spinner and log. The next poll will retry.
+      console.warn('AI summary fetch failed:', e.message);
+    }
     setSummaryLoading(false);
   };
 
@@ -2198,7 +2256,9 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
     setClearing(false);
   };
 
-  useEffect(() => { fetchInsights(); const i = setInterval(fetchInsights, 10000); return () => clearInterval(i); }, [courseId, lastCount]);
+  // Drop lastCount from deps — it changes on every poll and was recreating
+  // the interval each tick. Use the ref instead inside fetchInsights.
+  useEffect(() => { fetchInsights(); const i = setInterval(fetchInsights, 10000); return () => clearInterval(i); }, [courseId]);
   // Fetch the AI summary once on mount and again whenever total question count crosses a threshold
   useEffect(() => { if (insights?.totalQuestions > 0 && !summary) fetchSummary(); }, [insights?.totalQuestions]);
 
@@ -2447,6 +2507,12 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const [documents, setDocuments] = useState(initialDocuments || []);
   const [suggestedQuestions, setSuggestedQuestions] = useState(initialSuggestedQuestions || []);
   const [chats, setChats] = useState([]);
+  // Monotonic message-ID generator. Date.now() alone collides for any two
+  // messages created within the same millisecond (e.g. the user-message +
+  // assistant-placeholder pair in onSend), which produced React key
+  // warnings and occasionally replaced one bubble with the other.
+  const msgIdCounter = useRef(0);
+  const nextMsgId = () => `m_${Date.now()}_${++msgIdCounter.current}`;
   const [chatId, setChatId] = useState(null);
   const [input, setInput] = useState('');
   // Slash-command state. `slashCmd` is the active command's name (e.g. 'quiz')
@@ -2538,6 +2604,11 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const notesUploadRef = useRef(null);
   const chatAttachRef = useRef(null);
   const abortRef = useRef(null);
+  // Each chat send gets a monotonically-increasing token. Late completions
+  // (DB persist, sources event) from a previous turn check the token at
+  // resolution time and no-op if the user has already moved on — prevents
+  // a slow previous-turn POST from racing the next one.
+  const sendTokenRef = useRef(0);
   // Ephemeral attachment for the current composer state. Sent with the next
   // message and cleared — never persisted to My Notes.
   const [chatAttachment, setChatAttachment] = useState(null); // { name, mimeType, buffer, dataUrl }
@@ -3060,12 +3131,17 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const greeting = greetHr < 12 ? 'Good morning' : greetHr < 17 ? 'Good afternoon' : 'Good evening';
   // Rotate the suggested questions through the input placeholder on an empty chat.
   const [phIdx, setPhIdx] = useState(0);
+  // Only rotate while the chat is actually empty — otherwise we re-render
+  // the input every 3.2s for no reason, and phIdx grew unbounded over
+  // long sessions.
+  const activeForRotation = chats.find(c => c.id === chatId) || chats[0];
+  const isEmptyChatForRotation = !activeForRotation?.messages?.length;
   useEffect(() => {
-    // Bare increment; the placeholder picker mods by placeholders.length at
-    // render time so slash hints get their turn in the rotation too.
-    const id = setInterval(() => setPhIdx(i => i + 1), 3200);
+    if (!isEmptyChatForRotation) return;
+    // Keep phIdx bounded; renderer mods by placeholders.length anyway.
+    const id = setInterval(() => setPhIdx(i => (i + 1) % 1000), 3200);
     return () => clearInterval(id);
-  }, []);
+  }, [isEmptyChatForRotation]);
   const active = chats.find(c => c.id === chatId) || chats[0];
   // Smart autoscroll: only auto-pull to bottom if the user is already
   // within 150px of the bottom. If they've scrolled up to re-read something,
@@ -3109,14 +3185,21 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   // When the user sends a new message, force-scroll regardless of where
   // they were — sending always pulls you to the latest exchange, even if
   // you were scrolled up reading older content.
-  const lastUserMsgCount = useRef(0);
+  // Track per-chat so switching chats doesn't carry the prior chat's
+  // user-message count into the new chat (which could suppress the
+  // force-scroll on the first message of the new chat).
+  const lastUserMsgCount = useRef({ chatId: null, count: 0 });
   useLayoutEffect(() => {
     if (!active) return;
     const userMsgs = (active.messages || []).filter(m => m.role === 'user').length;
-    if (userMsgs > lastUserMsgCount.current) {
+    if (lastUserMsgCount.current.chatId !== active.id) {
+      lastUserMsgCount.current = { chatId: active.id, count: userMsgs };
+      return;
+    }
+    if (userMsgs > lastUserMsgCount.current.count) {
       scrollToBottom(true);
     }
-    lastUserMsgCount.current = userMsgs;
+    lastUserMsgCount.current.count = userMsgs;
   }, [active?.id, active?.messages?.length]);
   // Single scroll listener owns the button's visibility. rAF-throttled so
   // we don't thrash state on fast scroll-wheels or trackpad inertia.
@@ -3189,8 +3272,22 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     if (chat?.dbId && !String(chat.dbId).startsWith('local-')) {
       try { await fetch(`${API}/student/chats/${chat.dbId}`, { method: 'DELETE', headers: authHeaders }); } catch {}
     }
-    const remaining = chats.filter(c => c.id !== id);
-    if (remaining.length === 0) {
+    // Use functional setState so we operate on the latest list — without
+    // this, a concurrent createNewChat call could be erased by the stale
+    // `chats` closure captured at deleteChat's call time.
+    let nextActiveId = null;
+    let didEmpty = false;
+    setChats(prev => {
+      const remaining = prev.filter(c => c.id !== id);
+      if (remaining.length === 0) {
+        didEmpty = true;
+        return prev.filter(c => c.id !== id); // still remove the deleted one
+      }
+      if (chatId === id) nextActiveId = remaining[0].id;
+      return remaining;
+    });
+    if (nextActiveId) setChatId(nextActiveId);
+    if (didEmpty) {
       try {
         const res = await fetch(`${API}/student/chats/${course.id}`, {
           method: 'POST',
@@ -3200,17 +3297,14 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         const data = await res.json();
         if (data.id) {
           const nc = { id: data.id, dbId: data.id, title: 'New Chat', messages: [] };
-          setChats([nc]);
+          setChats(prev => prev.length === 0 ? [nc] : prev);
           setChatId(nc.id);
           return;
         }
       } catch {}
       const nc = { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
-      setChats([nc]);
+      setChats(prev => prev.length === 0 ? [nc] : prev);
       setChatId(nc.id);
-    } else {
-      setChats(remaining);
-      if (chatId === id) setChatId(remaining[0].id);
     }
   };
 
@@ -3361,7 +3455,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       : kind === 'test'
       ? `Built an 8-question practice test${topic ? ` on **${topic}**` : ''} — open **Tests** in the sidebar to take it. (Answers reveal once you finish.)`
       : `Built a 5-question quiz${topic ? ` on **${topic}**` : ''} — open **Quizzes** in the sidebar to take it.`;
-    const placeholderId = Date.now();
+    const placeholderId = nextMsgId();
     setChats(prev => prev.map(c => c.id === currentChatId ? {
       ...c,
       messages: [
@@ -3392,7 +3486,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       messages: [
         ...c.messages,
         { role: 'user', content: originalMessage, ts: Date.now() },
-        { id: Date.now(), role: 'assistant', confirm: { kind, topic, originalMessage }, ts: Date.now() },
+        { id: nextMsgId(), role: 'assistant', confirm: { kind, topic, originalMessage }, ts: Date.now() },
       ],
     } : c));
     if (currentChatDbId && !String(currentChatDbId).startsWith('local-')) {
@@ -3430,7 +3524,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       messages: [
         ...c.messages,
         { role: 'user', content: originalMessage, ts: Date.now() },
-        { id: Date.now(), role: 'assistant', pickCount: { kind, topic, originalMessage }, ts: Date.now() },
+        { id: nextMsgId(), role: 'assistant', pickCount: { kind, topic, originalMessage }, ts: Date.now() },
       ],
     } : c));
     if (currentChatDbId && !String(currentChatDbId).startsWith('local-')) {
@@ -3520,7 +3614,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     const titleFromQuestion = message.trim().split(/\s+/).slice(0, 6).join(' ').replace(/[.!?]$/, '');
 
     const completedMessages = (currentActive?.messages || []).filter(m => !m.streaming);
-    const streamingMsgId = Date.now();
+    const streamingMsgId = nextMsgId();
 
     // Snapshot the ephemeral attachment for this send, then clear so the
     // chip disappears from the composer immediately.
@@ -3565,6 +3659,10 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
 
     const controller = new AbortController();
     abortRef.current = controller;
+    // Capture the token for this generation so late completions can no-op
+    // if the user already started a new turn.
+    const myToken = ++sendTokenRef.current;
+    const isStale = () => sendTokenRef.current !== myToken;
 
     try {
       let response;
@@ -3590,6 +3688,14 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         });
       }
 
+      // Guard before grabbing the reader. A non-2xx (rate limit, auth
+      // failure, server error) may not be SSE-shaped and `response.body`
+      // can be null on some failures — without these checks the streaming
+      // bubble would just sit there forever.
+      if (!response.ok || !response.body) {
+        const errText = await response.text().catch(() => '');
+        throw new Error(`Chat request failed: ${response.status} ${errText.slice(0, 200)}`);
+      }
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buf = '', fullText = '', finalSources = [];
@@ -3665,9 +3771,14 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         : c
       ));
     }
-    abortRef.current = null;
-    setIsTyping(false);
-    inputRef.current?.focus();
+    // Only clear isTyping if this is still the live generation. A late
+    // resolver from a previous turn shouldn't toggle the indicator off
+    // while a newer turn is still in progress.
+    if (!isStale()) {
+      abortRef.current = null;
+      setIsTyping(false);
+      inputRef.current?.focus();
+    }
   };
 
   if (chatsLoading) return (

@@ -1797,6 +1797,21 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
   const sendStatus = (step, extra = {}) =>
     safeWrite(`data: ${JSON.stringify({ type: 'status', step, ...extra })}\n\n`);
 
+  // Top-level safety net for the whole chat handler. Any throw — from
+  // searchChunks, page-image download, OpenAI create, anywhere — lands
+  // here, emits a clean SSE error event, and closes the stream. Without
+  // this, a pre-stream throw left the SSE socket open with no event
+  // and the student saw an infinite loader until socket timeout.
+  let topLevelGuardFailed = false;
+  const guardCleanup = (err) => {
+    topLevelGuardFailed = true;
+    console.error(`Chat handler unhandled error (course ${courseId}): ${err?.message || err}`);
+    try { safeWrite(`data: ${JSON.stringify({ type: 'error', error: 'Lost the thread answering that — try again.' })}\n\n`); } catch {}
+    safeEnd();
+  };
+
+  try {  // Top-level guard — closes at the bottom of the handler
+
   sendStatus('searching');
 
   // RAG: retrieve the most relevant chunks for THIS question instead of
@@ -1851,9 +1866,15 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
       if (key.startsWith('note_')) {
         const buf = Buffer.from(file.data);
         const mime = getMimeType(file.name) || 'application/pdf';
+        // Sanitize the filename used in the prompt so a maliciously-named
+        // upload like `Syllabus.pdf]\n\nSYSTEM:` can't break out of its
+        // bracket context and inject instructions.
+        const safeName = String(file.name).replace(/[\r\n\[\]]/g, ' ').slice(0, 80);
         docParts.push({ inlineData: { mimeType: mime, data: buf.toString('base64') } });
-        docParts.push({ text: isImage(mime) ? `[Student image: ${file.name}]` : `[Student note: ${file.name}]` });
-        docNames.push(file.name);
+        docParts.push({ text: isImage(mime) ? `[Student image: ${safeName}]` : `[Student note: ${safeName}]` });
+        // Prefix with "your note: " so the citation pill makes clear this
+        // came from the student's own upload, not a professor doc.
+        docNames.push(`your note: ${safeName}`);
       }
     });
   }
@@ -1891,10 +1912,13 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
   // Supabase Storage call can't hang the whole chat request. 5 seconds is
   // generous for the ~300ms cold-cache case but short enough to fail-fast
   // and fall back to text-only grounding if storage is down.
-  const withTimeout = (p, ms, label) => Promise.race([
-    p,
-    new Promise((_, rej) => setTimeout(() => rej(new Error(`${label} timeout`)), ms)),
-  ]);
+  // Capture the timer handle and clear it whichever side of the race wins,
+  // so up-to-4 dangling 5s timers per chat don't accumulate on the happy path.
+  const withTimeout = (p, ms, label) => {
+    let timer;
+    const timeoutP = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error(`${label} timeout`)), ms); });
+    return Promise.race([p, timeoutP]).finally(() => clearTimeout(timer));
+  };
   const imageParts = (await Promise.all(pageRefs.slice(0, 4).map(async (ref) => {
     try {
       const storagePath = `course_pages/${courseId}/${ref.doc}/page_${ref.page}.png`;
@@ -1930,10 +1954,17 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
   }
 
   if (history.length > 0) {
+    // Skip malformed history entries (system, missing content) instead of
+    // silently coercing them to user — OpenAI rejects invalid alternation
+    // and a coerced 'system' message could be a prompt-injection vector
+    // from a tampered client.
     for (let i = 1; i < history.length; i++) {
       const msg = history[i];
+      if (!msg || typeof msg.content !== 'string') continue;
+      if (msg.role !== 'user' && msg.role !== 'assistant') continue;
       const content = msg.role === 'assistant' ? msg.content.replace(/\nSOURCES:.*$/m, '').trim() : msg.content;
-      messages.push({ role: msg.role === 'assistant' ? 'assistant' : 'user', content });
+      if (!content) continue;
+      messages.push({ role: msg.role, content });
     }
     messages.push({ role: 'user', content: `STUDENT QUESTION: ${message}` });
   }
@@ -2046,17 +2077,22 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
         }
       }
       // If we never got a newline (very short response, no marker), flush.
+      // Check emitToken's return so we honor a mid-flush client disconnect
+      // instead of pressing on with sources/done writes against a dead socket.
       if (!markerParsed && markerBuffer.length > 0) {
-        emitToken(markerBuffer);
+        if (!emitToken(markerBuffer)) clientGone = true;
         markerParsed = true;
       }
     } catch (streamErr) {
       streamCutOff = true;
       console.warn(`Stream interrupted (${streamErr.message}) — partial answer length ${streamedToClient.length}`);
-      if (streamedToClient.length < 20) throw streamErr;
+      // Include buffered-but-unflushed marker content in the threshold —
+      // a stream that died with content still in markerBuffer shouldn't
+      // re-throw just because streamedToClient hasn't been flushed yet.
+      if (streamedToClient.length + markerBuffer.length < 20) throw streamErr;
     }
 
-    if (clientGone) { safeEnd(); return; }
+    if (clientGone) { clearTimeout(openaiTimeout); safeEnd(); return; }
 
     // Empty-response fallback. If nothing made it to the student (model
     // returned just the marker and stopped, or the stream died early),
@@ -2113,6 +2149,13 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
     if (clientGone) { safeEnd(); return; }
     safeWrite(`data: ${JSON.stringify({ type: 'error', error: 'Lost the thread answering that — try again.' })}\n\n`);
     safeEnd();
+  }
+  } catch (handlerErr) {
+    // Outer catch — anything that throws before the inner try takes over
+    // (RAG retrieval, page-image fetch, message-array build, OpenAI create)
+    // lands here. Emit a single error event and close the SSE stream so
+    // the student doesn't see an infinite loader.
+    if (!topLevelGuardFailed) guardCleanup(handlerErr);
   }
 });
 
@@ -2304,6 +2347,10 @@ function topicsCollide(a, b) {
   if (na === nb) return true;
   const tailA = na.match(/(\d+)\s*$/);
   const tailB = nb.match(/(\d+)\s*$/);
+  // Asymmetric guard: if exactly ONE side ends in a digit, keep distinct
+  // ("Midterm Review" vs "Midterm 2" — different intent). The earlier
+  // both-sides-have-digits-AND-different rule still applies.
+  if ((tailA && !tailB) || (!tailA && tailB)) return false;
   if (tailA && tailB && tailA[1] !== tailB[1]) return false;
   if (Math.min(na.length, nb.length) < 6) return false;
   return levenshtein(na, nb) <= 2;
@@ -2391,11 +2438,20 @@ Generate the TOPIC line then all ${quizCount} questions now:`;
     // surviving the "block.length > 20" filter and getting consumed by
     // the slice(quizCount) — the student asked for N questions and got
     // N-1 because the first "block" was the topic header, not a question.
-    const modelTopicMatch = text.match(/^\s*TOPIC:\s*([^\n]+)/im);
-    const modelTopic = modelTopicMatch ? modelTopicMatch[1].trim().replace(/^["']|["']$/g, '') : '';
-    text = text.replace(/^\s*TOPIC:[^\n]*\n+/im, '');
+    // Capture the TOPIC line whether it's plain, **markdown-wrapped**, or
+    // the very last line of the response with no trailing newline.
+    const modelTopicMatch = text.match(/^\s*(?:\*\*)?TOPIC:?(?:\*\*)?\s*([^\n]+)/im);
+    const modelTopic = modelTopicMatch ? modelTopicMatch[1].trim().replace(/^[\*"']+|[\*"']+$/g, '').trim() : '';
+    // Strip the TOPIC line whether plain or **markdown-wrapped**. Use `\n*`
+    // (not `\n+`) so we also strip when TOPIC is the final line of the
+    // response with no trailing newline — otherwise the block would survive
+    // the length filter and steal a slot from the question/card count.
+    text = text.replace(/^\s*(?:\*\*)?TOPIC:?(?:\*\*)?[^\n]*\n*/im, '');
     const blocks = text.split(/---+|\n(?=QUESTION:)/).map(b => b.trim()).filter(b => b.length > 20);
-    const questions = blocks.slice(0, quizCount).map(block => {
+    // Filter THEN slice — slicing first would silently shrink the result if
+    // any block fails the question/options validity check, leaving the
+    // student with fewer questions than they asked for.
+    const questions = blocks.map(block => {
       const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
       const get = (prefix) => { const line = lines.find(l => l.startsWith(prefix)); return line ? line.slice(prefix.length).trim() : ''; };
       const question = get('QUESTION:');
@@ -2404,20 +2460,27 @@ Generate the TOPIC line then all ${quizCount} questions now:`;
       const correct = ['A', 'B', 'C', 'D'].indexOf(correctLetter);
       const explanation = get('EXPLANATION:');
       return { question, options, correct: correct === -1 ? 0 : correct, explanation };
-    }).filter(q => q.question && q.options[0] !== 'A) ');
+    }).filter(q => q.question && q.options[0] !== 'A) ').slice(0, quizCount);
     if (questions.length === 0) return res.status(500).json({ error: 'Could not generate quiz questions' });
     // Persist so the student can revisit / retake from the Quizzes sidebar.
     // Title preference: explicit user topic > model-generated TOPIC > dated fallback.
     const effectiveTopic = (topic && topic.trim()) || modelTopic || `Practice Quiz · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
     const finalTopic = await disambiguateTopic('quizzes', req.user.id, courseId, effectiveTopic);
     let savedId = null;
+    let saveError = null;
     try {
-      const { data: saved } = await supabase.from('quizzes')
+      const { data: saved, error } = await supabase.from('quizzes')
         .insert({ student_id: req.user.id, course_id: courseId, topic: finalTopic, questions })
         .select('id').single();
+      if (error) throw error;
       savedId = saved?.id || null;
-    } catch (e) { console.error('Quiz save error:', e.message); }
-    res.json({ id: savedId, questions });
+    } catch (e) {
+      console.error('Quiz save error:', e.message);
+      saveError = e.message;
+    }
+    // Surface save failures to the client so it can flag the score-retake
+    // path won't persist instead of silently PATCHing /:id with null.
+    res.json({ id: savedId, questions, saveError });
   } catch (err) {
     console.error('Quiz generation error:', err.message);
     res.status(500).json({ error: err.message });
@@ -2467,9 +2530,15 @@ Keep each side under two sentences. Use plain text, no markdown inside the FRONT
     let text = result.text.trim();
     // Pull the TOPIC line out before parsing cards so it doesn't get
     // counted as a partial card and steal a slot from the slice(cardCount).
-    const modelTopicMatch = text.match(/^\s*TOPIC:\s*([^\n]+)/im);
-    const modelTopic = modelTopicMatch ? modelTopicMatch[1].trim().replace(/^["']|["']$/g, '') : '';
-    text = text.replace(/^\s*TOPIC:[^\n]*\n+/im, '');
+    // Capture the TOPIC line whether it's plain, **markdown-wrapped**, or
+    // the very last line of the response with no trailing newline.
+    const modelTopicMatch = text.match(/^\s*(?:\*\*)?TOPIC:?(?:\*\*)?\s*([^\n]+)/im);
+    const modelTopic = modelTopicMatch ? modelTopicMatch[1].trim().replace(/^[\*"']+|[\*"']+$/g, '').trim() : '';
+    // Strip the TOPIC line whether plain or **markdown-wrapped**. Use `\n*`
+    // (not `\n+`) so we also strip when TOPIC is the final line of the
+    // response with no trailing newline — otherwise the block would survive
+    // the length filter and steal a slot from the question/card count.
+    text = text.replace(/^\s*(?:\*\*)?TOPIC:?(?:\*\*)?[^\n]*\n*/im, '');
     const blocks = text.split(/---+|\n(?=FRONT:)/i).map(b => b.trim()).filter(b => b.length > 10);
     const cards = blocks.map(block => {
       const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
@@ -2480,13 +2549,18 @@ Keep each side under two sentences. Use plain text, no markdown inside the FRONT
     const effectiveTopic = (topic && topic.trim()) || modelTopic || `Flashcard Deck · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
     const finalTopic = await disambiguateTopic('flashcard_decks', req.user.id, courseId, effectiveTopic);
     let savedId = null;
+    let saveError = null;
     try {
-      const { data: saved } = await supabase.from('flashcard_decks')
+      const { data: saved, error } = await supabase.from('flashcard_decks')
         .insert({ student_id: req.user.id, course_id: courseId, topic: finalTopic, cards })
         .select('id').single();
+      if (error) throw error;
       savedId = saved?.id || null;
-    } catch (e) { console.error('Deck save error:', e.message); }
-    res.json({ id: savedId, cards });
+    } catch (e) {
+      console.error('Deck save error:', e.message);
+      saveError = e.message;
+    }
+    res.json({ id: savedId, cards, saveError });
   } catch (err) {
     console.error('Flashcards generation error:', err.message);
     res.status(500).json({ error: err.message });
@@ -2525,8 +2599,17 @@ app.get('/student/quizzes/:id', requireAuth, async (req, res) => {
 });
 
 app.patch('/student/quizzes/:id', requireAuth, async (req, res) => {
-  const { score } = req.body;
-  if (typeof score !== 'number') return res.status(400).json({ error: 'score required' });
+  const raw = Number(req.body?.score);
+  if (!Number.isFinite(raw)) return res.status(400).json({ error: 'score required' });
+  // Clamp scores into [0, 100] so a tampered or bad-arithmetic client
+  // can't poison best_score with negative or out-of-range values.
+  const score = Math.max(0, Math.min(100, raw));
+  // NOTE: this is still a read-modify-write and races on truly concurrent
+  // PATCHes for the same quiz from the same client. The realistic case is
+  // single-tab single-student so the window is small; if we see lost
+  // attempts in logs, replace with a Postgres function that does
+  // `attempts = attempts + 1, best_score = greatest(best_score, $score)`
+  // in one SQL statement.
   const { data: cur } = await supabase.from('quizzes')
     .select('best_score, attempts').eq('id', req.params.id).eq('student_id', req.user.id).single();
   if (!cur) return res.status(404).json({ error: 'Not found' });
@@ -2616,7 +2699,7 @@ CORRECT: [A or B or C or D]
 EXPLANATION: [one sentence explanation grounded in the materials]
 ---
 
-Generate all 8 questions now:`;
+Generate all ${testCount} questions now:`;
 
   try {
     const result = await ai.models.generateContent({
@@ -2626,11 +2709,18 @@ Generate all 8 questions now:`;
     });
     let text = result.text.trim();
     // Pull TOPIC out before splitting so the test count is correct.
-    const modelTopicMatch = text.match(/^\s*TOPIC:\s*([^\n]+)/im);
-    const modelTopic = modelTopicMatch ? modelTopicMatch[1].trim().replace(/^["']|["']$/g, '') : '';
-    text = text.replace(/^\s*TOPIC:[^\n]*\n+/im, '');
+    // Capture the TOPIC line whether it's plain, **markdown-wrapped**, or
+    // the very last line of the response with no trailing newline.
+    const modelTopicMatch = text.match(/^\s*(?:\*\*)?TOPIC:?(?:\*\*)?\s*([^\n]+)/im);
+    const modelTopic = modelTopicMatch ? modelTopicMatch[1].trim().replace(/^[\*"']+|[\*"']+$/g, '').trim() : '';
+    // Strip the TOPIC line whether plain or **markdown-wrapped**. Use `\n*`
+    // (not `\n+`) so we also strip when TOPIC is the final line of the
+    // response with no trailing newline — otherwise the block would survive
+    // the length filter and steal a slot from the question/card count.
+    text = text.replace(/^\s*(?:\*\*)?TOPIC:?(?:\*\*)?[^\n]*\n*/im, '');
     const blocks = text.split(/---+|\n(?=QUESTION:)/).map(b => b.trim()).filter(b => b.length > 20);
-    const questions = blocks.slice(0, testCount).map(block => {
+    // Filter THEN slice (same fix as the quiz endpoint).
+    const questions = blocks.map(block => {
       const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
       const get = (prefix) => { const line = lines.find(l => l.startsWith(prefix)); return line ? line.slice(prefix.length).trim() : ''; };
       const question = get('QUESTION:');
@@ -2639,18 +2729,23 @@ Generate all 8 questions now:`;
       const correct = ['A', 'B', 'C', 'D'].indexOf(correctLetter);
       const explanation = get('EXPLANATION:');
       return { question, options, correct: correct === -1 ? 0 : correct, explanation };
-    }).filter(q => q.question && q.options[0] !== 'A) ');
+    }).filter(q => q.question && q.options[0] !== 'A) ').slice(0, testCount);
     if (questions.length === 0) return res.status(500).json({ error: 'Could not generate test questions' });
     const effectiveTopic = (topic && topic.trim()) || modelTopic || `Practice Test · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
     const finalTopic = await disambiguateTopic('tests', req.user.id, courseId, effectiveTopic);
     let savedId = null;
+    let saveError = null;
     try {
-      const { data: saved } = await supabase.from('tests')
+      const { data: saved, error } = await supabase.from('tests')
         .insert({ student_id: req.user.id, course_id: courseId, topic: finalTopic, questions })
         .select('id').single();
+      if (error) throw error;
       savedId = saved?.id || null;
-    } catch (e) { console.error('Test save error:', e.message); }
-    res.json({ id: savedId, questions });
+    } catch (e) {
+      console.error('Test save error:', e.message);
+      saveError = e.message;
+    }
+    res.json({ id: savedId, questions, saveError });
   } catch (err) {
     console.error('Test generation error:', err.message);
     res.status(500).json({ error: err.message });
@@ -2682,8 +2777,9 @@ app.get('/student/tests/:id', requireAuth, async (req, res) => {
 });
 
 app.patch('/student/tests/:id', requireAuth, async (req, res) => {
-  const { score } = req.body;
-  if (typeof score !== 'number') return res.status(400).json({ error: 'score required' });
+  const raw = Number(req.body?.score);
+  if (!Number.isFinite(raw)) return res.status(400).json({ error: 'score required' });
+  const score = Math.max(0, Math.min(100, raw));
   const { data: cur } = await supabase.from('tests')
     .select('best_score, attempts').eq('id', req.params.id).eq('student_id', req.user.id).single();
   if (!cur) return res.status(404).json({ error: 'Not found' });
