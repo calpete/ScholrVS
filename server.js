@@ -235,21 +235,28 @@ Grade disputes, accommodation requests, edge-case policy interpretation → answ
 
 # RESPONSE HEADER — REQUIRED, STRIPPED BEFORE DISPLAY
 Begin every response with one of these markers on its OWN LINE, before any other content:
-- \`MATERIALS: yes\` — the question is about the course subject AND the retrieved excerpts are relevant to your answer, even if you also blended in general background knowledge. Lean toward YES when in doubt.
-- \`MATERIALS: no\` — ONLY for off-topic questions you refused (sports trivia, celebrities, weather, recipes), casual chat ("thanks", "hi"), or pure clarifying questions where you didn't answer anything substantive yet.
+- \`MATERIALS: no\` — ONLY for these three narrow cases:
+  1. **Off-topic refusals** ("who is Tom Brady?", "what's the weather?", "recommend a recipe") — you declined and redirected.
+  2. **Casual chat** ("thanks", "hi", "lol") — no substantive content.
+  3. **Pure clarifying questions** where you didn't answer anything yet ("Can you say more about which part?").
+- \`MATERIALS: yes\` — EVERYTHING ELSE.
 
-When YES is correct (the vast majority of student turns):
-- Any question about a topic the syllabus or course materials cover, even if the specific excerpt didn't quote the exact answer
-- A formula question where you answered using both the syllabus and general accounting knowledge
-- A "what's a fixed cost?" type question in an accounting class — the materials cover it, so YES
-- A grade calculation, a deadline lookup, anything course-related
+The rule is intentionally biased toward YES. If you're answering a course-related question — even with an analogy, a simplified explanation, general background knowledge layered on top, or material from a different chapter than the one retrieved — that's YES. The fact that you DECIDED to answer means the materials are providing the topical anchor for your reply, and the student deserves to see which document the system pulled to ground that answer.
 
-When NO is correct (rare):
-- "Who is Tom Brady?" in an accounting class — off-topic, refused
-- "thanks!" — casual chat, no substance
-- "Can you explain that more?" with no prior context — pure clarification
+Examples that are YES even though they might feel like NO:
+- "explain CVP analysis like I'm a 3rd grader" → YES (you used a lemonade-stand analogy, but CVP is course content)
+- "what's a fixed cost?" → YES (general knowledge of accounting, but the materials cover it)
+- "give me the NPV formula" → YES (you wrote a formula from memory, but it's the course's NPV)
+- "walk me through how to calculate margin of safety" → YES (you taught the method, materials back it)
+- "summarize chapter 4" → YES
+- A grade calculation, an office hours lookup, a deadline question → YES
 
-Default to YES if you're uncertain. The system parses this line and removes it before the student sees the response. Source citations only show when MATERIALS: yes. Never skip the marker, never explain it, never put any other text on that line.
+Examples that are correctly NO:
+- "Who is Tom Brady?" in an accounting class → refused, NO
+- "thanks!" → casual, NO
+- "Can you say which formula you meant?" (asking for clarification, no real answer yet) → NO
+
+Default to YES if you're at all uncertain. The system parses this line and removes it before the student sees the response. Source citations only show when MATERIALS: yes. Never skip the marker, never explain it, never put any other text on that line.
 
 # SOURCES & FOLLOW-UP
 The system shows source documents automatically below your answer when MATERIALS: yes. NEVER write a "SOURCES:" line, inline page citations, or attribution lists in your response body — just answer cleanly.
@@ -2017,9 +2024,30 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
       emitToken(fallback);
     }
 
-    // Source attribution: only show retrieved docs when the model marked
-    // MATERIALS: yes. For off-topic refusals, general-knowledge answers,
-    // or chat-style turns, surface no sources so we don't hallucinate.
+    // Safety net: if the model emitted MATERIALS: no but the response
+    // doesn't actually look like a refusal / casual reply (it's long-form
+    // and lacks the "outside this course" / "I don't have that" phrases),
+    // override to YES. Catches the common bug where the model writes a
+    // legitimate course-concept explanation with an analogy and then
+    // self-reports as "no" because it didn't directly quote the chunks.
+    const refusalSignals = [
+      "outside this course",
+      "outside the scope",
+      "doesn't appear to be in any of your uploaded",
+      "not in your uploaded materials",
+      "check with your professor",
+      "i can help with",  // common redirect phrasing
+    ];
+    const looksLikeRefusal = refusalSignals.some(s => streamedToClient.toLowerCase().includes(s));
+    const looksSubstantive = streamedToClient.length > 250 && !looksLikeRefusal;
+    if (!usedMaterials && looksSubstantive && docNames.length > 0) {
+      console.log(`💬 Override materials=false → true (response is substantive ${streamedToClient.length} chars, no refusal phrasing)`);
+      usedMaterials = true;
+    }
+
+    // Source attribution: show retrieved docs whenever the model is actually
+    // answering a course-related question (MATERIALS: yes OR substantive
+    // response override). Refusals + casual chat correctly suppress sources.
     const sources = usedMaterials ? docNames : [];
     const confident = !streamedToClient.toLowerCase().includes("doesn't appear to be in any of your uploaded");
     console.log(`💬 Chat response: ${streamedToClient.length} chars streamed, materials=${usedMaterials}, sources=${sources.length}`);
