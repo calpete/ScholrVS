@@ -1580,6 +1580,17 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   const isDesktop = useIsDesktop();
   const [sidebarW, startSidebarDrag] = useSidebarWidth('scholr_prof_sidebar_w');
   const fileRef = useRef(null);
+  // Track the in-flight upload XHR so we can abort it on unmount —
+  // without this, a navigate-away mid-upload fires setState on an
+  // unmounted component (React warning) and pointlessly continues
+  // sending bytes to the server.
+  const uploadXhrRef = useRef(null);
+  useEffect(() => () => {
+    if (uploadXhrRef.current) {
+      try { uploadXhrRef.current.abort(); } catch {}
+      uploadXhrRef.current = null;
+    }
+  }, []);
 
   const showToast = (msg, type = 'success') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000); };
 
@@ -1602,12 +1613,14 @@ function CourseManager({ token, course, onBack, authHeaders }) {
     // Use XMLHttpRequest so we can subscribe to upload progress events
     // (fetch does not expose upload progress yet).
     const xhr = new XMLHttpRequest();
+    uploadXhrRef.current = xhr;
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) {
         setUploadProgress(Math.round((e.loaded / e.total) * 100));
       }
     });
     xhr.addEventListener('load', () => {
+      uploadXhrRef.current = null;
       setUploading(false);
       setUploadProgress(0);
       setUploadingFile(null);
@@ -1628,10 +1641,19 @@ function CourseManager({ token, course, onBack, authHeaders }) {
       }
     });
     xhr.addEventListener('error', () => {
+      uploadXhrRef.current = null;
       setUploading(false);
       setUploadProgress(0);
       setUploadingFile(null);
       showToast('Server unreachable', 'error');
+    });
+    xhr.addEventListener('abort', () => {
+      // Intentional abort (component unmount) — silently clean up the
+      // local state without surfacing a toast.
+      uploadXhrRef.current = null;
+      setUploading(false);
+      setUploadProgress(0);
+      setUploadingFile(null);
     });
     xhr.open('POST', `${API}/course/${course.id}/upload`);
     xhr.setRequestHeader('Authorization', `Bearer ${token}`);
@@ -2243,11 +2265,16 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
         setClearing(false);
         return;
       }
-      // Reset local state and refetch
+      // Reset local state and refetch. lastCountRef ALSO needs to be
+      // reset — otherwise the next poll sees the pre-clear count in the
+      // ref and the "↑ N new" indicator would lag by a full cycle until
+      // the ref naturally caught up to zero.
       setSummary(null);
       setSummaryGeneratedAt(null);
       setLastCount(0);
       setNewCount(0);
+      lastCountRef.current = 0;
+      setFetchError(null);
       fetchInsights();
       setConfirmingClear(false);
     } catch {
@@ -3256,6 +3283,10 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     return nc;
   };
 
+  // Per-chat AbortController so a fast second rename cancels the first
+  // and only the latest title survives — the previous fire-and-forget
+  // pattern could let the loser overwrite the winner on slow networks.
+  const renameAbortersRef = useRef(new Map());
   const renameChat = async (id, title) => {
     const t = (title || '').trim();
     setRenamingId(null);
@@ -3263,7 +3294,25 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     setChats(prev => prev.map(c => c.id === id ? { ...c, title: t } : c));
     const chat = chats.find(c => c.id === id);
     if (chat?.dbId && !String(chat.dbId).startsWith('local-')) {
-      try { await fetch(`${API}/student/chats/${chat.dbId}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ title: t }) }); } catch {}
+      // Cancel any in-flight rename for this same chat.
+      const prevAborter = renameAbortersRef.current.get(id);
+      if (prevAborter) { try { prevAborter.abort(); } catch {} }
+      const aborter = new AbortController();
+      renameAbortersRef.current.set(id, aborter);
+      try {
+        await fetch(`${API}/student/chats/${chat.dbId}`, {
+          method: 'PATCH', headers: jsonHeaders,
+          body: JSON.stringify({ title: t }),
+          signal: aborter.signal,
+        });
+      } catch {}
+      finally {
+        // Only clear if this is still the latest aborter for this chat;
+        // otherwise a newer rename owns the slot and we leave it alone.
+        if (renameAbortersRef.current.get(id) === aborter) {
+          renameAbortersRef.current.delete(id);
+        }
+      }
     }
   };
 

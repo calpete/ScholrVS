@@ -2387,6 +2387,40 @@ async function disambiguateTopic(table, studentId, courseId, proposed) {
   }
 }
 
+// Post-insert duplicate sweep — catches the race where two simultaneous
+// generations both passed disambiguateTopic's check (saw the same
+// pre-insert state) and ended up with the same suffix in the database.
+// Looks up siblings created within a 5-second window and renames the
+// NEWER one with a short random suffix to break the tie. No-op when
+// only one row carries the topic.
+async function deduplicateAfterInsert(table, studentId, courseId, insertedId, topic) {
+  if (!topic) return;
+  try {
+    const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
+    const { data: siblings } = await supabase.from(table)
+      .select('id, topic, created_at')
+      .eq('student_id', studentId).eq('course_id', courseId)
+      .gte('created_at', fiveSecondsAgo)
+      .order('created_at', { ascending: true });
+    if (!siblings || siblings.length < 2) return;
+    const dupes = siblings.filter(r => normalizeTopic(r.topic) === normalizeTopic(topic));
+    if (dupes.length < 2) return;
+    // Keep the earliest, rename later rows. We only rename our OWN insert
+    // (or the very latest) so we don't mutate someone else's record by
+    // accident under another auth context.
+    const ours = dupes.find(r => r.id === insertedId);
+    if (!ours || ours.id === dupes[0].id) return; // we were the first, nothing to do
+    const suffix = Math.random().toString(36).slice(2, 5);
+    const newTopic = `${topic} (${suffix})`;
+    await supabase.from(table)
+      .update({ topic: newTopic })
+      .eq('id', insertedId).eq('student_id', studentId);
+    console.log(`🪄 Deduped ${table} ${insertedId}: "${topic}" → "${newTopic}"`);
+  } catch (e) {
+    console.warn(`deduplicateAfterInsert(${table}) failed: ${e.message}`);
+  }
+}
+
 app.post('/course/:courseId/quiz', requireAuth, requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const { topic } = req.body;
@@ -2478,6 +2512,10 @@ Generate the TOPIC line then all ${quizCount} questions now:`;
       console.error('Quiz save error:', e.message);
       saveError = e.message;
     }
+    // Race-safety: if two simultaneous /quiz calls both passed the
+    // disambiguateTopic check and ended up with the same suffix, the
+    // dedupe pass renames the loser to break the tie.
+    if (savedId) deduplicateAfterInsert('quizzes', req.user.id, courseId, savedId, finalTopic);
     // Surface save failures to the client so it can flag the score-retake
     // path won't persist instead of silently PATCHing /:id with null.
     res.json({ id: savedId, questions, saveError });
@@ -2560,6 +2598,7 @@ Keep each side under two sentences. Use plain text, no markdown inside the FRONT
       console.error('Deck save error:', e.message);
       saveError = e.message;
     }
+    if (savedId) deduplicateAfterInsert('flashcard_decks', req.user.id, courseId, savedId, finalTopic);
     res.json({ id: savedId, cards, saveError });
   } catch (err) {
     console.error('Flashcards generation error:', err.message);
@@ -2601,24 +2640,30 @@ app.get('/student/quizzes/:id', requireAuth, async (req, res) => {
 app.patch('/student/quizzes/:id', requireAuth, async (req, res) => {
   const raw = Number(req.body?.score);
   if (!Number.isFinite(raw)) return res.status(400).json({ error: 'score required' });
-  // Clamp scores into [0, 100] so a tampered or bad-arithmetic client
-  // can't poison best_score with negative or out-of-range values.
   const score = Math.max(0, Math.min(100, raw));
-  // NOTE: this is still a read-modify-write and races on truly concurrent
-  // PATCHes for the same quiz from the same client. The realistic case is
-  // single-tab single-student so the window is small; if we see lost
-  // attempts in logs, replace with a Postgres function that does
-  // `attempts = attempts + 1, best_score = greatest(best_score, $score)`
-  // in one SQL statement.
-  const { data: cur } = await supabase.from('quizzes')
-    .select('best_score, attempts').eq('id', req.params.id).eq('student_id', req.user.id).single();
-  if (!cur) return res.status(404).json({ error: 'Not found' });
-  const best = Math.max(cur.best_score ?? 0, score);
-  const attempts = (cur.attempts ?? 0) + 1;
-  await supabase.from('quizzes')
-    .update({ last_score: score, best_score: best, attempts })
-    .eq('id', req.params.id).eq('student_id', req.user.id);
-  res.json({ success: true, attempts, last_score: score, best_score: best });
+  // Optimistic concurrency: try up to 3 times with a CAS-style update —
+  // the .eq('attempts', cur.attempts) clause makes the row only match if
+  // attempts is still what we read. If a parallel PATCH bumped the
+  // counter first, our update affects 0 rows and we re-read + retry.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data: cur } = await supabase.from('quizzes')
+      .select('best_score, attempts').eq('id', req.params.id).eq('student_id', req.user.id).single();
+    if (!cur) return res.status(404).json({ error: 'Not found' });
+    const prevAttempts = cur.attempts ?? 0;
+    const best = Math.max(cur.best_score ?? 0, score);
+    const newAttempts = prevAttempts + 1;
+    const { data: updated, error: updErr } = await supabase.from('quizzes')
+      .update({ last_score: score, best_score: best, attempts: newAttempts })
+      .eq('id', req.params.id).eq('student_id', req.user.id).eq('attempts', prevAttempts)
+      .select('attempts').maybeSingle();
+    if (updErr) return res.status(500).json({ error: updErr.message });
+    if (updated) {
+      return res.json({ success: true, attempts: newAttempts, last_score: score, best_score: best });
+    }
+    // No row matched — someone else bumped attempts. Loop and re-read.
+  }
+  console.warn('PATCH /student/quizzes — CAS update failed after 3 retries');
+  res.status(409).json({ error: 'Score update conflict — please retry' });
 });
 
 app.delete('/student/quizzes/:id', requireAuth, async (req, res) => {
@@ -2745,6 +2790,7 @@ Generate all ${testCount} questions now:`;
       console.error('Test save error:', e.message);
       saveError = e.message;
     }
+    if (savedId) deduplicateAfterInsert('tests', req.user.id, courseId, savedId, finalTopic);
     res.json({ id: savedId, questions, saveError });
   } catch (err) {
     console.error('Test generation error:', err.message);
@@ -2780,15 +2826,25 @@ app.patch('/student/tests/:id', requireAuth, async (req, res) => {
   const raw = Number(req.body?.score);
   if (!Number.isFinite(raw)) return res.status(400).json({ error: 'score required' });
   const score = Math.max(0, Math.min(100, raw));
-  const { data: cur } = await supabase.from('tests')
-    .select('best_score, attempts').eq('id', req.params.id).eq('student_id', req.user.id).single();
-  if (!cur) return res.status(404).json({ error: 'Not found' });
-  const best = Math.max(cur.best_score ?? 0, score);
-  const attempts = (cur.attempts ?? 0) + 1;
-  await supabase.from('tests')
-    .update({ last_score: score, best_score: best, attempts })
-    .eq('id', req.params.id).eq('student_id', req.user.id);
-  res.json({ success: true, attempts, last_score: score, best_score: best });
+  // Same CAS-style optimistic concurrency as /student/quizzes/:id.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data: cur } = await supabase.from('tests')
+      .select('best_score, attempts').eq('id', req.params.id).eq('student_id', req.user.id).single();
+    if (!cur) return res.status(404).json({ error: 'Not found' });
+    const prevAttempts = cur.attempts ?? 0;
+    const best = Math.max(cur.best_score ?? 0, score);
+    const newAttempts = prevAttempts + 1;
+    const { data: updated, error: updErr } = await supabase.from('tests')
+      .update({ last_score: score, best_score: best, attempts: newAttempts })
+      .eq('id', req.params.id).eq('student_id', req.user.id).eq('attempts', prevAttempts)
+      .select('attempts').maybeSingle();
+    if (updErr) return res.status(500).json({ error: updErr.message });
+    if (updated) {
+      return res.json({ success: true, attempts: newAttempts, last_score: score, best_score: best });
+    }
+  }
+  console.warn('PATCH /student/tests — CAS update failed after 3 retries');
+  return res.status(409).json({ error: 'Score update conflict — please retry' });
 });
 
 app.delete('/student/tests/:id', requireAuth, async (req, res) => {
