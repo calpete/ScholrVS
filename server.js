@@ -56,14 +56,16 @@ const MODEL = 'gemini-2.5-flash';            // heavy generation: quiz / test / 
 // segment at the end" after a few characters). Production logs show this
 // firing reliably. Until we bump @google/genai to a recent release and
 // re-test, run chat on the proven 2.5-flash. RAG keeps us at ~3s anyway.
-// Chat generation runs on OpenAI gpt-4o. Gemini was over-escaping LaTeX
-// backslashes and tangling with markdown; gpt-4o-mini fixed the escaping
-// but ignored the "no formulas inside list items" rule. gpt-4o follows
-// formatting instructions reliably and writes more thorough answers — the
-// extra cost is small at our scale and saves us from chasing one prompt-
-// adherence bug after another. Quiz / test / cards / debrief still run on
-// Gemini — they don't have the math-rendering issue.
-const MODEL_CHAT = 'gpt-4o';
+// Chat generation runs on OpenAI gpt-4o-mini. We originally moved to the
+// full gpt-4o because mini was struggling with our heavily-prescriptive
+// LaTeX/markdown rules, but those rules are gone now — the math output
+// is Unicode/plaintext and the rewriteEquations safety net handles any
+// LaTeX the model slips out. Without those constraints, mini gives the
+// same answer quality at ~16× lower cost per token, which is the right
+// trade for a 50-student-per-course tutor where most replies are short
+// factual lookups (office hours, deadlines, definitions). Quiz / test /
+// cards / debrief still run on Gemini.
+const MODEL_CHAT = 'gpt-4o-mini';
 const MODEL_EMBED = 'text-embedding-004';    // 768-dim embeddings for retrieval
 
 const ai = new GoogleGenAI({ vertexai: true, project: PROJECT, location: LOCATION });
