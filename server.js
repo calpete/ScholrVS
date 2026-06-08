@@ -722,6 +722,29 @@ async function chunkAndEmbedPdf(courseId, docName, pdfBuffer) {
   };
 }
 
+// Pick the docs that actually informed the answer from the retrieved
+// chunk list. RAG returns top-K chunks regardless of doc spread, so a
+// course with 5 PDFs often ends up with 1-2 stray chunks from unrelated
+// docs pulled along with the real source. This filter weights by chunk
+// share — a doc must contribute at least `minShare` of the chunks to
+// earn a citation, capped at `maxDocs` total. Falls back to the single
+// top-contributing doc if nothing meets the threshold (better to show
+// one source than none for a grounded answer).
+function selectRelevantDocs(chunks, { minShare = 0.25, maxDocs = 3 } = {}) {
+  if (!chunks || chunks.length === 0) return [];
+  const total = chunks.length;
+  const counts = new Map();
+  for (const c of chunks) {
+    counts.set(c.doc_name, (counts.get(c.doc_name) || 0) + 1);
+  }
+  const eligible = [...counts.entries()].filter(([, n]) => n / total >= minShare);
+  const ranked = (eligible.length > 0 ? eligible : [...counts.entries()])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, eligible.length > 0 ? maxDocs : 1)
+    .map(([doc]) => doc);
+  return ranked;
+}
+
 // Find the top-k most relevant chunks for a question.
 async function searchChunks(courseId, question, k = 6) {
   const queryEmb = await embedSingle(question);
@@ -1788,9 +1811,17 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
   const retrievedChunks = await searchChunks(courseId, message, 8);
 
   if (retrievedChunks.length > 0) {
-    const uniqueDocs = [...new Set(retrievedChunks.map(c => c.doc_name))];
-    sendStatus('found', { sources: uniqueDocs });
-    docNames = uniqueDocs;
+    // Pick only the docs that meaningfully informed the answer instead of
+    // listing every doc that contributed even a single stray chunk.
+    // With 8 retrieved chunks and 5 PDFs uploaded, RAG often pulls 5
+    // chunks from the "real" source + 1-2 incidental chunks from other
+    // docs — citing all of them dilutes the signal. Rule: a doc must
+    // contribute at least 25% of the retrieved chunks (so 2+/8) AND we
+    // cap at 3 citations max. If nothing meets the share threshold, fall
+    // back to the single top-contributing doc — better to show one
+    // grounded source than none.
+    docNames = selectRelevantDocs(retrievedChunks, { minShare: 0.25, maxDocs: 3 });
+    sendStatus('found', { sources: docNames });
     const contextText = retrievedChunks
       .map(c => `[Source: ${c.doc_name}${c.page_number ? ` · p.${c.page_number}` : ''}]\n${c.chunk_text}`)
       .join('\n\n---\n\n');
