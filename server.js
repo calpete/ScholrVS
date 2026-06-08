@@ -1944,10 +1944,22 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
   let rawText = '';            // full response accumulator for DB + sources
   let streamedToClient = '';   // what the student has seen so far
   let streamCutOff = false;
-  // Open the OpenAI stream with a 90-second timeout. Vision requests can
-  // be slow on TTFT (5-15s); 90s gives plenty of margin while still
-  // killing genuinely hung requests instead of letting the student stare
-  // at a loading indicator forever.
+  // Hard wall-clock budget. The SDK's `timeout` option doesn't reliably
+  // interrupt a stream once chunks start flowing — it only bounds the
+  // INITIAL response. So we run our own AbortController on top of it,
+  // armed for 45 seconds. If the model is still emitting (or NOT
+  // emitting) after that, we abort the stream and let the catch below
+  // surface "lost the thread" rather than letting the student stare at
+  // a loading indicator indefinitely.
+  const openaiAbort = new AbortController();
+  const openaiTimeout = setTimeout(() => {
+    console.warn(`Chat request exceeded 45s wall clock — aborting`);
+    openaiAbort.abort();
+  }, 45_000);
+  // Also kill the request if the student closes their tab — no point
+  // burning OpenAI tokens for a connection no one's listening to.
+  req.on('close', () => { openaiAbort.abort(); });
+
   let stream;
   try {
     stream = await openai.chat.completions.create({
@@ -1956,9 +1968,9 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
       temperature: 0.3,
       max_tokens: 2048,
       stream: true,
-    }, { timeout: 90_000 });
+    }, { signal: openaiAbort.signal, timeout: 45_000 });
   } catch (openErr) {
-    if (imageParts.length === 0) throw openErr;
+    if (imageParts.length === 0) { clearTimeout(openaiTimeout); throw openErr; }
     console.warn(`Multimodal request failed (${openErr.message}) — retrying text-only`);
     const textOnlyMessages = messages.map(m => {
       if (Array.isArray(m.content)) {
@@ -1973,7 +1985,7 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
       temperature: 0.3,
       max_tokens: 2048,
       stream: true,
-    }, { timeout: 90_000 });
+    }, { signal: openaiAbort.signal, timeout: 45_000 });
   }
 
   try {
@@ -2094,7 +2106,9 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
     safeWrite(`data: ${JSON.stringify({ type: 'sources', sources })}\n\n`);
     safeWrite(`data: ${JSON.stringify({ type: 'done', truncated: streamCutOff })}\n\n`);
     safeEnd();
+    clearTimeout(openaiTimeout);
   } catch (err) {
+    clearTimeout(openaiTimeout);
     console.error(`Chat error: ${err.message} (course ${courseId}, partial ${streamedToClient.length} chars)`);
     if (clientGone) { safeEnd(); return; }
     safeWrite(`data: ${JSON.stringify({ type: 'error', error: 'Lost the thread answering that — try again.' })}\n\n`);
