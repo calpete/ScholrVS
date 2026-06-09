@@ -2793,9 +2793,6 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     return topic.slice(0, 120);
   };
   const generateFlashcards = async (topic, count) => {
-    // No side-panel anymore — the deck saves quietly to the Flashcards folder
-    // in the sidebar. The icon morphs to a spinner → green check → idle as
-    // visible feedback that something just landed.
     setCardsLoading(true);
     setCards([]);
     setCardsIndex(0);
@@ -2803,26 +2800,40 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     setCardsTopic(topic);
     setCurrentDeckId(null);
     setCardsGenState('generating');
+    let outcome = { ok: false, error: 'Unknown error.' };
     try {
       const res = await fetch(`${API}/course/${course.id}/flashcards`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${studentToken}` },
         body: JSON.stringify({ topic, count }),
       });
-      const data = await res.json();
-      if (data.cards?.length) setCards(data.cards);
-      else setCards([]);
-      if (data.id) {
-        setCurrentDeckId(data.id);
-        fetchSavedDecks();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        outcome = { ok: false, error: data.error || `Server returned ${res.status}` };
+      } else if (!data.cards?.length) {
+        outcome = { ok: false, error: 'The AI didn\'t return any cards. Try a more specific topic.' };
+      } else if (data.saveError) {
+        outcome = { ok: false, error: 'Generated, but couldn\'t save to your Flashcards folder.' };
+      } else {
+        setCards(data.cards);
+        if (data.id) {
+          setCurrentDeckId(data.id);
+          fetchSavedDecks();
+        }
+        outcome = { ok: true, count: data.cards.length };
       }
-    } catch { setCards([]); }
+    } catch (e) {
+      setCards([]);
+      outcome = { ok: false, error: e.message || 'Network error.' };
+    }
     setCardsLoading(false);
-    // Brief "done" check then back to idle so the sidebar icon doesn't get stuck.
-    setCardsGenState('done');
-    // 2.4s gives the checkmark scale-in animation room to land and lets a
-    // glancing student catch the success cue. 1.6s was too short to notice.
-    setTimeout(() => setCardsGenState('idle'), 2400);
+    if (outcome.ok) {
+      setCardsGenState('done');
+      setTimeout(() => setCardsGenState('idle'), 2400);
+    } else {
+      setCardsGenState('idle');
+    }
+    return outcome;
   };
   // ── Saved quizzes + decks persistence ───────────────────────────────────
   const fetchSavedQuizzes = async () => {
@@ -2926,25 +2937,40 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     setCurrentTestId(null);
     setTestGenState('generating');
     testRecordedRef.current = false;
+    let outcome = { ok: false, error: 'Unknown error.' };
     try {
       const res = await fetch(`${API}/course/${course.id}/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${studentToken}` },
         body: JSON.stringify({ topic, count }),
       });
-      const data = await res.json();
-      if (data.questions?.length) setTestQuestions(data.questions);
-      else setTestQuestions([]);
-      if (data.id) {
-        setCurrentTestId(data.id);
-        fetchSavedTests();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        outcome = { ok: false, error: data.error || `Server returned ${res.status}` };
+      } else if (!data.questions?.length) {
+        outcome = { ok: false, error: 'The AI didn\'t return any questions. Try a more specific topic.' };
+      } else if (data.saveError) {
+        outcome = { ok: false, error: 'Generated, but couldn\'t save to your Tests folder.' };
+      } else {
+        setTestQuestions(data.questions);
+        if (data.id) {
+          setCurrentTestId(data.id);
+          fetchSavedTests();
+        }
+        outcome = { ok: true, count: data.questions.length };
       }
-    } catch {
+    } catch (e) {
       setTestQuestions([]);
+      outcome = { ok: false, error: e.message || 'Network error.' };
     }
     setTestLoading(false);
-    setTestGenState('done');
-    setTimeout(() => setTestGenState('idle'), 2400);
+    if (outcome.ok) {
+      setTestGenState('done');
+      setTimeout(() => setTestGenState('idle'), 2400);
+    } else {
+      setTestGenState('idle');
+    }
+    return outcome;
   };
 
   // Test answer + scoring. Unlike quizzes, the option select doesn't reveal
@@ -2996,7 +3022,9 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
 
   const generateQuiz = async (topic, count) => {
     // Same as decks — no side-panel. Saves to the Quizzes folder so the
-    // student takes it from there, not in the middle of a chat.
+    // student takes it from there, not in the middle of a chat. Returns
+    // { ok, count?, error? } so runGeneration can flip the chat
+    // placeholder to a truthful final message.
     setQuizLoading(true);
     setQuizQuestions([]);
     setQuizIndex(0);
@@ -3006,25 +3034,44 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     setCurrentQuizId(null);
     setQuizGenState('generating');
     quizRecordedRef.current = false;
+    let outcome = { ok: false, error: 'Unknown error.' };
     try {
       const res = await fetch(`${API}/course/${course.id}/quiz`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${studentToken}` },
         body: JSON.stringify({ topic, count }),
       });
-      const data = await res.json();
-      if (data.questions?.length) setQuizQuestions(data.questions);
-      else setQuizQuestions([]);
-      if (data.id) {
-        setCurrentQuizId(data.id);
-        fetchSavedQuizzes();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        outcome = { ok: false, error: data.error || `Server returned ${res.status}` };
+      } else if (!data.questions?.length) {
+        outcome = { ok: false, error: 'The AI didn\'t return any questions. Try a more specific topic.' };
+      } else if (data.saveError) {
+        // Backend produced questions but the DB insert failed — surface
+        // this clearly instead of pretending it landed in the sidebar.
+        outcome = { ok: false, error: 'Generated, but couldn\'t save to your Quizzes folder.' };
+      } else {
+        setQuizQuestions(data.questions);
+        if (data.id) {
+          setCurrentQuizId(data.id);
+          fetchSavedQuizzes();
+        }
+        outcome = { ok: true, count: data.questions.length };
       }
-    } catch {
+    } catch (e) {
       setQuizQuestions([]);
+      outcome = { ok: false, error: e.message || 'Network error.' };
     }
     setQuizLoading(false);
-    setQuizGenState('done');
-    setTimeout(() => setQuizGenState('idle'), 2400);
+    // Only show the green checkmark when generation actually succeeded —
+    // a failed run shouldn't pop a "done" cue.
+    if (outcome.ok) {
+      setQuizGenState('done');
+      setTimeout(() => setQuizGenState('idle'), 2400);
+    } else {
+      setQuizGenState('idle');
+    }
+    return outcome;
   };
 
   const handleQuizAnswer = (questionIndex, optionIndex) => {
@@ -3586,28 +3633,57 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       renameChat(currentActive.id, newTitle);
     }
 
-    const placeholder = kind === 'cards'
-      ? `Built a deck of flashcards${topic ? ` on **${topic}**` : ''} — open **Flashcards** in the sidebar to study them.`
+    // Optimistic placeholder uses the student's chosen count (defaults
+    // match the backend's defaults when undefined). Stays as "Building…"
+    // until the generation completes, then updates to either a success
+    // message or an error so the chat never lies about what happened.
+    const effectiveCount = opts.count || (kind === 'cards' ? 10 : kind === 'test' ? 8 : 5);
+    const buildingMsg = kind === 'cards'
+      ? `Building your flashcard deck${topic ? ` on **${topic}**` : ''}…`
       : kind === 'test'
-      ? `Built an 8-question practice test${topic ? ` on **${topic}**` : ''} — open **Tests** in the sidebar to take it. (Answers reveal once you finish.)`
-      : `Built a 5-question quiz${topic ? ` on **${topic}**` : ''} — open **Quizzes** in the sidebar to take it.`;
+      ? `Building your practice test${topic ? ` on **${topic}**` : ''}…`
+      : `Building your quiz${topic ? ` on **${topic}**` : ''}…`;
     const placeholderId = nextMsgId();
     setChats(prev => prev.map(c => c.id === currentChatId ? {
       ...c,
       messages: [
         ...c.messages,
         ...(opts.suppressUserMessage ? [] : [{ role: 'user', content: originalMessage, ts: Date.now() }]),
-        { id: placeholderId, role: 'assistant', content: placeholder, sources: [], ts: Date.now(), streaming: false },
+        { id: placeholderId, role: 'assistant', content: buildingMsg, sources: [], ts: Date.now(), streaming: true },
       ],
     } : c));
     if (!opts.suppressUserMessage && currentChatDbId && !String(currentChatDbId).startsWith('local-')) {
       try { await fetch(`${API}/student/chats/${currentChatDbId}/messages`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ role: 'user', content: originalMessage }) }); } catch {}
     }
+
+    // Helper that flips the placeholder to a final state once we know
+    // the result. Success: a clear "Built N questions on X" line.
+    // Failure: a clear error so the student doesn't think a quiz landed
+    // somewhere they can't find it.
+    const updatePlaceholder = (newContent, isError) => {
+      setChats(prev => prev.map(c => c.id === currentChatId ? {
+        ...c,
+        messages: c.messages.map(m => m.id === placeholderId ? { ...m, content: newContent, streaming: false, isError } : m),
+      } : c));
+    };
+
     // Forward the student's chosen count (or undefined if they used the
-    // default path). Backend clamps and defaults appropriately.
-    if (kind === 'cards') generateFlashcards(topic, opts.count);
-    else if (kind === 'test') generateTest(topic, opts.count);
-    else generateQuiz(topic, opts.count);
+    // default path). Backend clamps and defaults appropriately. The
+    // generate fns return { ok, count?, error? } so we can flip the
+    // placeholder to a truthful final state.
+    const handleResult = (kindLabel, sidebarName) => (result) => {
+      if (result?.ok) {
+        const count = result.count || effectiveCount;
+        const unit = kind === 'cards' ? (count === 1 ? 'card' : 'cards') : (count === 1 ? 'question' : 'questions');
+        updatePlaceholder(`Built a ${count}-${unit.endsWith('s') ? unit.slice(0, -1) : unit} ${kindLabel}${topic ? ` on **${topic}**` : ''} — open **${sidebarName}** in the sidebar to ${kind === 'cards' ? 'study them' : 'take it'}.`.replace('--', '-'), false);
+      } else {
+        const reason = result?.error || 'Something went wrong on our end.';
+        updatePlaceholder(`I couldn't build that ${kindLabel}: ${reason}. Try again, or ask me a regular question.`, true);
+      }
+    };
+    if (kind === 'cards') generateFlashcards(topic, opts.count).then(handleResult('flashcard deck', 'Flashcards'));
+    else if (kind === 'test') generateTest(topic, opts.count).then(handleResult('practice test', 'Tests'));
+    else generateQuiz(topic, opts.count).then(handleResult('quiz', 'Quizzes'));
   };
 
   // Confirmation chip — pushed into the chat when natural language matches
