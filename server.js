@@ -2189,7 +2189,8 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
   }
 
   sendStatus('writing');
-  safeWrite(`data: ${JSON.stringify({ type: 'citations', citations: [] })}\n\n`);
+  // (citations event removed — client never had a handler for it; sources
+  // arrive in the 'sources' event after the stream finishes.)
 
   let rawText = '';            // full response accumulator for DB + sources
   let streamedToClient = '';   // what the student has seen so far

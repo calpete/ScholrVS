@@ -923,6 +923,12 @@ function ProfessorSignup({ onLogin, onGoLogin, onBack }) {
         const loginRes = await fetch(`${API}/professor/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
         const loginData = await loginRes.json();
         if (loginRes.ok) { onLogin(loginData.token, loginData.user); return; }
+        // Auto-login can fail when Supabase has email-confirmation enabled —
+        // surface the LOGIN error (not the signup body which was 200) so the
+        // professor sees a real message instead of a stuck spinner.
+        setError(loginData.error || "Account created, but we couldn't sign you in. Check your email or try logging in.");
+        setLoading(false);
+        return;
       }
       setError(data.error || 'Signup failed');
     } catch { setError('Server unreachable'); }
@@ -1040,6 +1046,9 @@ function StudentSignup({ onLogin, onGoLogin, onBack, pendingJoinCode }) {
         const loginRes = await fetch(`${API}/student/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
         const loginData = await loginRes.json();
         if (loginRes.ok) { onLogin(loginData.token, loginData.user); return; }
+        setError(loginData.error || "Account created, but we couldn't sign you in. Check your email or try logging in.");
+        setLoading(false);
+        return;
       }
       setError(data.error || 'Signup failed');
     } catch { setError('Server unreachable'); }
@@ -1118,7 +1127,13 @@ function StudentDashboard({ token, user, onEnterCourse, onLogout }) {
     if (!token) return;
     fetchCourses();
     const pendingCode = sessionStorage.getItem('scholr_pending_join');
-    if (pendingCode) handleJoin(pendingCode);
+    if (pendingCode) {
+      // Clear BEFORE attempting — if the join fails (network blip, bad code),
+      // we don't want the next token refresh to re-fire the same enrollment
+      // attempt on a loop. The student can retry manually via the join input.
+      sessionStorage.removeItem('scholr_pending_join');
+      handleJoin(pendingCode);
+    }
   }, [token]);
 
   const handleJoin = async (codeOverride) => {
@@ -1433,7 +1448,11 @@ function ProfessorDashboard({ token, user, onLogout }) {
   };
 
   const copyLink = (course) => {
-    navigator.clipboard.writeText(`https://scholrvs.onrender.com/join/${course.join_code || course.code}`);
+    // Use the current origin (production: scholr.study, staging or
+    // localhost otherwise) — hardcoding the Render URL broke local dev
+    // and produced two different join links per course across the UI.
+    const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://scholr.study';
+    navigator.clipboard.writeText(`${origin}/join/${course.join_code || course.code}`);
     setCopied(course.id); setTimeout(() => setCopied(null), 2000);
     showToast('Link copied!');
   };
@@ -1448,15 +1467,25 @@ function ProfessorDashboard({ token, user, onLogout }) {
     setPatternPicker(null);
     try {
       const res = await fetch(`${API}/professor/courses/${courseId}/cover`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ patternId }) });
+      // Surface non-2xx as an error instead of silently closing the picker —
+      // a 403/500 used to just swallow and the professor had no clue the
+      // cover didn't save.
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        showToast(errBody.error || `Couldn't update cover (${res.status})`, 'error');
+        return;
+      }
       const data = await res.json();
       if (data.coverImage) {
         setCourses(prev => prev.map(c => c.id === courseId ? { ...c, cover_image: data.coverImage } : c));
         showToast('Cover updated!');
+      } else {
+        showToast('Cover updated, but server didn\'t echo it back. Refresh to see changes.', 'error');
       }
-    } catch { showToast('Upload failed', 'error'); }
+    } catch (e) { showToast(`Cover save failed: ${e.message}`, 'error'); }
   };
 
-  if (selectedCourse) return <CourseManager token={token} course={selectedCourse} onBack={() => setSelectedCourse(null)} authHeaders={authHeaders} />;
+  if (selectedCourse) return <CourseManager token={token} course={selectedCourse} onBack={() => setSelectedCourse(null)} authHeaders={authHeaders} onLogout={onLogout} />;
 
   return (
     <div className="scholr-portal page-enter" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
@@ -1566,7 +1595,7 @@ function ProfessorDashboard({ token, user, onLogout }) {
   );
 }
 
-function CourseManager({ token, course, onBack, authHeaders }) {
+function CourseManager({ token, course, onBack, authHeaders, onLogout }) {
   const [mods, setMods] = useState([]);
   const [loadingMods, setLoadingMods] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -1597,7 +1626,14 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   useEffect(() => {
     setLoadingMods(true);
     fetch(`${API}/course/${course.id}/documents`, { headers: authHeaders })
-      .then(r => r.json()).then(data => {
+      .then(r => {
+        // Session expired during course view — kick to login instead of
+        // silently showing "No files yet" which masquerades as empty.
+        if (r.status === 401) { if (onLogout) onLogout(); return null; }
+        return r.json();
+      })
+      .then(data => {
+        if (data == null) return;
         setMods((Array.isArray(data) ? data : []).map(d => ({ id: d.name, name: d.name, sizeKb: d.sizeKb, uploaded: new Date(d.uploadedAt) })));
       }).catch(() => showToast('Could not load documents', 'error'))
       .finally(() => setLoadingMods(false));
@@ -1616,8 +1652,26 @@ function CourseManager({ token, course, onBack, authHeaders }) {
     uploadXhrRef.current = xhr;
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) {
-        setUploadProgress(Math.round((e.loaded / e.total) * 100));
+        // Cap the byte-progress at 90% so the bar doesn't hit 100% the
+        // instant bytes leave the browser — the server still has Supabase
+        // upload + GCS push + DB insert + indexing kickoff before it
+        // responds. Final 10% flips to "Indexing…" until 'load' fires.
+        const byteProgress = Math.round((e.loaded / e.total) * 90);
+        setUploadProgress(byteProgress);
+        if (byteProgress >= 90) {
+          setUploadingFile(f => f ? { ...f, phase: 'indexing' } : f);
+        }
       }
+    });
+    // If progress events don't fire reliably (some browsers under
+    // particular network conditions), the upload error listener catches
+    // mid-stream drops the regular xhr.error event wouldn't.
+    xhr.upload.addEventListener('error', () => {
+      uploadXhrRef.current = null;
+      setUploading(false);
+      setUploadProgress(0);
+      setUploadingFile(null);
+      showToast('Upload interrupted — check your connection and retry', 'error');
     });
     xhr.addEventListener('load', () => {
       uploadXhrRef.current = null;
@@ -1682,7 +1736,8 @@ function CourseManager({ token, course, onBack, authHeaders }) {
   };
 
   const copyLink = () => {
-    navigator.clipboard.writeText(`https://scholrvs.onrender.com/join/${course.join_code || course.code}`);
+    const origin = (typeof window !== 'undefined' && window.location.origin) || 'https://scholr.study';
+    navigator.clipboard.writeText(`${origin}/join/${course.join_code || course.code}`);
     setCopied(true); setTimeout(() => setCopied(false), 2000);
     showToast('Student link copied!');
   };
@@ -2023,7 +2078,7 @@ function CourseManager({ token, course, onBack, authHeaders }) {
             </div>
             </>
           ) : (
-            <CourseInsights course={course} token={token} onSwitchToMaterials={() => setActiveTab('materials')} />
+            <CourseInsights course={course} token={token} onSwitchToMaterials={() => setActiveTab('materials')} onLogout={onLogout} />
           )}
         </div>
       </main>
@@ -2190,7 +2245,7 @@ function BigStat({ label, value, descriptor, accent }) {
   );
 }
 
-function CourseInsights({ course, token, onSwitchToMaterials }) {
+function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
   const courseId = course.id;
   const joinCode = course.join_code || course.code;
   const [insights, setInsights] = useState(null);
@@ -2216,6 +2271,12 @@ function CourseInsights({ course, token, onSwitchToMaterials }) {
   const fetchInsights = async () => {
     try {
       const res = await fetch(`${API}/course/${courseId}/insights`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.status === 401) {
+        // Session expired during polling — stop the loop and boot to login
+        // instead of hammering the server with auth-failures forever.
+        if (onLogout) onLogout();
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const prevCount = lastCountRef.current;
@@ -6241,7 +6302,7 @@ export default function App() {
   }, []);
 
   const handleProfLogin = (token, user) => { localStorage.setItem('scholr_token', token); localStorage.setItem('scholr_user', JSON.stringify(user)); setProfToken(token); setProfUser(user); setScreen('prof-dashboard'); };
-  const handleProfLogout = () => { localStorage.removeItem('scholr_token'); localStorage.removeItem('scholr_user'); localStorage.removeItem('scholr_prof_course'); setProfToken(null); setProfUser(null); setScreen('landing'); };
+  const handleProfLogout = () => { localStorage.removeItem('scholr_token'); localStorage.removeItem('scholr_user'); localStorage.removeItem('scholr_prof_course'); localStorage.removeItem('scholr_screen'); setProfToken(null); setProfUser(null); setScreen('landing'); };
   const handleStudentLogin = (token, user) => { localStorage.setItem('scholr_student_token', token); localStorage.setItem('scholr_student_user', JSON.stringify(user)); setStudentToken(token); setStudentUser(user); setScreen('student-dashboard'); navigate('/student'); };
 
   // Cross-tab sync. Sign out in one tab → propagate to every open tab so
@@ -6268,7 +6329,7 @@ export default function App() {
   // page that's stuck on that route — its setScreen-only callbacks (Sign in,
   // Start a course free) silently no-op because /student only re-renders
   // when studentToken changes, not when screen does.
-  const handleStudentLogout = () => { localStorage.removeItem('scholr_student_token'); localStorage.removeItem('scholr_student_user'); localStorage.removeItem('scholr_student_course'); setStudentToken(null); setStudentUser(null); setStudentCourse(null); setScreen('landing'); navigate('/'); };
+  const handleStudentLogout = () => { localStorage.removeItem('scholr_student_token'); localStorage.removeItem('scholr_student_user'); localStorage.removeItem('scholr_student_course'); localStorage.removeItem('scholr_screen'); setStudentToken(null); setStudentUser(null); setStudentCourse(null); setScreen('landing'); navigate('/'); };
   const handleEnterCourse = (course, docs, questions) => { setStudentCourse(course); setStudentDocs(docs); setStudentQuestions(questions); setScreen('student-chat'); };
 
   const renderScreen = () => {
