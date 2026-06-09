@@ -5,7 +5,8 @@ import {
   ChevronRight, Users, AlertCircle, UploadCloud, BarChart2, Clock,
   CheckCircle2, Copy, Check, ThumbsUp, ThumbsDown, X,
   Lock, WifiOff, Paperclip, Square, ArrowLeft, ExternalLink, Hash, Menu,
-  ListChecks, RotateCcw, Sparkles, ChevronLeft, MoreHorizontal, Pencil, FolderOpen, Layers, GraduationCap
+  ListChecks, RotateCcw, Sparkles, ChevronLeft, MoreHorizontal, Pencil, FolderOpen, Layers, GraduationCap,
+  Loader2
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -29,6 +30,11 @@ const FONT = `
   .shake { animation: shake 0.35s ease-in-out; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
   .fade-up { animation: fadeUp 0.4s ease forwards; }
+  /* Brief scale-in pop for the generation "done" checkmark — overshoots
+     slightly then settles, so the success transition is impossible to miss
+     even when the work finished in under a second. */
+  @keyframes genPop { 0% { opacity: 0; transform: scale(0.4); } 60% { opacity: 1; transform: scale(1.15); } 100% { opacity: 1; transform: scale(1); } }
+  .gen-pop { animation: genPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; transform-origin: center; }
   @keyframes pageEnter { from { opacity:0; } to { opacity:1; } }
   .page-enter { animation: pageEnter 0.22s ease-out both; }
   @media (prefers-reduced-motion: reduce) {
@@ -2591,6 +2597,24 @@ const SLASH_COMMANDS = [
   { name: 'test',    group: 'Smart',    desc: 'Closed-book practice test',             expand: (t) => `Generate a closed-book practice test ${t.trim() || 'covering everything we have studied so far'}. 8 questions, mixed difficulty, grounded in the course materials. Do not reveal any answers — I'll review the whole test at the end.` },
 ];
 
+// Shared spinner ↔ checkmark icon for the sidebar Quizzes / Tests / Flashcards
+// buttons. While generation is in flight the lucide Loader2 spins; when the
+// state flips to 'done' a green check pops in with a brief scale animation;
+// otherwise the category's default icon. Identical visual treatment across
+// all three category buttons keeps the success feedback consistent.
+function GenStateIcon({ state, IdleIcon }) {
+  if (state === 'generating') {
+    return <Loader2 size={15} className="text-gray-600 animate-spin" />;
+  }
+  if (state === 'done') {
+    // Key on a stable string so React unmounts/remounts when state flips
+    // from 'generating' → 'done', which restarts the gen-pop animation
+    // even if the component was already mounted in another state.
+    return <Check key="done" size={15} className="text-emerald-500 gen-pop" strokeWidth={3} />;
+  }
+  return <IdleIcon size={15} className="text-gray-500" />;
+}
+
 function StudentView({ course, documents: initialDocuments, suggestedQuestions: initialSuggestedQuestions, onExit, studentToken }) {
   const [documents, setDocuments] = useState(initialDocuments || []);
   const [suggestedQuestions, setSuggestedQuestions] = useState(initialSuggestedQuestions || []);
@@ -2796,7 +2820,9 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     setCardsLoading(false);
     // Brief "done" check then back to idle so the sidebar icon doesn't get stuck.
     setCardsGenState('done');
-    setTimeout(() => setCardsGenState('idle'), 1600);
+    // 2.4s gives the checkmark scale-in animation room to land and lets a
+    // glancing student catch the success cue. 1.6s was too short to notice.
+    setTimeout(() => setCardsGenState('idle'), 2400);
   };
   // ── Saved quizzes + decks persistence ───────────────────────────────────
   const fetchSavedQuizzes = async () => {
@@ -2918,7 +2944,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     }
     setTestLoading(false);
     setTestGenState('done');
-    setTimeout(() => setTestGenState('idle'), 1600);
+    setTimeout(() => setTestGenState('idle'), 2400);
   };
 
   // Test answer + scoring. Unlike quizzes, the option select doesn't reveal
@@ -2998,7 +3024,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     }
     setQuizLoading(false);
     setQuizGenState('done');
-    setTimeout(() => setQuizGenState('idle'), 1600);
+    setTimeout(() => setQuizGenState('idle'), 2400);
   };
 
   const handleQuizAnswer = (questionIndex, optionIndex) => {
@@ -4029,35 +4055,17 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
           <button onClick={() => { closeOverlays(); setMaterialsOpen(true); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${materialsOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}><BookOpen size={15} className="text-gray-500" />Course Materials{documents.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{documents.length}</span>}</button>
           <button onClick={() => { closeOverlays(); setNotesOpen(true); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${notesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}><FolderOpen size={15} className="text-gray-500" />My Notes{myNotes.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{myNotes.length}</span>}</button>
           <button onClick={() => { setQuizzesOpen(true); setQuizTaking(false); setAllChatsOpen(false); setNotesOpen(false); setTestsOpen(false); setDecksOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${quizzesOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
-            {quizGenState === 'generating' ? (
-              <span className="w-[15px] h-[15px] inline-block border-[1.5px] border-gray-400 border-t-transparent rounded-full animate-spin" />
-            ) : quizGenState === 'done' ? (
-              <Check size={15} className="text-emerald-500" />
-            ) : (
-              <ListChecks size={15} className="text-gray-500" />
-            )}
+            <GenStateIcon state={quizGenState} IdleIcon={ListChecks} />
             Quizzes
             {savedQuizzes.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{savedQuizzes.length}</span>}
           </button>
           <button onClick={() => { setTestsOpen(true); setTestTaking(false); setAllChatsOpen(false); setNotesOpen(false); setQuizzesOpen(false); setDecksOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${testsOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
-            {testGenState === 'generating' ? (
-              <span className="w-[15px] h-[15px] inline-block border-[1.5px] border-gray-400 border-t-transparent rounded-full animate-spin" />
-            ) : testGenState === 'done' ? (
-              <Check size={15} className="text-emerald-500" />
-            ) : (
-              <GraduationCap size={15} className="text-gray-500" />
-            )}
+            <GenStateIcon state={testGenState} IdleIcon={GraduationCap} />
             Tests
             {savedTests.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{savedTests.length}</span>}
           </button>
           <button onClick={() => { setDecksOpen(true); setDeckStudying(false); setAllChatsOpen(false); setNotesOpen(false); setQuizzesOpen(false); setTestsOpen(false); closeMobile(); }} className={`flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors ${decksOpen ? 'bg-gray-200 text-gray-900' : 'text-gray-700 hover:bg-gray-200/60'}`}>
-            {cardsGenState === 'generating' ? (
-              <span className="w-[15px] h-[15px] inline-block border-[1.5px] border-gray-400 border-t-transparent rounded-full animate-spin" />
-            ) : cardsGenState === 'done' ? (
-              <Check size={15} className="text-emerald-500" />
-            ) : (
-              <Layers size={15} className="text-gray-500" />
-            )}
+            <GenStateIcon state={cardsGenState} IdleIcon={Layers} />
             Flashcards
             {savedDecks.length > 0 && <span className="ml-auto text-[11px] text-gray-400 font-normal">{savedDecks.length}</span>}
           </button>
