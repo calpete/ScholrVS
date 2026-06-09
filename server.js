@@ -279,8 +279,46 @@ const questionsCaches = {};   // { courseId: string[] }
 // This is a fast in-memory layer on top of the DB so we don't query Supabase on every message
 const geminiUriCache = {};
 
+// LRU access tracking for courseDocuments — at 50 concurrent students
+// across many courses, the unbounded buffer cache could OOM the dyno
+// (each course's PDFs are kept resident in memory until restart). This
+// records last-access timestamps so we can evict cold courses when the
+// total resident size crosses a soft cap.
+const courseDocAccess = new Map();
+const COURSE_CACHE_MAX_BYTES = 400 * 1024 * 1024; // 400MB soft cap
+function totalCachedBytes() {
+  let total = 0;
+  for (const courseId of Object.keys(courseDocuments)) {
+    for (const name of Object.keys(courseDocuments[courseId])) {
+      total += (courseDocuments[courseId][name].buffer?.length || 0);
+    }
+  }
+  return total;
+}
+function evictColdestCourse() {
+  // Drop the courseDocuments entry for the least-recently-accessed course
+  // (skipping any course currently being indexed so we don't yank the rug
+  // out from under a background task).
+  const entries = [...courseDocAccess.entries()]
+    .filter(([id]) => !reindexInFlight.has(id))
+    .sort((a, b) => a[1] - b[1]);
+  if (entries.length === 0) return false;
+  const [coldId] = entries[0];
+  delete courseDocuments[coldId];
+  delete geminiUriCache[coldId];
+  courseDocAccess.delete(coldId);
+  console.log(`💾 Evicted cold courseDocuments cache for ${coldId} (memory pressure)`);
+  return true;
+}
+
 function getCourseDocuments(courseId) {
   if (!courseDocuments[courseId]) courseDocuments[courseId] = {};
+  courseDocAccess.set(courseId, Date.now());
+  // If we've crossed the soft cap, evict until we're back under. Cap iters
+  // so a runaway eviction doesn't burn CPU.
+  for (let i = 0; i < 5 && totalCachedBytes() > COURSE_CACHE_MAX_BYTES; i++) {
+    if (!evictColdestCourse()) break;
+  }
   return courseDocuments[courseId];
 }
 
@@ -661,7 +699,10 @@ async function _renderAndUploadPdfPagesInner(courseId, docName, pdfBuffer) {
         // 1.5× scale keeps formulas/text legible without ballooning bytes.
         // OpenAI vision low-detail is 85 tokens per image regardless of
         // resolution, so this is purely about upload/storage size.
-        const viewport = page.getViewport({ scale: 1.5 });
+        // Scale 1.25× was 1.5× — keeps text readable for vision but cuts
+        // PNG bytes by ~30%, which matters during the 50-student burst
+        // where each chat downloads + base64s up to 4 of these into RAM.
+        const viewport = page.getViewport({ scale: 1.25 });
         const cc = factory.create(viewport.width, viewport.height);
         await page.render({
           canvasContext: cc.context,
@@ -1153,6 +1194,45 @@ app.use(cors({
   // block cross-origin requests.
 }));
 app.use(express.json({ limit: '500kb' }));
+
+// Per-user concurrent-stream tracker. At 50 concurrent students, a single
+// student with a stuck/lost connection that keeps retrying could pin
+// multiple SSE streams open at once — caps memory at 2 streams per user.
+const userActiveStreams = new Map(); // userId → count
+const acquireStreamSlot = (userId, limit = 2) => {
+  const current = userActiveStreams.get(userId) || 0;
+  if (current >= limit) return false;
+  userActiveStreams.set(userId, current + 1);
+  return true;
+};
+const releaseStreamSlot = (userId) => {
+  const current = userActiveStreams.get(userId) || 0;
+  if (current <= 1) userActiveStreams.delete(userId);
+  else userActiveStreams.set(userId, current - 1);
+};
+
+// Per-user rate limit for authenticated endpoints (chat especially). The
+// auth-endpoint limiter above is per-IP; this one is per-user so a single
+// student in a runaway tab can't drain the OpenAI budget for the class.
+const USER_RATE_BUCKETS = new Map();
+const USER_RATE_WINDOW_MS = 60 * 1000; // 1 minute window for chat
+const userRateLimit = (max) => (req, res, next) => {
+  const userId = req.user?.id;
+  if (!userId) return next();
+  const now = Date.now();
+  const entry = USER_RATE_BUCKETS.get(userId) || { count: 0, resetAt: now + USER_RATE_WINDOW_MS };
+  if (entry.resetAt < now) { entry.count = 0; entry.resetAt = now + USER_RATE_WINDOW_MS; }
+  entry.count++;
+  USER_RATE_BUCKETS.set(userId, entry);
+  if (USER_RATE_BUCKETS.size > 10000) {
+    const oldest = [...USER_RATE_BUCKETS.entries()].sort((a, b) => a[1].resetAt - b[1].resetAt).slice(0, 2000);
+    for (const [k] of oldest) USER_RATE_BUCKETS.delete(k);
+  }
+  if (entry.count > max) {
+    return res.status(429).json({ error: 'You\'re sending messages too fast. Take a breath and try again.' });
+  }
+  next();
+};
 
 // Tiny in-memory rate limiter for auth endpoints. Not a substitute for
 // a real WAF or distributed limiter, but it makes credential-stuffing,
@@ -1879,7 +1959,7 @@ Output ONLY a JSON array, nothing else, no markdown, no commentary. Example:
 });
 
 // ── Chat — uses Gemini URIs instead of re-uploading PDFs ─────────────────────
-app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req, res) => {
+app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const message = req.body?.message;
   const history = req.body?.history || [];
@@ -1887,6 +1967,24 @@ app.post('/course/:courseId/chat', requireAuth, requireCourseAccess, async (req,
   if (!message) return res.status(400).json({ error: 'No message provided' });
   const docs = getCourseDocuments(courseId);
   if (Object.keys(docs).length === 0) return res.status(400).json({ error: 'No documents uploaded yet' });
+
+  // Per-user concurrent-stream cap. At 50 concurrent students a single
+  // stuck connection that keeps retrying could pin multiple SSE streams
+  // open against the same user — this bounds it to 2 per student.
+  if (!acquireStreamSlot(req.user.id, 2)) {
+    return res.status(429).json({ error: 'Too many active chats — wait for one to finish before sending another.' });
+  }
+  // Both 'close' and 'finish' can fire on the same response so guard with
+  // a one-shot flag — releasing twice would underflow the user's slot
+  // count and let them open more streams than the cap permits.
+  let slotReleased = false;
+  const releaseSlotOnce = () => {
+    if (slotReleased) return;
+    slotReleased = true;
+    releaseStreamSlot(req.user.id);
+  };
+  res.on('close', releaseSlotOnce);
+  res.on('finish', releaseSlotOnce);
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -3047,15 +3145,24 @@ app.listen(PORT, async () => {
   // captioning shipped automatically get diagrams + tables added to
   // retrieval the next time the server restarts. Cheap on subsequent
   // boots — finds visuals already present and exits immediately.
-  setTimeout(() => {
-    backfillVisualCaptions().catch(e => console.error('Boot-time vision backfill error:', e.message));
-  }, 30000);
+  // Wait until traffic is quiet before starting heavy backfills — at 50
+  // concurrent students, vision-captioning a 200-page PDF while chat is
+  // hot would burn the Gemini quota the live chat needs for embeddings.
+  const startBackfillWhenIdle = (fn, label, intervalMs = 30_000) => {
+    const tick = () => {
+      if (userActiveStreams.size === 0) {
+        fn().catch(e => console.error(`Boot-time ${label} error:`, e.message));
+      } else {
+        setTimeout(tick, intervalMs);
+      }
+    };
+    tick();
+  };
+  setTimeout(() => startBackfillWhenIdle(backfillVisualCaptions, 'vision backfill'), 30000);
   // ~60s after boot, render page-image PNGs for any PDF that doesn't have
   // them yet. Cheap to check (one storage list per PDF); only renders when
   // the folder is empty. Lets visual-grounding chat work on courses
   // uploaded before page rendering shipped, without requiring a manual
   // reindex per course.
-  setTimeout(() => {
-    backfillPageImages().catch(e => console.error('Boot-time page-image backfill error:', e.message));
-  }, 60000);
+  setTimeout(() => startBackfillWhenIdle(backfillPageImages, 'page-image backfill'), 60000);
 });
