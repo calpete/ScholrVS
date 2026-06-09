@@ -658,6 +658,18 @@ class NapiCanvasFactory {
 // race-overwrite each other's page_N.png files.
 const renderInFlight = new Map(); // key → Promise
 
+// Tracks per-document indexing status so the UI doesn't lie about a
+// freshly uploaded PDF being "Live · Indexed" while chunkAndEmbedPdf is
+// still running in the background. Values: 'indexing' | 'failed'. A doc
+// missing from the map is assumed indexed (or never needed indexing,
+// e.g. images). The /documents response merges this in so the frontend
+// can show "Indexing…" with a spinner until embeddings finish.
+const indexingStatus = new Map(); // `${courseId}/${docName}` → 'indexing'|'failed'
+function setIndexing(courseId, docName)  { indexingStatus.set(`${courseId}/${docName}`, 'indexing'); }
+function setIndexed(courseId, docName)   { indexingStatus.delete(`${courseId}/${docName}`); }
+function setIndexFailed(courseId, docName){ indexingStatus.set(`${courseId}/${docName}`, 'failed'); }
+function getIndexState(courseId, docName){ return indexingStatus.get(`${courseId}/${docName}`) || null; }
+
 async function renderAndUploadPdfPages(courseId, docName, pdfBuffer) {
   if (isCourseDeleted(courseId)) return { ok: false, error: 'course deleted' };
   const key = `${courseId}/${docName}`;
@@ -1259,7 +1271,13 @@ const rateLimit = (max) => (req, res, next) => {
   }
   next();
 };
-app.use(fileUpload({ limits: { fileSize: 50 * 1024 * 1024 } }));
+app.use(fileUpload({
+  limits: { fileSize: 50 * 1024 * 1024 },
+  abortOnLimit: true,
+  // Return a friendly 413 instead of the default truncated upload + opaque
+  // failure — the UI shows this string verbatim.
+  limitHandler: (req, res) => res.status(413).json({ error: 'File is too large — max 50MB per upload.' }),
+}));
 
 app.get('/join/:code', async (req, res) => {
   const { code } = req.params;
@@ -1735,26 +1753,48 @@ app.post('/course/:courseId/upload', requireAuth, async (req, res) => {
   questionsCaches[courseId] = null;
 
   console.log(`✅ Uploaded: ${storagePath} — ${sizeKb}kb${gcsUri ? ' + GCS URI cached' : ' (GCS upload failed, will fall back to inline)'}`);
-  res.json({ success: true, fileName: file.name, sizeKb, mimeType });
+  // Mark the doc as indexing BEFORE responding so a fast client poll
+  // immediately following the upload sees "indexing" instead of a brief
+  // window where it looks ready.
+  if (mimeType === 'application/pdf') setIndexing(courseId, file.name);
+  res.json({ success: true, fileName: file.name, sizeKb, mimeType, indexState: mimeType === 'application/pdf' ? 'indexing' : null });
 
   // 5. Chunk + embed in the background so future student questions retrieve
   //    just the relevant slices instead of re-reading the whole library. The
   //    professor's upload response is already sent — this runs without
   //    blocking.
   if (mimeType === 'application/pdf') {
+    // setIndexing() already fired above before res.json; just clear it
+    // when chunking finishes (success or fail).
     chunkAndEmbedPdf(courseId, file.name, buffer)
       .then(r => {
-        if (r.ok) console.log(`📚 Indexed ${file.name} — ${r.textChunks} text + ${r.visualChunks} visual chunks across ${r.pages} pages`);
-        else console.warn(`📚 Index skipped for ${file.name}: ${r.error}`);
+        if (r.ok) {
+          console.log(`📚 Indexed ${file.name} — ${r.textChunks} text + ${r.visualChunks} visual chunks across ${r.pages} pages`);
+          setIndexed(courseId, file.name);
+        } else {
+          console.warn(`📚 Index skipped for ${file.name}: ${r.error}`);
+          setIndexFailed(courseId, file.name);
+        }
       })
-      .catch(e => console.error(`📚 Index error for ${file.name}:`, e.message));
+      .catch(e => {
+        console.error(`📚 Index error for ${file.name}:`, e.message);
+        setIndexFailed(courseId, file.name);
+      });
   }
 });
 
 app.get('/course/:courseId/documents', requireAuth, requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const { data } = await supabase.from('documents').select('*').eq('course_id', courseId).order('uploaded_at', { ascending: false });
-  res.json((data || []).map(d => ({ name: d.name, sizeKb: d.size_kb, mimeType: d.mime_type, uploadedAt: d.uploaded_at })));
+  res.json((data || []).map(d => ({
+    name: d.name,
+    sizeKb: d.size_kb,
+    mimeType: d.mime_type,
+    uploadedAt: d.uploaded_at,
+    // 'indexing' while embeddings are still being computed, 'failed' if
+    // chunkAndEmbedPdf errored, null when ready (the common case).
+    indexState: getIndexState(courseId, d.name),
+  })));
 });
 
 // ── Delete document — also deletes from Gemini ────────────────────────────────

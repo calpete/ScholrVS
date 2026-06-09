@@ -866,6 +866,7 @@ function ProfessorLogin({ onLogin, onGoSignup, onBack }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [shaking, setShaking] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -895,9 +896,10 @@ function ProfessorLogin({ onLogin, onGoSignup, onBack }) {
             <input id="prof-email" name="email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@university.edu" />
           </div>
           <div className="auth-field">
-            <label htmlFor="prof-password">Password</label>
+            <div className="auth-label"><label htmlFor="prof-password">Password</label><button type="button" className="forgot" onClick={() => setShowForgot(s => !s)}>Forgot?</button></div>
             <input id="prof-password" name="password" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
           </div>
+          {showForgot && <p className="auth-hint">Email <a href="mailto:hello@scholr.study?subject=Password%20reset" className="underline">hello@scholr.study</a> from the address on your account and we'll send you a reset link within the hour.</p>}
           {error && <p className="auth-error">{error}</p>}
           <button type="submit" className="btn-primary" disabled={!email || !password || loading}>
             {loading ? <><span className="spin" />Signing in…</> : 'Sign in'}
@@ -1020,7 +1022,7 @@ function StudentLogin({ onLogin, onGoSignup, onBack, pendingJoinCode }) {
             <div className="auth-label"><label htmlFor="student-password">Password</label><button type="button" className="forgot" onClick={() => setShowForgot(s => !s)}>Forgot?</button></div>
             <input id="student-password" name="password" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
           </div>
-          {showForgot && <p className="auth-hint">Password resets aren't available yet — reach out to your instructor and they can re-share your class link so you can sign back in.</p>}
+          {showForgot && <p className="auth-hint">Ask your instructor to re-share the class join link — you can sign in fresh and pick up where you left off. Or email <a href="mailto:hello@scholr.study?subject=Password%20reset" className="underline">hello@scholr.study</a> and we'll send a reset link.</p>}
           {error && <p className="auth-error">{error}</p>}
           <button type="submit" className="btn-primary" disabled={!email || !password || loading}>
             {loading ? <><span className="spin" />Signing in…</> : 'Sign in'}
@@ -1640,10 +1642,37 @@ function CourseManager({ token, course, onBack, authHeaders, onLogout }) {
       })
       .then(data => {
         if (data == null) return;
-        setMods((Array.isArray(data) ? data : []).map(d => ({ id: d.name, name: d.name, sizeKb: d.sizeKb, uploaded: new Date(d.uploadedAt) })));
+        setMods((Array.isArray(data) ? data : []).map(d => ({ id: d.name, name: d.name, sizeKb: d.sizeKb, uploaded: new Date(d.uploadedAt), indexState: d.indexState || null })));
       }).catch(() => showToast('Could not load documents', 'error'))
       .finally(() => setLoadingMods(false));
   }, [course.id]);
+
+  // While any document is still being indexed (chunkAndEmbedPdf running on
+  // the server), poll /documents every 4s so the "Indexing…" pill flips
+  // to "Live" without the professor needing to refresh. Polling stops as
+  // soon as no doc reports an `indexState`. Capped at ~6min to avoid
+  // burning requests on a doc that's stuck.
+  const anyIndexing = mods.some(m => m.indexState === 'indexing');
+  useEffect(() => {
+    if (!anyIndexing) return;
+    let cancelled = false;
+    let polls = 0;
+    const id = setInterval(() => {
+      if (cancelled) return;
+      polls += 1;
+      if (polls > 90) { clearInterval(id); return; } // 6 minutes max
+      fetch(`${API}/course/${course.id}/documents`, { headers: authHeaders })
+        .then(r => (r.ok ? r.json() : null))
+        .then(data => {
+          if (cancelled || !Array.isArray(data)) return;
+          setMods(prev => prev.map(m => {
+            const fresh = data.find(d => d.name === m.name);
+            return fresh ? { ...m, indexState: fresh.indexState || null } : m;
+          }));
+        }).catch(() => {});
+    }, 4000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [anyIndexing, course.id]);
 
   const handleFile = (file) => {
     const supported = ['.pdf', '.jpg', '.jpeg', '.png', '.webp'];
@@ -1688,7 +1717,7 @@ function CourseManager({ token, course, onBack, authHeaders, onLogout }) {
         try {
           const data = JSON.parse(xhr.responseText);
           if (data.success) {
-            setMods(prev => [{ id: data.fileName, name: data.fileName, sizeKb: data.sizeKb, uploaded: new Date() }, ...prev]);
+            setMods(prev => [{ id: data.fileName, name: data.fileName, sizeKb: data.sizeKb, uploaded: new Date(), indexState: data.indexState || null }, ...prev]);
             showToast(`${file.name} uploaded`);
             return;
           }
@@ -1697,7 +1726,15 @@ function CourseManager({ token, course, onBack, authHeaders, onLogout }) {
           showToast('Upload failed', 'error');
         }
       } else {
-        showToast(`Upload failed (${xhr.status})`, 'error');
+        // Server returned an error (413 too-large, 401 expired, etc.) —
+        // surface the JSON `error` string when present instead of the
+        // raw status code.
+        let msg = `Upload failed (${xhr.status})`;
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (data && data.error) msg = data.error;
+        } catch {}
+        showToast(msg, 'error');
       }
     });
     xhr.addEventListener('error', () => {
@@ -2006,10 +2043,11 @@ function CourseManager({ token, course, onBack, authHeaders, onLogout }) {
                             <span className="italic">Drag anywhere</span>, click here, or paste from clipboard. Scholr indexes it the moment it lands.
                           </p>
 
-                          <div className="flex items-center gap-2 mt-6">
+                          <div className="flex items-center gap-2 mt-6 flex-wrap">
                             {['PDF', 'JPG', 'PNG'].map(ext => (
                               <span key={ext} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#F3F2EF] text-[10px] font-bold tracking-[.16em] uppercase text-gray-500">{ext}</span>
                             ))}
+                            <span className="text-[11px] text-gray-400 ml-1">Up to 50MB</span>
                           </div>
 
                           {/* Big upload action button */}
@@ -2061,10 +2099,22 @@ function CourseManager({ token, course, onBack, authHeaders, onLogout }) {
                                 <div className="min-w-0 flex-1">
                                   <p className="serif text-[18px] text-gray-900 leading-tight truncate">{cleanFileName(m.name)}</p>
                                   <div className="flex items-center gap-2 mt-2 flex-wrap">
-                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100">
-                                      <span className="block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                      <span className="text-[10px] font-bold tracking-[.12em] uppercase text-emerald-700">Live · Indexed</span>
-                                    </span>
+                                    {m.indexState === 'indexing' ? (
+                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-100">
+                                        <Loader2 size={9} className="text-amber-600 animate-spin" />
+                                        <span className="text-[10px] font-bold tracking-[.12em] uppercase text-amber-700">Indexing…</span>
+                                      </span>
+                                    ) : m.indexState === 'failed' ? (
+                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-50 border border-red-100">
+                                        <span className="block w-1.5 h-1.5 rounded-full bg-red-400" />
+                                        <span className="text-[10px] font-bold tracking-[.12em] uppercase text-red-700">Index failed</span>
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100">
+                                        <span className="block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                        <span className="text-[10px] font-bold tracking-[.12em] uppercase text-emerald-700">Live · Indexed</span>
+                                      </span>
+                                    )}
                                     <span className="text-gray-300">·</span>
                                     <span className="text-[12px] text-gray-400 tabular-nums">{sizeKb}kb</span>
                                     <span className="text-gray-300">·</span>
@@ -5578,9 +5628,23 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode }) {
   const [demo, setDemo] = useState({ idx: 0, phase: 'user' });
   const [talkOpen, setTalkOpen] = useState(false);
   const [talkSent, setTalkSent] = useState(false);
+  const [talkForm, setTalkForm] = useState({ name: '', email: '', institution: '', message: '' });
   const [joinOpen, setJoinOpen] = useState(false);
   const [joinCode, setJoinCode] = useState('');
-  const closeTalk = () => { setTalkOpen(false); setTalkSent(false); };
+  const closeTalk = () => { setTalkOpen(false); setTalkSent(false); setTalkForm({ name: '', email: '', institution: '', message: '' }); };
+  // The landing form has no server endpoint to post to (the "demo only" form
+  // silently dropped submissions). Instead we open the visitor's default
+  // mail client pre-filled with their answers and addressed to the team
+  // inbox — they actively send, we actually receive, no backend needed.
+  const submitTalk = (e) => {
+    e.preventDefault();
+    const subj = encodeURIComponent(`Scholr inquiry from ${talkForm.name || talkForm.email || 'a visitor'}`);
+    const body = encodeURIComponent(
+      `Name: ${talkForm.name}\nEmail: ${talkForm.email}\nInstitution: ${talkForm.institution || '—'}\n\n${talkForm.message || ''}\n\n— sent from scholr.study`
+    );
+    window.location.href = `mailto:hello@scholr.study?subject=${subj}&body=${body}`;
+    setTalkSent(true);
+  };
   const submitJoin = (e) => { e.preventDefault(); const c = joinCode.trim(); if (!c) return; if (onJoinCode) onJoinCode(c); else onStudent(); };
 
   // Scroll-reveal, nav shadow, and the dashboard bar fills — scoped to this page.
@@ -5962,15 +6026,13 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode }) {
           <div className="foot-bottom">
             <div>© 2026 Scholr, Inc. · Grounded in your course materials.</div>
             <div className="social">
-              <a href="#" aria-label="X" onClick={(e) => e.preventDefault()}><Ic name="x-logo" s={19} /></a>
-              <a href="#" aria-label="LinkedIn" onClick={(e) => e.preventDefault()}><Ic name="linkedin" s={19} /></a>
-              <a href="#" aria-label="GitHub" onClick={(e) => e.preventDefault()}><Ic name="github" s={19} /></a>
+              <a href="mailto:hello@scholr.study" aria-label="Email Scholr">hello@scholr.study</a>
             </div>
           </div>
         </div>
       </footer>
 
-      {/* Talk-to-our-team contact form (demo only — does not submit anywhere) */}
+      {/* Talk-to-our-team contact form — submits via mailto: into the visitor's mail client */}
       {talkOpen && (
         <div className="lp-modal" onClick={closeTalk}>
           <div className="lp-modal-card" onClick={(e) => e.stopPropagation()}>
@@ -5978,20 +6040,20 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode }) {
             {talkSent ? (
               <div className="lp-modal-done">
                 <div className="lp-done-ic"><Ic name="check" s={26} /></div>
-                <h3>Thanks — we'll be in touch.</h3>
-                <p>A member of the Scholr team will reach out shortly.</p>
+                <h3>Your email client is opening…</h3>
+                <p>If nothing opened, email us directly at <a href="mailto:hello@scholr.study" className="underline">hello@scholr.study</a> and we'll get back to you within a day.</p>
                 <button type="button" className="btn btn-primary btn-pill" onClick={closeTalk}>Done</button>
               </div>
             ) : (
-              <form onSubmit={(e) => { e.preventDefault(); setTalkSent(true); }}>
+              <form onSubmit={submitTalk}>
                 <div className="kicker"><span className="d" /> Talk to our team</div>
                 <h3>Bring Scholr to your course</h3>
-                <p>Tell us about your class and we'll show you how Scholr fits.</p>
-                <div className="lp-field"><label>Name</label><input type="text" required placeholder="Dr. Jane Smith" /></div>
-                <div className="lp-field"><label>Work email</label><input type="email" required placeholder="jsmith@university.edu" /></div>
-                <div className="lp-field"><label>Institution</label><input type="text" placeholder="State University" /></div>
-                <div className="lp-field"><label>What would you like to know?</label><textarea rows={3} placeholder="I teach intro accounting to ~200 students…" /></div>
-                <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }}>Send message</button>
+                <p>Tell us about your class and we'll show you how Scholr fits. Submitting opens your email app with a pre-filled note to our team.</p>
+                <div className="lp-field"><label>Name</label><input type="text" required placeholder="Dr. Jane Smith" value={talkForm.name} onChange={(e) => setTalkForm(f => ({ ...f, name: e.target.value }))} /></div>
+                <div className="lp-field"><label>Work email</label><input type="email" required placeholder="jsmith@university.edu" value={talkForm.email} onChange={(e) => setTalkForm(f => ({ ...f, email: e.target.value }))} /></div>
+                <div className="lp-field"><label>Institution</label><input type="text" placeholder="State University" value={talkForm.institution} onChange={(e) => setTalkForm(f => ({ ...f, institution: e.target.value }))} /></div>
+                <div className="lp-field"><label>What would you like to know?</label><textarea rows={3} placeholder="I teach intro accounting to ~200 students…" value={talkForm.message} onChange={(e) => setTalkForm(f => ({ ...f, message: e.target.value }))} /></div>
+                <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }}>Open email to send</button>
               </form>
             )}
           </div>
