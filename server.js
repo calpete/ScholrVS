@@ -445,13 +445,15 @@ async function seedMissingGeminiUris() {
 async function extractPdfText(buffer) {
   const pdfjs = await getPdfjs();
   if (!pdfjs) return null;
+  let loadingTask = null;
+  let pdf = null;
   try {
-    const loadingTask = pdfjs.getDocument({
+    loadingTask = pdfjs.getDocument({
       data: new Uint8Array(buffer),
       // Silence pdfjs's verbose chatter on Render — only show errors.
       verbosity: 0,
     });
-    const pdf = await loadingTask.promise;
+    pdf = await loadingTask.promise;
     const numPages = pdf.numPages;
     const pageTexts = [];
     for (let i = 1; i <= numPages; i++) {
@@ -470,6 +472,12 @@ async function extractPdfText(buffer) {
   } catch (e) {
     console.error('PDF extract error:', e.message);
     return null;
+  } finally {
+    // Without these, pdfjs PDFDocumentProxy and its worker hang around
+    // forever — every reindex / backfill / page render leaks a doc and
+    // a worker thread. On large decks this is real memory pressure.
+    try { if (pdf) { await pdf.cleanup(); await pdf.destroy(); } } catch {}
+    try { if (loadingTask && loadingTask.destroy) await loadingTask.destroy(); } catch {}
   }
 }
 
@@ -607,23 +615,47 @@ class NapiCanvasFactory {
 // direct visual access to slides at chat time — the model SEES the
 // formula/diagram instead of reading a flattened text extraction. Called
 // in the background from chunkAndEmbedPdf so uploads don't block.
+// Tracks (courseId, docName) pairs currently being rendered so concurrent
+// callers (upload trigger + backfill) don't start a second render and
+// race-overwrite each other's page_N.png files.
+const renderInFlight = new Map(); // key → Promise
+
 async function renderAndUploadPdfPages(courseId, docName, pdfBuffer) {
+  if (isCourseDeleted(courseId)) return { ok: false, error: 'course deleted' };
+  const key = `${courseId}/${docName}`;
+  if (renderInFlight.has(key)) {
+    // Already rendering — return the existing promise so the caller waits
+    // on the same work instead of duplicating it.
+    return renderInFlight.get(key);
+  }
+  const work = (async () => { return _renderAndUploadPdfPagesInner(courseId, docName, pdfBuffer); })();
+  renderInFlight.set(key, work);
+  try { return await work; }
+  finally { renderInFlight.delete(key); }
+}
+
+async function _renderAndUploadPdfPagesInner(courseId, docName, pdfBuffer) {
   const pdfjs = await getPdfjs();
   const canvasMod = await getCanvas();
   if (!pdfjs || !canvasMod) return { ok: false, error: 'pdfjs or canvas unavailable' };
 
+  let loadingTask = null;
+  let pdf = null;
   try {
     const factory = new NapiCanvasFactory(canvasMod);
-    const loadingTask = pdfjs.getDocument({
+    loadingTask = pdfjs.getDocument({
       data: new Uint8Array(pdfBuffer),
       canvasFactory: factory,
       verbosity: 0,
     });
-    const pdf = await loadingTask.promise;
+    pdf = await loadingTask.promise;
     const total = pdf.numPages;
 
     let uploaded = 0;
     for (let i = 1; i <= total; i++) {
+      // Bail mid-render if the course was deleted — no point uploading
+      // pages 50–104 of a doc that no longer belongs to anyone.
+      if (isCourseDeleted(courseId)) return { ok: false, error: 'course deleted mid-render' };
       try {
         const page = await pdf.getPage(i);
         // 1.5× scale keeps formulas/text legible without ballooning bytes.
@@ -650,10 +682,29 @@ async function renderAndUploadPdfPages(courseId, docName, pdfBuffer) {
         console.warn(`Page ${i} render failed: ${pageErr.message}`);
       }
     }
+    // Write a sentinel so backfills can tell a complete render apart from a
+    // mid-flight one. Without this, listing the folder for files >0 returns
+    // true even when render is still uploading page 1 of 104, and the
+    // backfill bails leaving the doc partially covered forever.
+    if (uploaded > 0 && uploaded === total) {
+      try {
+        await supabase.storage.from('documents').upload(
+          `course_pages/${courseId}/${docName}/.done`,
+          Buffer.from(String(total)),
+          { contentType: 'text/plain', upsert: true },
+        );
+      } catch (e) { console.warn(`Sentinel write failed for ${docName}: ${e.message}`); }
+    }
     return { ok: true, pages: uploaded, total };
   } catch (e) {
     console.error(`Page render error for ${docName}:`, e.message);
     return { ok: false, error: e.message };
+  } finally {
+    // pdfjs + napi-canvas both leak heavily if you don't destroy the doc
+    // and its loading task explicitly. On a 200-page deck that's tens of
+    // MB resident per render.
+    try { if (pdf) { await pdf.cleanup(); await pdf.destroy(); } } catch {}
+    try { if (loadingTask && loadingTask.destroy) await loadingTask.destroy(); } catch {}
   }
 }
 
@@ -664,8 +715,11 @@ async function renderAndUploadPdfPages(courseId, docName, pdfBuffer) {
 // retrieves the caption chunk even when pdfjs found no text for it.
 // Re-running on the same doc clears its old chunks first.
 async function chunkAndEmbedPdf(courseId, docName, pdfBuffer) {
+  // Bail if the course was deleted while this background task was queued.
+  if (isCourseDeleted(courseId)) return { ok: false, error: 'course deleted' };
   const pdfData = await extractPdfText(pdfBuffer);
   if (!pdfData) return { ok: false, error: 'PDF extract failed' };
+  if (isCourseDeleted(courseId)) return { ok: false, error: 'course deleted mid-extract' };
 
   // Kick off page-image rendering in the background — used at chat time
   // to give gpt-4o direct visual access to slides. Fire-and-forget so it
@@ -690,10 +744,10 @@ async function chunkAndEmbedPdf(courseId, docName, pdfBuffer) {
 
   if (allItems.length === 0) return { ok: false, error: 'No chunks produced' };
 
-  // Wipe any prior chunks for this doc so re-uploads stay consistent.
-  await supabase.from('document_chunks').delete()
-    .eq('course_id', courseId).eq('doc_name', docName);
-
+  // Compute embeddings FIRST. The previous flow wiped existing chunks
+  // before checking if the new embeddings would even succeed — if Vertex
+  // failed or the pod restarted mid-embed, the doc was left with zero
+  // chunks and silently disappeared from RAG until the next reindex.
   const vectors = await embedTexts(allItems.map(i => i.text));
   const rows = allItems
     .map((item, chunk_index) => ({
@@ -707,6 +761,10 @@ async function chunkAndEmbedPdf(courseId, docName, pdfBuffer) {
     .filter(r => Array.isArray(r.embedding));
 
   if (rows.length === 0) return { ok: false, error: 'All embeddings failed' };
+  // Now safe to wipe — we have valid embeddings ready to insert.
+  if (isCourseDeleted(courseId)) return { ok: false, error: 'course deleted mid-embed' };
+  await supabase.from('document_chunks').delete()
+    .eq('course_id', courseId).eq('doc_name', docName);
 
   for (let i = 0; i < rows.length; i += 50) {
     const { error } = await supabase.from('document_chunks').insert(rows.slice(i, i + 50));
@@ -896,6 +954,25 @@ function rewriteEquations(text) {
 // falls back to whole-library mode, but every subsequent question on the
 // same course is fast. Professors never touch a button.
 const reindexInFlight = new Set();
+// Courses that were just deleted — background tasks (chunkAndEmbedPdf,
+// renderAndUploadPdfPages, captionPdfPages) check this and bail before
+// writing chunks/images/captions that would orphan against a now-dead
+// course id. Entries auto-expire after 5 minutes which is well beyond
+// any realistic background-task duration.
+const deletedCourses = new Map(); // courseId → expiresAt timestamp
+const markCourseDeleted = (courseId) => {
+  deletedCourses.set(courseId, Date.now() + 5 * 60 * 1000);
+  // Lazy GC
+  for (const [k, expires] of deletedCourses.entries()) {
+    if (expires < Date.now()) deletedCourses.delete(k);
+  }
+};
+const isCourseDeleted = (courseId) => {
+  const exp = deletedCourses.get(courseId);
+  if (!exp) return false;
+  if (exp < Date.now()) { deletedCourses.delete(courseId); return false; }
+  return true;
+};
 const reindexCompleted = new Set();
 
 // Boot-time backfill — re-index any course whose document_chunks rows
@@ -954,10 +1031,14 @@ async function backfillPageImages() {
       if (pdfDocs.length === 0) continue;
 
       for (const [name, doc] of pdfDocs) {
-        const { data: existing } = await supabase.storage
+        // Check for the .done sentinel rather than "any file present" — the
+        // old check would skip a doc that had page 1 uploaded but render
+        // crashed before pages 2–N, leaving the doc partially covered forever.
+        const { data: doneCheck } = await supabase.storage
           .from('documents')
-          .list(`course_pages/${courseId}/${name}`, { limit: 1 });
-        if (existing && existing.length > 0) continue; // already has images
+          .list(`course_pages/${courseId}/${name}`, { limit: 100, search: '.done' });
+        const hasSentinel = (doneCheck || []).some(f => f.name === '.done');
+        if (hasSentinel) continue;
         console.log(`📸 Backfilling page images for ${name} on course ${courseId}…`);
         const r = await renderAndUploadPdfPages(courseId, name, doc.buffer);
         if (r.ok) console.log(`📸 Backfilled page images for ${name}: ${r.pages}/${r.total}`);
@@ -1061,14 +1142,43 @@ app.use(cors({
     // Allow requests with no Origin header (curl, server-to-server, mobile apps)
     if (!origin) return cb(null, true);
     if (ALLOWED_ORIGINS.has(origin)) return cb(null, true);
-    cb(new Error(`CORS blocked: ${origin}`));
+    // Return false instead of throwing — Express would otherwise leak the
+    // rejected origin in a noisy 500. With false, the browser cleanly
+    // blocks the request with the standard CORS error.
+    cb(null, false);
   },
   // credentials: false on purpose. We auth with Bearer tokens in the
   // Authorization header, never with cookies. Setting credentials: true
   // triggers Safari ITP to flag the backend as a tracker and silently
   // block cross-origin requests.
 }));
-app.use(express.json());
+app.use(express.json({ limit: '500kb' }));
+
+// Tiny in-memory rate limiter for auth endpoints. Not a substitute for
+// a real WAF or distributed limiter, but it makes credential-stuffing,
+// signup-spam, and unauthenticated-POST DOS against the box meaningfully
+// harder. Keyed by IP; window resets every 5 minutes; new IPs get
+// auto-evicted as the Map exceeds 10k entries to prevent unbounded growth.
+const RATE_BUCKETS = new Map();
+const RATE_WINDOW_MS = 5 * 60 * 1000;
+const rateLimit = (max) => (req, res, next) => {
+  const ip = (req.headers['x-forwarded-for']?.toString().split(',')[0].trim()) || req.ip || 'unknown';
+  const now = Date.now();
+  const entry = RATE_BUCKETS.get(ip) || { count: 0, resetAt: now + RATE_WINDOW_MS };
+  if (entry.resetAt < now) { entry.count = 0; entry.resetAt = now + RATE_WINDOW_MS; }
+  entry.count++;
+  RATE_BUCKETS.set(ip, entry);
+  if (RATE_BUCKETS.size > 10000) {
+    // Drop the oldest 2000 entries when the map grows; keeps memory bounded
+    // even under sustained abuse from many distinct IPs.
+    const oldest = [...RATE_BUCKETS.entries()].sort((a, b) => a[1].resetAt - b[1].resetAt).slice(0, 2000);
+    for (const [k] of oldest) RATE_BUCKETS.delete(k);
+  }
+  if (entry.count > max) {
+    return res.status(429).json({ error: 'Too many requests. Try again in a few minutes.' });
+  }
+  next();
+};
 app.use(fileUpload({ limits: { fileSize: 50 * 1024 * 1024 } }));
 
 app.get('/join/:code', async (req, res) => {
@@ -1099,7 +1209,7 @@ app.get('/join/:code', async (req, res) => {
 app.get('/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
 
 // ── Professor Auth ────────────────────────────────────────────────────────────
-app.post('/professor/signup', async (req, res) => {
+app.post('/professor/signup', rateLimit(10), async (req, res) => {
   const { email, password, name } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   try {
@@ -1114,7 +1224,7 @@ app.post('/professor/signup', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/professor/login', async (req, res) => {
+app.post('/professor/login', rateLimit(30), async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   try {
@@ -1142,7 +1252,7 @@ app.post('/smart-login', async (req, res) => {
 });
 
 // ── Student Auth ──────────────────────────────────────────────────────────────
-app.post('/student/signup', async (req, res) => {
+app.post('/student/signup', rateLimit(10), async (req, res) => {
   const { email, password, name } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   try {
@@ -1157,7 +1267,7 @@ app.post('/student/signup', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post('/student/login', async (req, res) => {
+app.post('/student/login', rateLimit(30), async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   try {
@@ -1194,7 +1304,7 @@ app.get('/professor/auth/google', (req, res) => {
 // (of courses they run). Login is role-explicit, so we never block sign-in based
 // on the other role — we just ensure the requested role's row exists and let
 // them into that portal. (No more "you're already a teacher" alert for students.)
-app.post('/auth/sync-oauth-user', async (req, res) => {
+app.post('/auth/sync-oauth-user', rateLimit(30), async (req, res) => {
   const { access_token } = req.body;
   const role = req.body.role === 'professor' ? 'professor' : 'student';
   if (!access_token) return res.status(400).json({ error: 'access_token required' });
@@ -1289,6 +1399,12 @@ app.post('/student/enroll', requireAuth, async (req, res) => {
   const { course_id } = req.body;
   if (!course_id) return res.status(400).json({ error: 'course_id required' });
   try {
+    // Block professors from self-enrolling into other professors' courses as
+    // "students" — that bypassed the requireCourseAccess gate and let one
+    // professor read another's materials/chat history.
+    const { data: prof } = await supabase.from('professors')
+      .select('id').eq('id', req.user.id).maybeSingle();
+    if (prof) return res.status(403).json({ error: 'Professors cannot enroll as students. Sign in with a student account.' });
     await supabase.from('students').upsert({ id: req.user.id, email: req.user.email, name: req.user.email.split('@')[0] }, { onConflict: 'id' });
     const { error } = await supabase.from('enrollments').insert({ student_id: req.user.id, course_id });
     if (error) {
@@ -1384,6 +1500,9 @@ app.delete('/professor/courses/:id', requireAuth, async (req, res) => {
   await supabase.from('courses').delete().eq('id', id);
   delete courseDocuments[id];
   delete geminiUriCache[id];
+  // Tell any in-flight background tasks to bail before writing chunks
+  // / images / captions to a now-orphan course id.
+  markCourseDeleted(id);
   console.log(`🗑️  Course ${id} deleted — cleaned up ${docs?.length || 0} document blob(s)`);
   res.json({ success: true });
 });
@@ -2181,7 +2300,7 @@ app.post('/course/:courseId/reindex', requireAuth, async (req, res) => {
 });
 
 // ── Student Notes ─────────────────────────────────────────────────────────────
-app.post('/student/notes/:courseId/upload', requireAuth, async (req, res) => {
+app.post('/student/notes/:courseId/upload', requireAuth, requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const file = req.files?.file;
   if (!file) return res.status(400).json({ error: 'No file uploaded' });
@@ -2199,13 +2318,13 @@ app.post('/student/notes/:courseId/upload', requireAuth, async (req, res) => {
   res.json({ success: true, fileName: file.name, sizeKb, mimeType });
 });
 
-app.get('/student/notes/:courseId', requireAuth, async (req, res) => {
+app.get('/student/notes/:courseId', requireAuth, requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const { data } = await supabase.from('student_notes').select('*').eq('student_id', req.user.id).eq('course_id', courseId).order('uploaded_at', { ascending: false });
   res.json(data || []);
 });
 
-app.delete('/student/notes/:courseId/:name', requireAuth, async (req, res) => {
+app.delete('/student/notes/:courseId/:name', requireAuth, requireCourseAccess, async (req, res) => {
   const { courseId, name } = req.params;
   const filename = decodeURIComponent(name);
   const storagePath = `student_notes/${req.user.id}/${courseId}/${filename}`;
@@ -2214,7 +2333,7 @@ app.delete('/student/notes/:courseId/:name', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/student/notes/:courseId/file/:name', requireAuth, async (req, res) => {
+app.get('/student/notes/:courseId/file/:name', requireAuth, requireCourseAccess, async (req, res) => {
   const { courseId, name } = req.params;
   const storagePath = `student_notes/${req.user.id}/${courseId}/${decodeURIComponent(name)}`;
   const { data, error } = await supabase.storage.from('documents').download(storagePath);
@@ -2284,7 +2403,18 @@ app.delete('/student/chats/:chatId', requireAuth, async (req, res) => {
 app.post('/student/chats/:chatId/messages', requireAuth, async (req, res) => {
   const { chatId } = req.params;
   const { role, content, sources } = req.body;
-  const { data, error } = await supabase.from('messages').insert({ chat_id: chatId, role, content, sources: sources || [] }).select().single();
+  // CRITICAL: verify the chat belongs to the calling student before inserting.
+  // Without this, any authenticated user could write or inject messages into
+  // any chat by guessing or enumerating chat IDs.
+  const { data: chat } = await supabase.from('chats')
+    .select('student_id').eq('id', chatId).maybeSingle();
+  if (!chat) return res.status(404).json({ error: 'Chat not found' });
+  if (chat.student_id !== req.user.id) return res.status(403).json({ error: 'Not your chat' });
+  // Also validate the role and content shape so a tampered client can't store
+  // a 'system' message into our chat history.
+  if (role !== 'user' && role !== 'assistant') return res.status(400).json({ error: 'Invalid role' });
+  if (typeof content !== 'string' || !content.trim()) return res.status(400).json({ error: 'Content required' });
+  const { data, error } = await supabase.from('messages').insert({ chat_id: chatId, role, content, sources: Array.isArray(sources) ? sources : [] }).select().single();
   if (error) return res.status(500).json({ error: error.message });
   await supabase.from('chats').update({ updated_at: new Date().toISOString() }).eq('id', chatId).eq('student_id', req.user.id);
   res.json(data);

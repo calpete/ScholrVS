@@ -6099,15 +6099,33 @@ export default function App() {
   // landing page entirely on first paint — no flash before redirect.
   const initialAuth = (() => {
     if (typeof window === 'undefined') return { screen: 'landing', profToken: null, profUser: null, studentToken: null, studentUser: null };
+    // Defensive JSON parse — if a stored user object is corrupted ("null",
+    // truncated by quota, edited by hand), parsing throws or returns null
+    // and we'd ship a half-authenticated state where token exists but the
+    // user object is missing. safeParse returns null on any failure, and
+    // we drop the matching token if its user is unreadable.
+    const safeParse = (s) => {
+      try {
+        const v = JSON.parse(s);
+        return v && typeof v === 'object' ? v : null;
+      } catch { return null; }
+    };
     try {
-      const pt = localStorage.getItem('scholr_token');
+      let pt = localStorage.getItem('scholr_token');
       const pu = localStorage.getItem('scholr_user');
-      const st = localStorage.getItem('scholr_student_token');
+      let st = localStorage.getItem('scholr_student_token');
       const su = localStorage.getItem('scholr_student_user');
-      const profToken = (pt && pu) ? pt : null;
-      const profUser = (pt && pu) ? JSON.parse(pu) : null;
-      const studentToken = (st && su) ? st : null;
-      const studentUser = (st && su) ? JSON.parse(su) : null;
+      const profUserParsed = pu ? safeParse(pu) : null;
+      const studentUserParsed = su ? safeParse(su) : null;
+      // If we have a token but no usable user object, the storage is in
+      // an inconsistent state — clear both so we don't ship into a UI
+      // that immediately crashes on user.name.
+      if (pt && !profUserParsed) { localStorage.removeItem('scholr_token'); localStorage.removeItem('scholr_user'); pt = null; }
+      if (st && !studentUserParsed) { localStorage.removeItem('scholr_student_token'); localStorage.removeItem('scholr_student_user'); st = null; }
+      const profToken = pt;
+      const profUser = profUserParsed;
+      const studentToken = st;
+      const studentUser = studentUserParsed;
       // Restore the screen the user was on (refresh stays put), but sanity-
       // check against their current auth state — a logged-out user can't be
       // restored to a dashboard. student-chat is restored only when we also
@@ -6225,6 +6243,23 @@ export default function App() {
   const handleProfLogin = (token, user) => { localStorage.setItem('scholr_token', token); localStorage.setItem('scholr_user', JSON.stringify(user)); setProfToken(token); setProfUser(user); setScreen('prof-dashboard'); };
   const handleProfLogout = () => { localStorage.removeItem('scholr_token'); localStorage.removeItem('scholr_user'); localStorage.removeItem('scholr_prof_course'); setProfToken(null); setProfUser(null); setScreen('landing'); };
   const handleStudentLogin = (token, user) => { localStorage.setItem('scholr_student_token', token); localStorage.setItem('scholr_student_user', JSON.stringify(user)); setStudentToken(token); setStudentUser(user); setScreen('student-dashboard'); navigate('/student'); };
+
+  // Cross-tab sync. Sign out in one tab → propagate to every open tab so
+  // they don't keep making authenticated requests with a token the user
+  // already revoked. The handler fires only on storage changes from OTHER
+  // tabs (not the current one). newValue===null means the key was removed.
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === 'scholr_token' && !e.newValue) {
+        setProfToken(null); setProfUser(null); setScreen('landing');
+      }
+      if (e.key === 'scholr_student_token' && !e.newValue) {
+        setStudentToken(null); setStudentUser(null); setScreen('landing');
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   // Landing "Enter your join code": capture the code BEFORE login so the student
   // is auto-enrolled right after signing in (StudentDashboard reads this on mount).
   const handleJoinCodeEntry = (code) => { const c = (code || '').trim().toUpperCase(); if (!c) return; sessionStorage.setItem('scholr_pending_join', c); setPendingJoinCode(c); setScreen('student-login'); navigate('/student/login'); };
