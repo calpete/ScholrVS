@@ -3279,9 +3279,38 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                   }))
               : [],
           }));
-          setChats(loaded);
-          setChatId(loaded[0].id);
-          setChatsLoading(false);
+          // Always land on the "new chat" greeting screen instead of resuming
+          // a half-finished conversation. If an empty chat already exists,
+          // reuse it; otherwise create a fresh one so we don't litter the DB
+          // with duplicates. The student can always click an older chat from
+          // the sidebar to resume it.
+          const existingEmpty = loaded.find(c => !c.messages.length);
+          if (existingEmpty) {
+            setChats(loaded);
+            setChatId(existingEmpty.id);
+            setChatsLoading(false);
+          } else {
+            try {
+              const res2 = await fetch(`${API}/student/chats/${course.id}`, {
+                method: 'POST', headers: jsonHeaders,
+                body: JSON.stringify({ title: 'New Chat' }),
+              });
+              if (cancelled) return;
+              const newChat = await res2.json();
+              if (cancelled) return;
+              const nc = newChat?.id
+                ? { id: newChat.id, dbId: newChat.id, title: 'New Chat', messages: [] }
+                : { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
+              setChats([nc, ...loaded]);
+              setChatId(nc.id);
+            } catch {
+              if (cancelled) return;
+              const nc = { id: `local-${Date.now()}`, title: 'New Chat', messages: [] };
+              setChats([nc, ...loaded]);
+              setChatId(nc.id);
+            }
+            setChatsLoading(false);
+          }
         } else {
           // No chats — create the first one. Cancellation guards prevent
           // StrictMode's double-effect from creating two empty chats.
@@ -3325,10 +3354,30 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const DEFAULT_QUESTIONS = ["What are the main topics in this course?", "Summarize the key concepts from the materials", "What should I focus on for the exam?"];
   const questions = suggestedQuestions?.length ? suggestedQuestions : DEFAULT_QUESTIONS;
   // Empty (new-chat) hero composer rotates the AI-suggested questions plus a
-  // slash-hint so students discover both. Once the chat has messages and the
-  // composer pins to the bottom, we cycle just the two minimal prompts.
-  const emptyPlaceholders = [...questions, 'Type / for commands'];
-  const pinnedPlaceholders = ['Ask about your course...', 'Type / for commands'];
+  // bigger pool of student-shaped prompts so the placeholder feels alive —
+  // including study-mode cues, "I'm lost" cues, exam-cram cues, and a
+  // /slash-command hint. The mix gives anyone visiting the empty state a
+  // concrete idea of what they can ask without having to think one up.
+  const FUN_PROMPTS = [
+    "What's going to be on the exam?",
+    "Explain this like I'm five",
+    "I'm lost — where do I even start?",
+    "Quick recap of last lecture?",
+    "Make me a quiz",
+    "What's the difference between X and Y?",
+    "Give me a flashcard deck on chapter 3",
+    "Summarize today's reading",
+    "Walk me through a worked example",
+    "What's the trap on this topic?",
+    "If I only studied 3 things, what would they be?",
+    "Type / for quizzes, tests, flashcards",
+    "Build me a study guide for the midterm",
+    "Why does this concept matter?",
+    "Compare these two formulas",
+    "What did my professor emphasize most?",
+  ];
+  const emptyPlaceholders = [...questions, ...FUN_PROMPTS];
+  const pinnedPlaceholders = ['Ask about your course...', 'Type / for commands', "What's on the exam?", 'Make me a quiz'];
   // Filter slash commands by what the user has typed after the leading slash.
   // The popover is only relevant when (a) no command is already picked and
   // (b) the input starts with a single slash (no spaces yet — once they hit
@@ -3345,8 +3394,31 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   };
   // Personalized greeting for the new-chat empty state.
   const firstName = (() => { try { const n = (JSON.parse(localStorage.getItem('scholr_student_user') || '{}').name || '').split(' ')[0]; return n ? n.charAt(0).toUpperCase() + n.slice(1) : ''; } catch { return ''; } })();
-  const greetHr = new Date().getHours();
-  const greeting = greetHr < 12 ? 'Good morning' : greetHr < 17 ? 'Good afternoon' : 'Good evening';
+  // Pick a greeting from a varied pool that flexes by time-of-day, day-of-week,
+  // and occasional contextual one-liners. Deterministic per (day, hour-bucket)
+  // so the student doesn't see a new greeting on every keystroke, but it shifts
+  // through the day. Late-night / early-morning / Friday / Sunday get their own
+  // flavors so it doesn't feel like the same rotation every time they log in.
+  const greeting = (() => {
+    const now = new Date();
+    const h = now.getHours();
+    const dow = now.getDay(); // 0=Sun .. 6=Sat
+    let pool;
+    if (h >= 0 && h < 5)        pool = ["Burning the midnight oil", "Late-night grind", "Still up", "3am study session", "Insomnia or finals?", "Up late"];
+    else if (h >= 5 && h < 9)   pool = ["Good morning", "Early start", "Rise and grind", "Morning", "First coffee", "Up and at it"];
+    else if (h >= 9 && h < 12)  pool = ["Good morning", "Morning", "Hey", "Welcome back", "Let's get into it", "Ready when you are"];
+    else if (h >= 12 && h < 14) pool = ["Good afternoon", "Lunchtime study sesh", "Hey", "Welcome back", "Afternoon", "Midday check-in"];
+    else if (h >= 14 && h < 17) pool = ["Good afternoon", "Afternoon", "Welcome back", "Hey", "Let's keep going", "Ready when you are"];
+    else if (h >= 17 && h < 20) pool = ["Good evening", "Evening", "Welcome back", "After-class hours", "Hey", "Wrapping up the day"];
+    else                        pool = ["Good evening", "Late-night study", "Evening", "One more chapter?", "Burning that lamp", "Night owl mode"];
+    // Friday afternoon / weekend overrides — small flavor shift.
+    if (dow === 5 && h >= 14)              pool = ["Friday afternoon", "TGIF", "Almost weekend", "Good afternoon", "Final stretch of the week"];
+    else if (dow === 0 && h >= 17)         pool = ["Sunday scaries hitting", "Pre-week prep", "Good evening", "Getting ahead for the week"];
+    else if (dow === 6 && h >= 9 && h < 18) pool = ["Saturday study", "Weekend mode", "Good afternoon", "Putting in the weekend work"];
+    // Deterministic per day+hour so it stays stable across re-renders.
+    const seed = now.getFullYear() * 366 + (now.getMonth() * 31) + now.getDate() + h;
+    return pool[seed % pool.length];
+  })();
   // Rotate the suggested questions through the input placeholder on an empty chat.
   const [phIdx, setPhIdx] = useState(0);
   // Only rotate while the chat is actually empty — otherwise we re-render
@@ -4819,8 +4891,19 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                   <div className="text-center max-w-xs"><Clock size={20} className="text-gray-300 mx-auto mb-4" /><h3 className="text-gray-700 font-medium text-sm mb-1">Setting up your course</h3><p className="text-gray-400 text-xs">Your instructor is uploading materials.</p></div>
                 ) : (
                   <div className="w-full max-w-3xl flex flex-col items-center">
-                    <h2 className="serif text-4xl md:text-5xl leading-tight text-gray-900 mb-4 text-center tracking-tight">{greeting}{firstName ? `, ${firstName}` : ''}</h2>
-                    <p className="text-[15px] text-gray-500 text-center mb-10 max-w-md leading-relaxed">Ask anything about {course.name} — grounded in your professor's materials.</p>
+                    <h2 className="serif text-4xl md:text-5xl leading-tight text-gray-900 mb-4 text-center tracking-tight">{greeting}{firstName ? <>, <span className="italic">{firstName}</span></> : ''}<span className="italic">.</span></h2>
+                    <p className="text-[15px] text-gray-500 text-center mb-10 max-w-md leading-relaxed">{(() => {
+                      const subs = [
+                        `What can I help you study in ${course.name}?`,
+                        `Ask anything about ${course.name} — every answer cited, straight from your professor's materials.`,
+                        `Stuck on something in ${course.name}? Let's untangle it.`,
+                        `Need a recap, a quiz, or a study guide? Just ask.`,
+                        `Every answer in ${course.name} is grounded in what your professor uploaded.`,
+                        `Lost? Behind? Cramming? Ask away — no judgment.`,
+                      ];
+                      const seed = new Date().getDate() + new Date().getHours();
+                      return subs[seed % subs.length];
+                    })()}</p>
                     <div className="w-full">{attachmentBar}{inputBox}</div>
                   </div>
                 )}
@@ -4938,9 +5021,25 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                           ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user' ? <p className="leading-relaxed whitespace-pre-wrap text-gray-900">{m.content}</p> : <MarkdownMessage content={m.content} />}
                           {m.role === 'assistant' && m.streaming && m.content && <span className="inline-block w-[3px] h-[16px] bg-gray-800 animate-pulse ml-1 align-middle rounded-sm" />}
                           {m.role === 'assistant' && m.sources?.length > 0 && !m.streaming && !isError && (
-                            <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap gap-1.5 items-center">
-                              <span className="text-[10px] text-gray-300 uppercase tracking-wide mr-0.5">From</span>
-                              {m.sources.map((source, idx) => (<span key={idx} className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 border border-gray-200 text-gray-600 text-[11px] font-medium"><FileText size={9} /><span className="max-w-[200px] truncate">{cleanFileName(source)}</span></span>))}
+                            <div className="mt-5 pt-4 border-t border-gray-100">
+                              <div className="flex items-center gap-2 mb-2.5">
+                                <span className="block w-5 h-[1.5px] bg-gray-300 rounded-sm" />
+                                <span className="text-[9.5px] text-gray-400 uppercase tracking-[.18em] font-bold">Cited from</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {m.sources.map((source, idx) => (
+                                  <span
+                                    key={idx}
+                                    className="group/cite inline-flex items-center gap-2 pl-2.5 pr-3 py-1.5 rounded-full bg-white border border-gray-200 hover:border-gray-900 hover:bg-gray-900 hover:text-white shadow-[0_1px_2px_-1px_rgba(15,15,15,0.06)] transition-all cursor-default"
+                                    title={cleanFileName(source)}
+                                  >
+                                    <span className="flex items-center justify-center w-4 h-4 rounded-full bg-[#2A4D8F]/10 group-hover/cite:bg-white/15 transition-colors">
+                                      <FileText size={9} className="text-[#2A4D8F] group-hover/cite:text-white transition-colors" />
+                                    </span>
+                                    <span className="text-[11.5px] font-medium text-gray-700 group-hover/cite:text-white max-w-[220px] truncate transition-colors">{cleanFileName(source)}</span>
+                                  </span>
+                                ))}
+                              </div>
                             </div>
                           )}
                           {m.role === 'user' && <span className="block text-[10px] mt-1.5 text-gray-400">{formatTime(m.ts)}</span>}
