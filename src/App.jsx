@@ -6,7 +6,7 @@ import {
   CheckCircle2, Copy, Check, ThumbsUp, ThumbsDown, X,
   Lock, WifiOff, Paperclip, Square, ArrowLeft, ExternalLink, Hash, Menu,
   ListChecks, RotateCcw, Sparkles, ChevronLeft, MoreHorizontal, Pencil, FolderOpen, Layers, GraduationCap,
-  Loader2
+  Loader2, Lightbulb
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -23,7 +23,7 @@ const API = window.location.hostname === 'localhost'
   : 'https://scholrvs.onrender.com';
 
 const FONT = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500;1,6..72,600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500;1,6..72,600&family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap');
   * { font-family: 'Inter', system-ui, sans-serif; }
   .serif { font-family: 'Instrument Serif', Georgia, serif; }
   /* Display serif for the new-chat greeting and other hero headings. Newsreader
@@ -31,6 +31,10 @@ const FONT = `
      better with the upright weight than Instrument's, which has a very
      pronounced cursive italic that clashes with the roman. */
   .serif-display { font-family: 'Newsreader', Georgia, serif; font-weight: 500; letter-spacing: -0.018em; }
+  /* Matches the Scholr wordmark (.brand uses Hanken Grotesk 700 -0.02em).
+     Used on the new-chat greeting so the hero heading reads as part of the
+     brand system instead of a competing serif. */
+  .brand-display { font-family: 'Hanken Grotesk', system-ui, sans-serif; font-weight: 700; letter-spacing: -0.025em; }
   @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
   .shake { animation: shake 0.35s ease-in-out; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
@@ -4908,7 +4912,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                   <div className="text-center max-w-xs"><Clock size={20} className="text-gray-300 mx-auto mb-4" /><h3 className="text-gray-700 font-medium text-sm mb-1">Setting up your course</h3><p className="text-gray-400 text-xs">Your instructor is uploading materials.</p></div>
                 ) : (
                   <div className="w-full max-w-3xl flex flex-col items-center">
-                    <h2 className="serif-display text-[42px] md:text-[56px] leading-[1.02] text-gray-900 mb-5 text-center">{greeting}{firstName ? <>, <span className="italic font-[600]">{firstName}</span></> : ''}<span className="italic">.</span></h2>
+                    <h2 className="brand-display text-[40px] md:text-[54px] leading-[1.04] text-gray-900 mb-5 text-center">{greeting}{firstName ? <>, <span className="italic">{firstName}</span></> : ''}<span>.</span></h2>
                     <p className="text-[15px] text-gray-500 text-center mb-10 max-w-md leading-relaxed">{(() => {
                       const subs = [
                         `What can I help you study in ${course.name}?`,
@@ -4922,6 +4926,51 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                       return subs[seed % subs.length];
                     })()}</p>
                     <div className="w-full">{attachmentBar}{inputBox}</div>
+                    {/* Claude/ChatGPT-style suggestion cards. Each is a one-tap
+                        starter prompt — clicking sends it immediately. Mix of
+                        quick wins and deep dives so the student sees what kinds
+                        of help are on the table without having to invent a
+                        question. */}
+                    <div className="w-full mt-5 grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {[
+                        { icon: 'Sparkles', label: 'Explain a concept',     prompt: `Explain a core concept from ${course.name} like I'm hearing it for the first time.` },
+                        { icon: 'GraduationCap', label: 'Build me a study guide', prompt: `Build me a study guide for the next exam in ${course.name}. List the topics, key formulas, and concepts I need to memorize.` },
+                        { icon: 'ListChecks',    label: 'Make me a quiz',          prompt: `/quiz` },
+                        { icon: 'Lightbulb',     label: 'What\'s the exam trap?', prompt: `What's a common trap or exam-tested mistake in ${course.name} that I should watch out for?` },
+                      ].map(({ icon, label, prompt }) => {
+                        const Icon = icon === 'Sparkles' ? Sparkles : icon === 'GraduationCap' ? GraduationCap : icon === 'ListChecks' ? ListChecks : Lightbulb;
+                        return (
+                          <button
+                            key={label}
+                            type="button"
+                            onClick={() => onSend(prompt)}
+                            className="group/sg flex flex-col items-start gap-2 p-3.5 rounded-2xl bg-white border border-gray-200 hover:border-gray-900 hover:shadow-[0_8px_24px_-12px_rgba(15,15,15,0.18)] transition-all text-left"
+                          >
+                            <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-[#F3F2EF] group-hover/sg:bg-gray-900 transition-colors">
+                              <Icon size={14} className="text-gray-700 group-hover/sg:text-white transition-colors" />
+                            </span>
+                            <span className="text-[12.5px] font-medium text-gray-800 leading-snug">{label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {/* Smaller secondary row — quick one-tap actions for browsing prior work. */}
+                    <div className="w-full mt-3 flex flex-wrap gap-1.5 justify-center">
+                      {[
+                        { label: 'Walk me through a worked example', prompt: `Walk me through a worked example from the materials in ${course.name}, step by step.` },
+                        { label: "I'm lost — where do I start?",      prompt: `I'm lost in ${course.name} — where should I start? Give me a roadmap.` },
+                        { label: 'Recap the last lecture',             prompt: `Give me a quick recap of the most recent lecture material in ${course.name}.` },
+                      ].map(({ label, prompt }) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => onSend(prompt)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-transparent border border-gray-200 hover:border-gray-400 hover:bg-white text-gray-600 hover:text-gray-900 text-[12px] transition-all"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
