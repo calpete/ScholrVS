@@ -201,13 +201,24 @@ function ThinkingText({ step, sources, inputTokens }) {
   }
   else if (step === 'writing') text = 'Writing your answer…';
   else text = phrases[i];
+  // Format the counter into 1K-step ticks so the ramp reads as
+  // "1K → 2K → 3K → … → 9K → 10.1K → 10.2K". Below 1K we just hide
+  // the pill (the counter is barely starting and a "0K" reads as
+  // broken). 1K-9K rounds down to whole thousands; 10K+ shows one
+  // decimal so the user sees motion at the larger numbers too.
+  const fmtTokens = (n) => {
+    if (n < 1000) return null;
+    if (n < 10_000) return `${Math.floor(n / 1000)}K`;
+    return `${(n / 1000).toFixed(1)}K`;
+  };
+  const tokenLabel = fmtTokens(displayedTokens);
   return (
     <span className="text-sm text-gray-400 inline-flex items-center gap-2 py-1 transition-opacity">
       <span>{text}</span>
-      {displayedTokens > 0 && (
+      {tokenLabel && (
         <>
           <span className="text-gray-200">·</span>
-          <span className="tabular-nums text-gray-400">{displayedTokens.toLocaleString()} tokens</span>
+          <span className="tabular-nums text-gray-400">{tokenLabel} tokens</span>
         </>
       )}
     </span>
