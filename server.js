@@ -162,6 +162,17 @@ Use your judgment. Markdown is available — headings, bold, lists, tables, pros
 
 Tables, bullets, headings, and structure are tools — use them when they help, skip them when prose is clearer. Don't force a table just because there are 3+ items.
 
+# COMPREHENSIVE / EXAM-PREP QUESTIONS
+When the student is preparing for an exam or wants comprehensive coverage ("what should I know", "key equations", "study guide", "review for the midterm", "all the formulas", "important concepts"), be EXHAUSTIVE about what the retrieved excerpts contain. List every formula, every named concept, every example you can find — don't curate down to a handful. A real upperclassman handed a study guide doesn't say "here are 3 things"; they say "alright, here's everything that's on this — let's go top to bottom."
+
+Structure these answers like a real study guide:
+- Group by topic / chapter / module as the materials do
+- Under each topic, list the formulas (one per line, bold label, equals, expression)
+- Under formulas, list the named concepts the student needs even without equations (these are exam MC fodder)
+- Close with a "cram list" — the 5-10 things that matter most if they only have 1 hour, called out separately
+
+When the retrieved excerpts are rich, your answer should be rich. Thin answers to thick questions feel like you didn't read the materials.
+
 # MATH
 Write ALL math in plain text using Unicode characters. NEVER use LaTeX. NEVER use \`$\`, \`$$\`, \`\\frac\`, \`\\text\`, \`\\sum\`, \`\\sqrt\`, \`\\[\`, \`\\(\`, or any backslash command. The student's renderer does not run KaTeX or MathJax — anything in LaTeX syntax appears as raw text and looks broken.
 
@@ -2131,10 +2142,19 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
   // flow so nothing breaks.
   const docParts = [];
   let docNames = [];
-  // Retrieve 8 chunks (bumped from 6) so the model sees more potentially-
-  // relevant context — particularly helpful when the question crosses
-  // topics and the right answer lives across the syllabus + a content PDF.
-  const retrievedChunks = await searchChunks(courseId, message, 8);
+  // Detect questions that want comprehensive coverage of a topic or doc
+  // rather than a single-fact answer. "What equations should I know for
+  // the exam" wants 20 formulas; "what is the break-even formula" wants 1.
+  // We bump retrieval depth aggressively for the comprehensive case so the
+  // model has the full picture to synthesize a study-guide answer instead
+  // of a thin 3-bullet summary.
+  const COMPREHENSIVE_CUES = /\b(exam|midterm|final|quiz|test|study|review|cram|prep|prepare|cheat\s*sheet|study\s*guide|summary|summarize|overview|outline|all|every|complete|comprehensive|important|key|main|core|crucial|essential|should\s+(?:i|we)\s+(?:know|memorize|focus)|what\s+do\s+i\s+need|topics|concepts|formulas|equations|chapters?|sections?)\b/i;
+  const isComprehensive = COMPREHENSIVE_CUES.test(message);
+  // Comprehensive questions: 24 chunks (~12K tokens of context) so a
+  // study-guide answer can actually be grounded. Normal: 8.
+  const semanticK = isComprehensive ? 24 : 8;
+  const retrievedChunks = await searchChunks(courseId, message, semanticK);
+  if (isComprehensive) console.log(`📚 Comprehensive question detected — retrieving ${semanticK} chunks`);
 
   // Filename-aware boost: if the question mentions a doc by name (e.g.
   // "what is my Module 1 packet about"), pull the opening chunks of that
@@ -2145,8 +2165,13 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
   const allDocNames = Object.keys(getCourseDocuments(courseId) || {});
   const mentionedDocs = findNameMentionedDocs(message, allDocNames);
   if (mentionedDocs.length > 0) {
+    // Comprehensive questions about a named doc ("what are all the formulas
+    // in the packet") want the WHOLE doc-opening section, not just the first
+    // 4 chunks. Pull a much larger window so equation lists, definition
+    // tables, and chapter summaries all land in context.
+    const mentionedK = isComprehensive ? 16 : 4;
     const openings = (await Promise.all(
-      mentionedDocs.map(d => fetchOpeningChunks(courseId, d, 4))
+      mentionedDocs.map(d => fetchOpeningChunks(courseId, d, mentionedK))
     )).flat();
     if (openings.length > 0) {
       // Dedupe by (doc_name, chunk_index) so we don't double-count a
@@ -2172,8 +2197,11 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
     const present = new Set(retrievedChunks.map(c => c.doc_name));
     const missing = allDocNames.filter(d => !present.has(d));
     if (missing.length > 0) {
+      // Comprehensive question → top up missing docs more aggressively so
+      // every uploaded doc can contribute to a study-guide answer.
+      const fillerK = isComprehensive ? 8 : 3;
       const fillers = (await Promise.all(
-        missing.map(d => fetchOpeningChunks(courseId, d, 3))
+        missing.map(d => fetchOpeningChunks(courseId, d, fillerK))
       )).flat();
       const seen = new Set(retrievedChunks.map(c => `${c.doc_name}#${c.chunk_index}`));
       for (const c of fillers) {
@@ -2364,7 +2392,7 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
       model: MODEL_CHAT,
       messages,
       temperature: 0.3,
-      max_tokens: 2048,
+      max_tokens: 4096,
       stream: true,
     }, { signal: openaiAbort.signal, timeout: 45_000 });
   } catch (openErr) {
@@ -2381,7 +2409,7 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
       model: MODEL_CHAT,
       messages: textOnlyMessages,
       temperature: 0.3,
-      max_tokens: 2048,
+      max_tokens: 4096,
       stream: true,
     }, { signal: openaiAbort.signal, timeout: 45_000 });
   }
