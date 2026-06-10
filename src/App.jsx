@@ -4907,42 +4907,6 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             </div>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
-            {/* Real running token total for the active chat — summed from the
-                per-message usage events OpenAI returned. Tooltip surfaces
-                the input/output split + a rough cost estimate so the student
-                can see what each conversation costs. */}
-            {(() => {
-              const msgs = active?.messages || [];
-              const totals = msgs.reduce((acc, m) => {
-                if (m.usage) {
-                  acc.in += m.usage.input || 0;
-                  acc.out += m.usage.output || 0;
-                  acc.total += m.usage.total || 0;
-                }
-                return acc;
-              }, { in: 0, out: 0, total: 0 });
-              if (totals.total === 0) return null;
-              // Per-1K token prices (USD) for the two chat models we use.
-              const PRICES = {
-                'gpt-4o-mini': { in: 0.00015, out: 0.00060 },
-                'gpt-4o':      { in: 0.00250, out: 0.01000 },
-              };
-              // Pick the most expensive model touched in this chat for the
-              // upper-bound estimate — simple and conservative.
-              const usedDeep = msgs.some(m => m.usage?.model === 'gpt-4o');
-              const p = PRICES[usedDeep ? 'gpt-4o' : 'gpt-4o-mini'];
-              const cost = (totals.in / 1000) * p.in + (totals.out / 1000) * p.out;
-              const fmt = totals.total >= 10_000 ? `${(totals.total / 1000).toFixed(1)}K` : totals.total.toLocaleString();
-              return (
-                <span
-                  className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/80 border border-gray-200 text-gray-500 hover:text-gray-900 hover:border-gray-300 text-[11px] tabular-nums transition-colors cursor-default"
-                  title={`${totals.in.toLocaleString()} input + ${totals.out.toLocaleString()} output tokens this chat\n≈ ${cost < 0.01 ? '<$0.01' : `$${cost.toFixed(3)}`}`}
-                >
-                  <span className="block w-1 h-1 rounded-full bg-emerald-400" />
-                  {fmt} tokens
-                </span>
-              );
-            })()}
             {/* Quizzes & flashcards live in the sidebar folder now — no more chat-side panels. */}
             <button type="button" onClick={onExit} className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0" aria-label="Scholr home"><Logo size={20} /><span className="text-gray-900 font-semibold text-sm hidden sm:inline">Scholr</span></button>
           </div>
@@ -5130,28 +5094,15 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                             <ThinkingText step={m.statusStep} sources={m.statusSources} />
                           ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user' ? <p className="leading-relaxed whitespace-pre-wrap text-gray-900">{m.content}</p> : <MarkdownMessage content={m.content} />}
                           {m.role === 'assistant' && m.streaming && m.content && <span className="inline-block w-[3px] h-[16px] bg-gray-800 animate-pulse ml-1 align-middle rounded-sm" />}
-                          {m.role === 'assistant' && !m.streaming && !isError && (m.sources?.length > 0 || m.usage) && (
-                            <p className="mt-3 text-[11px] text-gray-300 leading-relaxed flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                              {m.sources?.length > 0 && (
-                                <>
-                                  <span className="text-gray-300">from </span>
-                                  {m.sources.map((source, idx) => (
-                                    <span key={idx} className="text-gray-400 hover:text-gray-700 transition-colors cursor-default" title={cleanFileName(source)}>
-                                      {idx > 0 && <span className="text-gray-200"> · </span>}
-                                      {cleanFileName(source)}
-                                    </span>
-                                  ))}
-                                </>
-                              )}
-                              {m.usage && (
-                                <span
-                                  className="inline-flex items-center gap-1 text-gray-300 hover:text-gray-600 transition-colors cursor-default tabular-nums"
-                                  title={`${m.usage.input.toLocaleString()} input + ${m.usage.output.toLocaleString()} output tokens · ${m.usage.model || 'gpt'}`}
-                                >
-                                  {m.sources?.length > 0 && <span className="text-gray-200">·</span>}
-                                  <span>{m.usage.total.toLocaleString()} tokens</span>
+                          {m.role === 'assistant' && m.sources?.length > 0 && !m.streaming && !isError && (
+                            <p className="mt-3 text-[11px] text-gray-300 leading-relaxed">
+                              <span className="text-gray-300">from </span>
+                              {m.sources.map((source, idx) => (
+                                <span key={idx} className="text-gray-400 hover:text-gray-700 transition-colors cursor-default" title={cleanFileName(source)}>
+                                  {idx > 0 && <span className="text-gray-200"> · </span>}
+                                  {cleanFileName(source)}
                                 </span>
-                              )}
+                              ))}
                             </p>
                           )}
                           {m.role === 'user' && <span className="block text-[10px] mt-1.5 text-gray-400">{formatTime(m.ts)}</span>}
