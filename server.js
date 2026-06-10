@@ -874,6 +874,60 @@ async function searchChunks(courseId, question, k = 6) {
   return data || [];
 }
 
+// Tokenize a string for filename-overlap matching: lowercase, split on
+// non-alphanumerics, drop tokens shorter than 3 chars, drop stopwords
+// that would create false matches ("the", "and", "course" appears in
+// almost every filename so it shouldn't drag every doc in).
+const NAME_STOPWORDS = new Set([
+  'the','and','for','about','what','that','this','with','from','into',
+  'pdf','jpg','jpeg','png','webp','file','doc','docx','accessible',
+  'course','class','spring','fall','summer','winter','final','module',
+  '2024','2025','2026','2027',
+]);
+function tokenizeForNameMatch(s) {
+  if (!s) return new Set();
+  return new Set(
+    String(s).toLowerCase().split(/[^a-z0-9]+/).filter(t => t.length >= 3 && !NAME_STOPWORDS.has(t))
+  );
+}
+
+// Detect docs whose filenames are mentioned by the user's question. Returns
+// up to 2 doc names ranked by overlap count. Stopwords ("course", "module")
+// are filtered out so "what is my module course packet about" still matches
+// "Module 1 Course Packet Accessible.pdf" via 'packet' rather than getting
+// confused with "A306 Syllabus Spring 2026 Clark.pdf".
+function findNameMentionedDocs(question, allDocNames) {
+  const qTok = tokenizeForNameMatch(question);
+  if (qTok.size === 0) return [];
+  const scored = allDocNames.map(name => {
+    const nTok = tokenizeForNameMatch(name);
+    let overlap = 0;
+    for (const t of nTok) if (qTok.has(t)) overlap += 1;
+    return { name, overlap };
+  }).filter(s => s.overlap >= 1)
+    .sort((a, b) => b.overlap - a.overlap);
+  return scored.slice(0, 2).map(s => s.name);
+}
+
+// Fetch the opening chunks of a specific doc — used when the question
+// mentions the doc by name. "What is X about" wants the start of X,
+// not a far-away chapter, and embedding similarity tends to skip the
+// generic opening pages for more keyword-laden middle sections.
+async function fetchOpeningChunks(courseId, docName, k = 6) {
+  const { data, error } = await supabase
+    .from('document_chunks')
+    .select('chunk_text,doc_name,page_number,chunk_index')
+    .eq('course_id', courseId)
+    .eq('doc_name', docName)
+    .order('chunk_index', { ascending: true })
+    .limit(k);
+  if (error) {
+    console.error(`fetchOpeningChunks ${docName}:`, error.message);
+    return [];
+  }
+  return data || [];
+}
+
 // Convert any LaTeX the model emits into plain text + Unicode. Our prompt
 // tells gpt-4o to use Unicode/plaintext math (no `$$`, no `\frac`, no
 // `\text`) because remark-math+KaTeX can't be made reliable against the
@@ -2084,6 +2138,30 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
   // topics and the right answer lives across the syllabus + a content PDF.
   const retrievedChunks = await searchChunks(courseId, message, 8);
 
+  // Filename-aware boost: if the question mentions a doc by name (e.g.
+  // "what is my Module 1 packet about"), pull the opening chunks of that
+  // doc and prepend them. Purely semantic retrieval otherwise prefers
+  // OTHER docs that describe the named doc (the syllabus paraphrases the
+  // packet) over the named doc's actual contents, because the syllabus
+  // text matches the question phrasing more directly than chapter content.
+  const allDocNames = Object.keys(getCourseDocuments(courseId) || {});
+  const mentionedDocs = findNameMentionedDocs(message, allDocNames);
+  if (mentionedDocs.length > 0) {
+    const openings = (await Promise.all(
+      mentionedDocs.map(d => fetchOpeningChunks(courseId, d, 4))
+    )).flat();
+    if (openings.length > 0) {
+      // Dedupe by (doc_name, chunk_index) so we don't double-count a
+      // chunk that already came back from semantic search.
+      const seen = new Set(retrievedChunks.map(c => `${c.doc_name}#${c.chunk_index}`));
+      for (const c of openings) {
+        const k = `${c.doc_name}#${c.chunk_index}`;
+        if (!seen.has(k)) { retrievedChunks.unshift(c); seen.add(k); }
+      }
+      console.log(`📎 Name-mentioned: ${mentionedDocs.join(', ')} — added ${openings.length} opening chunks`);
+    }
+  }
+
   if (retrievedChunks.length > 0) {
     // Pick only the docs that meaningfully informed the answer instead of
     // listing every doc that contributed even a single stray chunk.
@@ -2095,6 +2173,13 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
     // back to the single top-contributing doc — better to show one
     // grounded source than none.
     docNames = selectRelevantDocs(retrievedChunks, { minShare: 0.25, maxDocs: 3 });
+    // Name-mentioned docs always get cited, even if they didn't dominate
+    // the chunk count — the student asked about THIS doc by name, so they
+    // expect to see THIS doc in the sources pill.
+    for (const d of mentionedDocs) {
+      if (!docNames.includes(d)) docNames.unshift(d);
+    }
+    docNames = docNames.slice(0, 3);
     sendStatus('found', { sources: docNames });
     const contextText = retrievedChunks
       .map(c => `[Source: ${c.doc_name}${c.page_number ? ` · p.${c.page_number}` : ''}]\n${c.chunk_text}`)
