@@ -23,9 +23,14 @@ const API = window.location.hostname === 'localhost'
   : 'https://scholrvs.onrender.com';
 
 const FONT = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500;1,6..72,600&display=swap');
   * { font-family: 'Inter', system-ui, sans-serif; }
   .serif { font-family: 'Instrument Serif', Georgia, serif; }
+  /* Display serif for the new-chat greeting and other hero headings. Newsreader
+     is a calmer, more elegant serif than Instrument — and its italic pairs
+     better with the upright weight than Instrument's, which has a very
+     pronounced cursive italic that clashes with the roman. */
+  .serif-display { font-family: 'Newsreader', Georgia, serif; font-weight: 500; letter-spacing: -0.018em; }
   @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
   .shake { animation: shake 0.35s ease-in-out; }
   @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
@@ -3394,30 +3399,42 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   };
   // Personalized greeting for the new-chat empty state.
   const firstName = (() => { try { const n = (JSON.parse(localStorage.getItem('scholr_student_user') || '{}').name || '').split(' ')[0]; return n ? n.charAt(0).toUpperCase() + n.slice(1) : ''; } catch { return ''; } })();
-  // Pick a greeting from a varied pool that flexes by time-of-day, day-of-week,
-  // and occasional contextual one-liners. Deterministic per (day, hour-bucket)
-  // so the student doesn't see a new greeting on every keystroke, but it shifts
-  // through the day. Late-night / early-morning / Friday / Sunday get their own
-  // flavors so it doesn't feel like the same rotation every time they log in.
+  // Greeting pool — mixes time-of-day flavors with neutral "welcome back"
+  // openers so it doesn't feel rigidly clock-driven. Held in a ref so it's
+  // picked ONCE per mount (or per chatId change), then stays stable while
+  // the student is sitting on the page. Each new landing rolls a fresh one.
+  const greetingRef = useRef(null);
   const greeting = (() => {
+    if (greetingRef.current) return greetingRef.current;
     const now = new Date();
     const h = now.getHours();
-    const dow = now.getDay(); // 0=Sun .. 6=Sat
-    let pool;
-    if (h >= 0 && h < 5)        pool = ["Burning the midnight oil", "Late-night grind", "Still up", "3am study session", "Insomnia or finals?", "Up late"];
-    else if (h >= 5 && h < 9)   pool = ["Good morning", "Early start", "Rise and grind", "Morning", "First coffee", "Up and at it"];
-    else if (h >= 9 && h < 12)  pool = ["Good morning", "Morning", "Hey", "Welcome back", "Let's get into it", "Ready when you are"];
-    else if (h >= 12 && h < 14) pool = ["Good afternoon", "Lunchtime study sesh", "Hey", "Welcome back", "Afternoon", "Midday check-in"];
-    else if (h >= 14 && h < 17) pool = ["Good afternoon", "Afternoon", "Welcome back", "Hey", "Let's keep going", "Ready when you are"];
-    else if (h >= 17 && h < 20) pool = ["Good evening", "Evening", "Welcome back", "After-class hours", "Hey", "Wrapping up the day"];
-    else                        pool = ["Good evening", "Late-night study", "Evening", "One more chapter?", "Burning that lamp", "Night owl mode"];
-    // Friday afternoon / weekend overrides — small flavor shift.
-    if (dow === 5 && h >= 14)              pool = ["Friday afternoon", "TGIF", "Almost weekend", "Good afternoon", "Final stretch of the week"];
-    else if (dow === 0 && h >= 17)         pool = ["Sunday scaries hitting", "Pre-week prep", "Good evening", "Getting ahead for the week"];
-    else if (dow === 6 && h >= 9 && h < 18) pool = ["Saturday study", "Weekend mode", "Good afternoon", "Putting in the weekend work"];
-    // Deterministic per day+hour so it stays stable across re-renders.
-    const seed = now.getFullYear() * 366 + (now.getMonth() * 31) + now.getDate() + h;
-    return pool[seed % pool.length];
+    const dow = now.getDay();
+    // Neutral, non-time openers mixed in everywhere so the rotation feels
+    // less like a clock display and more like a real person greeting you.
+    const ALWAYS = [
+      "Welcome back", "You're back", "Hey there", "Hey again", "Look who's back",
+      "Ready when you are", "Let's get into it", "What are we tackling",
+      "Back at it", "Right where you left off", "Pick up where we left off",
+      "Hey", "Let's go", "What's on the docket",
+    ];
+    let timeFlavor = [];
+    if      (h < 5)  timeFlavor = ["Burning the midnight oil", "3am study session", "Still up?", "Late-night grind", "Insomnia or finals?", "Up late tonight"];
+    else if (h < 9)  timeFlavor = ["Good morning", "Early bird", "Rise and grind", "First coffee of the day", "Morning", "Up and at it"];
+    else if (h < 12) timeFlavor = ["Good morning", "Morning", "Mid-morning grind", "Coffee's hitting yet?"];
+    else if (h < 14) timeFlavor = ["Good afternoon", "Lunchtime study sesh", "Midday check-in", "Afternoon"];
+    else if (h < 17) timeFlavor = ["Good afternoon", "Afternoon", "Post-lunch focus", "Mid-afternoon momentum"];
+    else if (h < 20) timeFlavor = ["Good evening", "Evening", "After-class hours", "Wrapping the day"];
+    else             timeFlavor = ["Good evening", "Late-night study", "Evening", "One more chapter?", "Night owl mode"];
+    // Day-of-week flavor (light touch — only added to pool, doesn't override).
+    let dowFlavor = [];
+    if (dow === 5 && h >= 14)              dowFlavor = ["Friday afternoon", "TGIF", "Almost weekend", "Final stretch of the week"];
+    else if (dow === 0 && h >= 17)         dowFlavor = ["Sunday scaries hitting?", "Pre-week prep", "Getting ahead for the week"];
+    else if (dow === 6 && h >= 9 && h < 18) dowFlavor = ["Saturday study", "Weekend mode", "Putting in the weekend work"];
+    else if (dow === 1 && h < 12)          dowFlavor = ["Monday energy", "Fresh week", "New week — let's go"];
+    const pool = [...ALWAYS, ...timeFlavor, ...dowFlavor];
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    greetingRef.current = pick;
+    return pick;
   })();
   // Rotate the suggested questions through the input placeholder on an empty chat.
   const [phIdx, setPhIdx] = useState(0);
@@ -4891,7 +4908,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                   <div className="text-center max-w-xs"><Clock size={20} className="text-gray-300 mx-auto mb-4" /><h3 className="text-gray-700 font-medium text-sm mb-1">Setting up your course</h3><p className="text-gray-400 text-xs">Your instructor is uploading materials.</p></div>
                 ) : (
                   <div className="w-full max-w-3xl flex flex-col items-center">
-                    <h2 className="serif text-4xl md:text-5xl leading-tight text-gray-900 mb-4 text-center tracking-tight">{greeting}{firstName ? <>, <span className="italic">{firstName}</span></> : ''}<span className="italic">.</span></h2>
+                    <h2 className="serif-display text-[42px] md:text-[56px] leading-[1.02] text-gray-900 mb-5 text-center">{greeting}{firstName ? <>, <span className="italic font-[600]">{firstName}</span></> : ''}<span className="italic">.</span></h2>
                     <p className="text-[15px] text-gray-500 text-center mb-10 max-w-md leading-relaxed">{(() => {
                       const subs = [
                         `What can I help you study in ${course.name}?`,
@@ -5021,26 +5038,15 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                           ) : isError ? <ErrorMessage content={m.content} /> : m.role === 'user' ? <p className="leading-relaxed whitespace-pre-wrap text-gray-900">{m.content}</p> : <MarkdownMessage content={m.content} />}
                           {m.role === 'assistant' && m.streaming && m.content && <span className="inline-block w-[3px] h-[16px] bg-gray-800 animate-pulse ml-1 align-middle rounded-sm" />}
                           {m.role === 'assistant' && m.sources?.length > 0 && !m.streaming && !isError && (
-                            <div className="mt-5 pt-4 border-t border-gray-100">
-                              <div className="flex items-center gap-2 mb-2.5">
-                                <span className="block w-5 h-[1.5px] bg-gray-300 rounded-sm" />
-                                <span className="text-[9.5px] text-gray-400 uppercase tracking-[.18em] font-bold">Cited from</span>
-                              </div>
-                              <div className="flex flex-wrap gap-1.5">
-                                {m.sources.map((source, idx) => (
-                                  <span
-                                    key={idx}
-                                    className="group/cite inline-flex items-center gap-2 pl-2.5 pr-3 py-1.5 rounded-full bg-white border border-gray-200 hover:border-gray-900 hover:bg-gray-900 hover:text-white shadow-[0_1px_2px_-1px_rgba(15,15,15,0.06)] transition-all cursor-default"
-                                    title={cleanFileName(source)}
-                                  >
-                                    <span className="flex items-center justify-center w-4 h-4 rounded-full bg-[#2A4D8F]/10 group-hover/cite:bg-white/15 transition-colors">
-                                      <FileText size={9} className="text-[#2A4D8F] group-hover/cite:text-white transition-colors" />
-                                    </span>
-                                    <span className="text-[11.5px] font-medium text-gray-700 group-hover/cite:text-white max-w-[220px] truncate transition-colors">{cleanFileName(source)}</span>
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
+                            <p className="mt-3 text-[11px] text-gray-300 leading-relaxed">
+                              <span className="text-gray-300">from </span>
+                              {m.sources.map((source, idx) => (
+                                <span key={idx} className="text-gray-400 hover:text-gray-700 transition-colors cursor-default" title={cleanFileName(source)}>
+                                  {idx > 0 && <span className="text-gray-200"> · </span>}
+                                  {cleanFileName(source)}
+                                </span>
+                              ))}
+                            </p>
                           )}
                           {m.role === 'user' && <span className="block text-[10px] mt-1.5 text-gray-400">{formatTime(m.ts)}</span>}
                         </div>
