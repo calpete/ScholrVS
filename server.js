@@ -2450,6 +2450,12 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
       temperature: 0.3,
       max_tokens: 4096,
       stream: true,
+      // Ask OpenAI to include real token counts in the final stream chunk.
+      // Without this the streaming endpoint omits the `usage` object that
+      // the non-streaming endpoint returns by default. We pass the numbers
+      // through to the client so the UI can show an honest "N tokens"
+      // pill — Claude-style, but with real numbers, not an estimate.
+      stream_options: { include_usage: true },
     }, { signal: openaiAbort.signal, timeout: 45_000 });
   } catch (openErr) {
     if (imageParts.length === 0) { clearTimeout(openaiTimeout); throw openErr; }
@@ -2467,6 +2473,12 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
       temperature: 0.3,
       max_tokens: 4096,
       stream: true,
+      // Ask OpenAI to include real token counts in the final stream chunk.
+      // Without this the streaming endpoint omits the `usage` object that
+      // the non-streaming endpoint returns by default. We pass the numbers
+      // through to the client so the UI can show an honest "N tokens"
+      // pill — Claude-style, but with real numbers, not an estimate.
+      stream_options: { include_usage: true },
     }, { signal: openaiAbort.signal, timeout: 45_000 });
   }
 
@@ -2488,9 +2500,25 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
       return true;
     };
 
+    // Real token counts from OpenAI — captured from the final stream
+    // chunk (the one that has usage but no delta.content). Sent to the
+    // client as a SSE 'usage' event before stream end so the UI can
+    // attach the numbers to the assistant message bubble.
+    let finalUsage = null;
     try {
       for await (const chunk of stream) {
         if (clientGone) break;
+        // OpenAI emits one trailing chunk with the usage object and no
+        // choices/delta. Capture it whenever it appears; don't `continue`
+        // until we've checked because the usage chunk has no content.
+        if (chunk.usage) {
+          finalUsage = {
+            input: chunk.usage.prompt_tokens || 0,
+            output: chunk.usage.completion_tokens || 0,
+            total: chunk.usage.total_tokens || 0,
+            model: chatModel,
+          };
+        }
         const token = chunk.choices?.[0]?.delta?.content;
         if (!token) continue;
         rawText += token;
@@ -2591,6 +2619,10 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
     } catch (e) { console.warn('Question log failed:', e.message); }
 
     safeWrite(`data: ${JSON.stringify({ type: 'sources', sources })}\n\n`);
+    if (finalUsage) {
+      safeWrite(`data: ${JSON.stringify({ type: 'usage', usage: finalUsage })}\n\n`);
+      console.log(`🔢 Tokens: ${finalUsage.input} in + ${finalUsage.output} out = ${finalUsage.total} total (${finalUsage.model})`);
+    }
     safeWrite(`data: ${JSON.stringify({ type: 'done', truncated: streamCutOff })}\n\n`);
     safeEnd();
     clearTimeout(openaiTimeout);
