@@ -172,15 +172,13 @@ Use these Unicode characters for math:
 - Superscripts: ⁰ ¹ ² ³ ⁴ ⁵ ⁶ ⁷ ⁸ ⁹ ⁿ ⁱ ⁺ ⁻
 - Subscripts: ₀ ₁ ₂ ₃ ₄ ₅ ₆ ₇ ₈ ₉ ₜ ₙ ₓ
 
-Fractions: write inline as \`a / b\` or \`(numerator) / (denominator)\`. For named formulas, give it its own line and use bold labels:
+Fractions: write inline as \`a / b\` or \`(numerator) / (denominator)\`. For named formulas, give the formula its own line, lead with a bold label and an equals sign, then the expression. Generic formatting examples (NOT to repeat verbatim):
 
-  **NPV** = Σ Cₜ / (1+r)ᵗ − C₀
+  **Formula Name** = expression in Unicode math
 
-  **Margin of Safety** = Actual Sales − Break-even Sales
+  **Ratio** = numerator / denominator
 
-  **Margin of Safety (%)** = (Actual Sales − Break-even Sales) / Actual Sales
-
-  **CM Ratio** = CM per Unit / Selling Price per Unit
+Only use a formula that actually appears in the retrieved excerpts. NEVER invent a formula from memory of a textbook — if the materials don't contain the formula the student is asking about, say so plainly: "I don't see that formula in the materials your professor uploaded — want me to ask you for the textbook version, or check with your professor?"
 
 Currency: write the number followed by the currency word ("500 dollars", "0.50 dollars") — never lead with a \`$\` sign. Percentages: write the number followed by \`%\` ("20%", "0.25 × 68% = 17 points"). For exponents, use Unicode superscripts when possible (1.08², (1+r)ᵗ); for more complex cases write \`(1+r)^t\` with a caret.
 
@@ -2159,6 +2157,30 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
         if (!seen.has(k)) { retrievedChunks.unshift(c); seen.add(k); }
       }
       console.log(`📎 Name-mentioned: ${mentionedDocs.join(', ')} — added ${openings.length} opening chunks`);
+    }
+  }
+
+  // Doc-spread guarantee. On a small course (≤4 docs) the semantic top-K
+  // can land entirely inside the doc whose phrasing matches the question
+  // best (e.g. the syllabus), leaving the OTHER docs (e.g. the chapter
+  // packet with the actual formulas) with zero context. The model then
+  // hallucinates the missing content from training. To prevent that,
+  // top up the underrepresented docs with their opening chunks so every
+  // uploaded doc contributes at least something the model can ground on.
+  // Skipped on larger courses where 10+ docs would blow the context.
+  if (allDocNames.length > 0 && allDocNames.length <= 4) {
+    const present = new Set(retrievedChunks.map(c => c.doc_name));
+    const missing = allDocNames.filter(d => !present.has(d));
+    if (missing.length > 0) {
+      const fillers = (await Promise.all(
+        missing.map(d => fetchOpeningChunks(courseId, d, 3))
+      )).flat();
+      const seen = new Set(retrievedChunks.map(c => `${c.doc_name}#${c.chunk_index}`));
+      for (const c of fillers) {
+        const k = `${c.doc_name}#${c.chunk_index}`;
+        if (!seen.has(k)) { retrievedChunks.push(c); seen.add(k); }
+      }
+      if (fillers.length > 0) console.log(`📚 Doc-spread top-up: ${missing.join(', ')} — added ${fillers.length} chunks`);
     }
   }
 

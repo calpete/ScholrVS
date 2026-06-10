@@ -127,11 +127,18 @@ function ThinkingText({ step, sources }) {
   if (step === 'searching') text = 'Searching your materials…';
   else if (step === 'reading') text = 'Reading your materials…';
   else if (step === 'found') {
+    const stripExt = s => s.replace(/\.[^.]+$/, '');
+    const truncOne = s => s.length > 32 ? s.slice(0, 30) + '…' : s;
     if (sources && sources.length === 1) {
-      const clean = sources[0].replace(/\.[^.]+$/, '');
-      text = `Found ${clean.length > 36 ? clean.slice(0, 34) + '…' : clean}.`;
+      text = `Reading ${truncOne(stripExt(sources[0]))}…`;
     } else if (sources && sources.length > 1) {
-      text = `Found ${sources.length} sources…`;
+      // Name every file being read instead of "Found 3 sources…" — the
+      // student wants to see exactly which docs are informing the answer.
+      const names = sources.map(s => truncOne(stripExt(s)));
+      const joined = names.length === 2
+        ? `${names[0]} and ${names[1]}`
+        : `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
+      text = `Reading ${joined}…`;
     } else {
       text = 'Found relevant sections…';
     }
