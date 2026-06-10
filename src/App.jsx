@@ -3508,19 +3508,17 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     greetingRef.current = pick;
     return pick;
   })();
-  // Rotate the suggested questions through the input placeholder on an empty chat.
+  // Rotate the suggested questions through the input placeholder. Runs
+  // continuously — both the empty-chat hero pool and the pinned-chat
+  // shorter pool change every 3.2s so the placeholder feels alive even
+  // mid-conversation. (Previously this bailed out when the chat had
+  // messages, leaving the placeholder stuck on whichever pinned prompt
+  // it last landed on — looked broken.)
   const [phIdx, setPhIdx] = useState(0);
-  // Only rotate while the chat is actually empty — otherwise we re-render
-  // the input every 3.2s for no reason, and phIdx grew unbounded over
-  // long sessions.
-  const activeForRotation = chats.find(c => c.id === chatId) || chats[0];
-  const isEmptyChatForRotation = !activeForRotation?.messages?.length;
   useEffect(() => {
-    if (!isEmptyChatForRotation) return;
-    // Keep phIdx bounded; renderer mods by placeholders.length anyway.
     const id = setInterval(() => setPhIdx(i => (i + 1) % 1000), 3200);
     return () => clearInterval(id);
-  }, [isEmptyChatForRotation]);
+  }, []);
   const active = chats.find(c => c.id === chatId) || chats[0];
   // Smart autoscroll: only auto-pull to bottom if the user is already
   // within 150px of the bottom. If they've scrolled up to re-read something,
