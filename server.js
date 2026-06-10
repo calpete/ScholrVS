@@ -2412,7 +2412,21 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
     messages.push({ role: 'user', content: `STUDENT QUESTION: ${message}` });
   }
 
-  sendStatus('writing');
+  // Live token estimate so the UI can show a "Writing your answer · N tokens"
+  // counter next to the thinking indicator while the model processes. ~4
+  // chars per token is a close enough approximation for the display; the
+  // real count comes back via the 'usage' SSE event when the stream
+  // completes (which the UI also captures for telemetry).
+  const estimatedInputTokens = Math.ceil(
+    messages.reduce((sum, m) => {
+      if (typeof m.content === 'string') return sum + m.content.length;
+      if (Array.isArray(m.content)) {
+        return sum + m.content.reduce((s, p) => s + ((p.type === 'text' && p.text) ? p.text.length : 0), 0);
+      }
+      return sum;
+    }, 0) / 4
+  );
+  sendStatus('writing', { inputTokens: estimatedInputTokens });
   // (citations event removed — client never had a handler for it; sources
   // arrive in the 'sources' event after the stream finishes.)
 
