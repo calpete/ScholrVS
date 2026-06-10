@@ -132,6 +132,53 @@ function ThinkingText({ step, sources, inputTokens }) {
     const id = setInterval(() => setI(p => (p + 1) % phrases.length), 1900);
     return () => clearInterval(id);
   }, [step]);
+
+  // Live-counting token display, Claude-style. While the spinner is
+  // visible, the number ticks up smoothly toward the current target
+  // instead of snapping. Two phases:
+  //   1. From the moment streaming starts → 'writing' status arrives, we
+  //      ramp gently from 0 (we don't yet have an input count). This
+  //      gives the "I'm working" feedback even before the prompt is
+  //      assembled.
+  //   2. Once 'writing' fires with the real input token estimate, we
+  //      animate from the current display value to that target over
+  //      ~800ms with an ease-out so it feels like a meter filling.
+  const [displayedTokens, setDisplayedTokens] = useState(0);
+  const rafRef = useRef(null);
+  useEffect(() => {
+    // Pre-input phase: gentle tick-up while waiting for the writing event.
+    if (!inputTokens) {
+      let alive = true;
+      const start = performance.now();
+      const tick = (now) => {
+        if (!alive) return;
+        // ~25 tokens/sec ramp so the counter shows life immediately.
+        setDisplayedTokens(Math.min(2500, Math.round((now - start) / 40)));
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+      return () => { alive = false; cancelAnimationFrame(rafRef.current); };
+    }
+    // Real input count arrived — animate from current to target with
+    // ease-out cubic, ~800ms duration. Long enough to read as a meter
+    // filling, short enough that the actual content stream still feels
+    // snappy when it starts emitting.
+    const startVal = displayedTokens;
+    const targetVal = inputTokens;
+    const startT = performance.now();
+    const DUR = 800;
+    let alive = true;
+    const tick = (now) => {
+      if (!alive) return;
+      const t = Math.min(1, (now - startT) / DUR);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      setDisplayedTokens(Math.round(startVal + (targetVal - startVal) * eased));
+      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { alive = false; cancelAnimationFrame(rafRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputTokens]);
   let text;
   if (step === 'searching') text = 'Searching your materials…';
   else if (step === 'reading') text = 'Reading your materials…';
@@ -157,10 +204,10 @@ function ThinkingText({ step, sources, inputTokens }) {
   return (
     <span className="text-sm text-gray-400 inline-flex items-center gap-2 py-1 transition-opacity">
       <span>{text}</span>
-      {inputTokens > 0 && step === 'writing' && (
+      {displayedTokens > 0 && (
         <>
           <span className="text-gray-200">·</span>
-          <span className="tabular-nums text-gray-400">{inputTokens.toLocaleString()} tokens</span>
+          <span className="tabular-nums text-gray-400">{displayedTokens.toLocaleString()} tokens</span>
         </>
       )}
     </span>
