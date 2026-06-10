@@ -2194,7 +2194,17 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
   // Comprehensive questions: 24 chunks (~12K tokens of context) so a
   // study-guide answer can actually be grounded. Normal: 8.
   const semanticK = isComprehensive ? 24 : 8;
-  const retrievedChunks = await searchChunks(courseId, message, semanticK);
+  // Semantic chunks — these are the ones that actually MATCH the question
+  // by embedding similarity. They are what should drive citation choice:
+  // a doc that's in the context purely because we topped it up to prevent
+  // hallucination ("doc-spread guarantee" below) should NOT get cited
+  // unless the model actually used it.
+  const semanticChunks = await searchChunks(courseId, message, semanticK);
+  // Full chunk list (semantic + name-mention boost + doc-spread top-up) is
+  // what we send to the model. Citations are picked from semanticChunks
+  // only, with name-mentioned docs force-added because the student
+  // explicitly asked about them by name.
+  const retrievedChunks = [...semanticChunks];
   if (isComprehensive) console.log(`📚 Comprehensive question detected — retrieving ${semanticK} chunks`);
 
   // Filename-aware boost: if the question mentions a doc by name (e.g.
@@ -2234,6 +2244,8 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
   // top up the underrepresented docs with their opening chunks so every
   // uploaded doc contributes at least something the model can ground on.
   // Skipped on larger courses where 10+ docs would blow the context.
+  // IMPORTANT: these chunks go into the CONTEXT but NOT into the citation
+  // pool — they exist to prevent hallucination, not to declare a source.
   if (allDocNames.length > 0 && allDocNames.length <= 4) {
     const present = new Set(retrievedChunks.map(c => c.doc_name));
     const missing = allDocNames.filter(d => !present.has(d));
@@ -2250,21 +2262,16 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
         const k = `${c.doc_name}#${c.chunk_index}`;
         if (!seen.has(k)) { retrievedChunks.push(c); seen.add(k); }
       }
-      if (fillers.length > 0) console.log(`📚 Doc-spread top-up: ${missing.join(', ')} — added ${fillers.length} chunks`);
+      if (fillers.length > 0) console.log(`📚 Doc-spread top-up: ${missing.join(', ')} — added ${fillers.length} chunks (NOT counted toward citations)`);
     }
   }
 
   if (retrievedChunks.length > 0) {
-    // Pick only the docs that meaningfully informed the answer instead of
-    // listing every doc that contributed even a single stray chunk.
-    // With 8 retrieved chunks and 5 PDFs uploaded, RAG often pulls 5
-    // chunks from the "real" source + 1-2 incidental chunks from other
-    // docs — citing all of them dilutes the signal. Rule: a doc must
-    // contribute at least 25% of the retrieved chunks (so 2+/8) AND we
-    // cap at 3 citations max. If nothing meets the share threshold, fall
-    // back to the single top-contributing doc — better to show one
-    // grounded source than none.
-    docNames = selectRelevantDocs(retrievedChunks, { minShare: 0.25, maxDocs: 3 });
+    // Citation choice runs on SEMANTIC chunks only — the doc-spread filler
+    // is in the context to feed the model, not to claim "this doc informed
+    // the answer." Without this separation, asking "who is my teacher"
+    // would cite the packet just because we topped it up.
+    docNames = selectRelevantDocs(semanticChunks, { minShare: 0.25, maxDocs: 3 });
     // Name-mentioned docs always get cited, even if they didn't dominate
     // the chunk count — the student asked about THIS doc by name, so they
     // expect to see THIS doc in the sources pill.
