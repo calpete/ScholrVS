@@ -66,6 +66,12 @@ const MODEL = 'gemini-2.5-flash';            // heavy generation: quiz / test / 
 // factual lookups (office hours, deadlines, definitions). Quiz / test /
 // cards / debrief still run on Gemini.
 const MODEL_CHAT = 'gpt-4o-mini';
+// For comprehensive / exam-prep questions where the student wants a
+// full study guide, mini's synthesis is the quality ceiling — it can list
+// formulas but won't structure a multi-section cram doc the way full 4o
+// will. We auto-upgrade just these questions (~5% of traffic by message
+// pattern). Cost: ~5¢ per comprehensive answer vs 0.3¢ on mini.
+const MODEL_CHAT_DEEP = 'gpt-4o';
 const MODEL_EMBED = 'text-embedding-004';    // 768-dim embeddings for retrieval
 
 const ai = new GoogleGenAI({ vertexai: true, project: PROJECT, location: LOCATION });
@@ -163,15 +169,21 @@ Use your judgment. Markdown is available — headings, bold, lists, tables, pros
 Tables, bullets, headings, and structure are tools — use them when they help, skip them when prose is clearer. Don't force a table just because there are 3+ items.
 
 # COMPREHENSIVE / EXAM-PREP QUESTIONS
-When the student is preparing for an exam or wants comprehensive coverage ("what should I know", "key equations", "study guide", "review for the midterm", "all the formulas", "important concepts"), be EXHAUSTIVE about what the retrieved excerpts contain. List every formula, every named concept, every example you can find — don't curate down to a handful. A real upperclassman handed a study guide doesn't say "here are 3 things"; they say "alright, here's everything that's on this — let's go top to bottom."
+When the student is preparing for an exam or wants comprehensive coverage ("what should I know", "key equations", "study guide", "review for the midterm", "all the formulas", "important concepts"), produce a FULL study guide. Not a summary — a study guide. Below is the required structure. Hit every section. Do not skip any.
 
-Structure these answers like a real study guide:
-- Group by topic / chapter / module as the materials do
-- Under each topic, list the formulas (one per line, bold label, equals, expression)
-- Under formulas, list the named concepts the student needs even without equations (these are exam MC fodder)
-- Close with a "cram list" — the 5-10 things that matter most if they only have 1 hour, called out separately
+Required structure for a study-guide answer:
 
-When the retrieved excerpts are rich, your answer should be rich. Thin answers to thick questions feel like you didn't read the materials.
+1. **Topics Covered** — one line per module / chapter naming the topics.
+
+2. **Every formula in the retrieved excerpts**, grouped by topic. For each topic that has formulas, list ALL the variants — not just one. Example: if the materials cover Contribution Margin, list CM (total), CM per unit, AND CM ratio. If they cover Break-Even, list units AND sales-dollars forms. If they cover Target Profit, list units AND sales-dollars forms. Variants are the whole point. Aim for 10-20 formulas total for a multi-module review, not 3-6.
+
+3. **Concepts you need even without equations** — a flat bullet list of the named ideas the student needs to recognize for MC: cost classifications, decision frameworks, accounting categories, named methods, anything in bold or italicized in the materials. Aim for 8-15 items.
+
+4. **Worked-example callouts** — if the materials use a recurring teaching example (a company name, a scenario), name it: "the Tea & Kettle example shows…" — students remember formulas through the examples that taught them.
+
+5. **If you were cramming the night before** — close with a separate section listing the 5-10 most critical formulas / concepts to memorize cold. Use the heading "If I were cramming the night before" or "Cram list". This is mandatory — it's the section students screenshot.
+
+A real upperclassman handed two PDFs writes 800-1500 words covering all of this, not 200 words listing 6 formulas. Thin answers to thick questions feel like you didn't read the materials. When the retrieved excerpts are rich, your answer should be rich.
 
 # MATH
 Write ALL math in plain text using Unicode characters. NEVER use LaTeX. NEVER use \`$\`, \`$$\`, \`\\frac\`, \`\\text\`, \`\\sum\`, \`\\sqrt\`, \`\\[\`, \`\\(\`, or any backslash command. The student's renderer does not run KaTeX or MathJax — anything in LaTeX syntax appears as raw text and looks broken.
@@ -935,6 +947,35 @@ async function fetchOpeningChunks(courseId, docName, k = 6) {
     return [];
   }
   return data || [];
+}
+
+// Sample chunks broadly across a doc — used for comprehensive questions
+// where the formulas / definitions / cram-list content might live anywhere
+// in the doc (middle chapters, end-of-section summaries), not just the
+// opening. Pulls every chunk if the doc has ≤ targetK chunks, otherwise
+// evenly samples targetK across the chunk_index range so the model sees
+// representative material from start, middle, and end.
+async function fetchSpreadChunks(courseId, docName, targetK = 16) {
+  const { data, error } = await supabase
+    .from('document_chunks')
+    .select('chunk_text,doc_name,page_number,chunk_index')
+    .eq('course_id', courseId)
+    .eq('doc_name', docName)
+    .order('chunk_index', { ascending: true });
+  if (error) {
+    console.error(`fetchSpreadChunks ${docName}:`, error.message);
+    return [];
+  }
+  const all = data || [];
+  if (all.length <= targetK) return all;
+  // Evenly-spaced sampling: indices floor(i * len / targetK) for i in 0..k-1.
+  // This catches first chunk + last chunk + targetK-2 evenly distributed.
+  const out = [];
+  for (let i = 0; i < targetK; i++) {
+    const idx = Math.floor(i * all.length / targetK);
+    out.push(all[idx]);
+  }
+  return out;
 }
 
 // Convert any LaTeX the model emits into plain text + Unicode. Our prompt
@@ -2165,13 +2206,13 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
   const allDocNames = Object.keys(getCourseDocuments(courseId) || {});
   const mentionedDocs = findNameMentionedDocs(message, allDocNames);
   if (mentionedDocs.length > 0) {
-    // Comprehensive questions about a named doc ("what are all the formulas
-    // in the packet") want the WHOLE doc-opening section, not just the first
-    // 4 chunks. Pull a much larger window so equation lists, definition
-    // tables, and chapter summaries all land in context.
-    const mentionedK = isComprehensive ? 16 : 4;
+    // Comprehensive questions about a named doc want SPREAD sampling
+    // across the doc (formulas often live mid-chapter, not in the opening
+    // intro); single-fact questions want opening chunks.
     const openings = (await Promise.all(
-      mentionedDocs.map(d => fetchOpeningChunks(courseId, d, mentionedK))
+      mentionedDocs.map(d => isComprehensive
+        ? fetchSpreadChunks(courseId, d, 18)
+        : fetchOpeningChunks(courseId, d, 4))
     )).flat();
     if (openings.length > 0) {
       // Dedupe by (doc_name, chunk_index) so we don't double-count a
@@ -2197,11 +2238,12 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
     const present = new Set(retrievedChunks.map(c => c.doc_name));
     const missing = allDocNames.filter(d => !present.has(d));
     if (missing.length > 0) {
-      // Comprehensive question → top up missing docs more aggressively so
-      // every uploaded doc can contribute to a study-guide answer.
-      const fillerK = isComprehensive ? 8 : 3;
+      // Comprehensive: spread-sample missing docs so the model sees their
+      // full scope, not just the intro. Normal: 3 opening chunks each.
       const fillers = (await Promise.all(
-        missing.map(d => fetchOpeningChunks(courseId, d, fillerK))
+        missing.map(d => isComprehensive
+          ? fetchSpreadChunks(courseId, d, 10)
+          : fetchOpeningChunks(courseId, d, 3))
       )).flat();
       const seen = new Set(retrievedChunks.map(c => `${c.doc_name}#${c.chunk_index}`));
       for (const c of fillers) {
@@ -2386,10 +2428,17 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
   // burning OpenAI tokens for a connection no one's listening to.
   req.on('close', () => { openaiAbort.abort(); });
 
+  // Auto-upgrade model for comprehensive / exam-prep questions where
+  // mini's synthesis is the quality ceiling. ~5¢ per upgraded question
+  // vs 0.3¢ on mini — worth it when the student is asking for a real
+  // study guide rather than a one-line lookup.
+  const chatModel = isComprehensive ? MODEL_CHAT_DEEP : MODEL_CHAT;
+  if (isComprehensive) console.log(`🧠 Using ${chatModel} for comprehensive answer`);
+
   let stream;
   try {
     stream = await openai.chat.completions.create({
-      model: MODEL_CHAT,
+      model: chatModel,
       messages,
       temperature: 0.3,
       max_tokens: 4096,
@@ -2406,7 +2455,7 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
       return m;
     });
     stream = await openai.chat.completions.create({
-      model: MODEL_CHAT,
+      model: chatModel,
       messages: textOnlyMessages,
       temperature: 0.3,
       max_tokens: 4096,
