@@ -5973,12 +5973,22 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
   // the visitor doesn't retype it. Lossless even if the signup form
   // doesn't read it — the email just gets ignored.
   const [heroEmail, setHeroEmail] = useState('');
+  // "See a Demo" submit: hand off to the team via mailto so an actual
+  // person can follow up, AND stash the email so if they bounce back to
+  // self-signup it pre-fills. The mailto includes a subject + body with
+  // their email already in place so the response thread is one click.
   const submitHero = (e) => {
     e.preventDefault();
     const v = heroEmail.trim();
     if (v) {
       try { sessionStorage.setItem('scholr_prefill_email', v); } catch {}
+      const subj = encodeURIComponent('Scholr demo request');
+      const body = encodeURIComponent(`Hi Scholr team,\n\nI'd like to see a demo. My email is ${v}.\n\n— sent from scholr.study`);
+      window.location.href = `mailto:hello@scholr.study?subject=${subj}&body=${body}`;
+      return;
     }
+    // No email entered → fall back to direct signup so the visitor isn't
+    // forced through a contact form they didn't fill in.
     onInstructor();
   };
 
@@ -5997,6 +6007,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
           </nav>
           <div className="nav-right">
             <button type="button" className="btn btn-ghost btn-pill" onClick={onSignIn}>Sign in</button>
+            <button type="button" className="btn btn-primary btn-pill" onClick={onInstructor}>Get started</button>
           </div>
         </div>
       </header>
@@ -6018,7 +6029,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
                   autoComplete="email"
                   aria-label="School email"
                 />
-                <button type="submit"><span className="arr"><Ic name="arrow-right" s={15} /></span>Start a course free</button>
+                <button type="submit"><span className="arr"><Ic name="arrow-right" s={15} /></span>See a Demo</button>
               </form>
             </div>
             <p className="hero-sub">Joining a class? <button type="button" onClick={() => setJoinOpen(true)}>Enter your join code <Ic name="arrow-right" s={15} /></button></p>
@@ -6493,6 +6504,7 @@ function MarketingShell({ children, onSignIn, onInstructor, onStudent, currentPa
           </nav>
           <div className="nav-right">
             <button type="button" className="btn btn-ghost btn-pill" onClick={onSignIn}>Sign in</button>
+            <button type="button" className="btn btn-primary btn-pill" onClick={onInstructor}>Get started</button>
           </div>
         </div>
       </header>
