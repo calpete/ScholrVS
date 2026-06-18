@@ -83,12 +83,18 @@ console.log(`✅ AI ready — gen (quiz/test/cards): ${MODEL} (Gemini) · chat: 
 // if the env var isn't set, the endpoint logs submissions to the server
 // console as a fallback so a missed config never silently swallows leads.
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const CONTACT_TO  = process.env.CONTACT_TO_EMAIL  || 'calpeterson242@gmail.com';
+// CONTACT_TO_EMAIL supports a comma-separated list, so a single env var
+// can fan submissions out to multiple recipients in one Resend call.
+// E.g. CONTACT_TO_EMAIL="calpeterson242@gmail.com, cofounder@example.com".
+const CONTACT_TO = (process.env.CONTACT_TO_EMAIL || 'calpeterson242@gmail.com')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
 // Resend's test domain — works out of the box without verifying scholr.study.
 // Once the domain is verified in Resend's dashboard, swap this for
 // 'leads@scholr.study' (or similar) to send from a branded address.
 const CONTACT_FROM = process.env.CONTACT_FROM_EMAIL || 'Scholr Leads <onboarding@resend.dev>';
-console.log(`${resend ? '✅' : '⚠️ '} Contact form → ${CONTACT_TO}${resend ? '' : ' (Resend not configured — submissions will only log)'}`);
+console.log(`${resend ? '✅' : '⚠️ '} Contact form → ${CONTACT_TO.join(', ')}${resend ? '' : ' (Resend not configured — submissions will only log)'}`);
 
 const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY;
 const supabase = createClient(process.env.SUPABASE_URL, SUPABASE_KEY);
