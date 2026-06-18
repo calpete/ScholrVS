@@ -5592,6 +5592,10 @@ html { scroll-behavior: smooth; }
   --shadow-float:0 40px 90px -38px rgba(21,22,27,.34),0 8px 26px -16px rgba(21,22,27,.18);
   --maxw:1120px;
   font-family:var(--font-body); background:var(--bg); color:var(--ink); line-height:1.55; font-size:17px;
+  /* Reserve 36px at the top so the now-fixed promo banner doesn't sit
+     on top of the page content on initial load. Nav has its own
+     transparent backdrop below the banner. */
+  padding-top:36px;
   overflow-x:hidden; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
 }
 .scholr-landing *{box-sizing:border-box;margin:0;padding:0;}
@@ -5621,17 +5625,21 @@ html { scroll-behavior: smooth; }
 .scholr-landing .dot.live::after{content:"";position:absolute;inset:-4px;border-radius:999px;border:1.5px solid currentColor;opacity:.35;animation:lp-ping 2.4s cubic-bezier(0,0,.2,1) infinite;}
 @keyframes lp-ping{0%{transform:scale(.6);opacity:.6;}80%,100%{transform:scale(1.7);opacity:0;}}
 .scholr-landing .chip{display:inline-flex;align-items:center;gap:9px;padding:8px 16px;border-radius:var(--radius-pill);background:var(--surface);border:1px solid var(--line);font-size:14.5px;font-weight:600;color:var(--ink-2);box-shadow:var(--shadow-sm);white-space:nowrap;}
-/* Sticky promo banner above the nav. Both stay pinned when scrolling,
-   stacked: banner top:0, nav top:36px. Dark surface so the cream nav
-   reads as the primary chrome and the banner is the secondary thin
-   line. Use a real, current announcement — never fake metrics. */
-.scholr-landing .top-banner{position:sticky;top:0;z-index:70;background:#15161B;color:#FBFBF9;height:36px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;letter-spacing:.01em;padding:0 16px;}
+/* Pinned promo banner above the nav. Uses position fixed instead of
+   sticky because .scholr-landing has overflow-x hidden, which
+   silently breaks sticky behavior on descendants (sticky needs an
+   ancestor scroll context that the overflow rule disrupts). Fixed
+   anchors to the viewport directly so the banner stays at the top
+   no matter how far the page is scrolled. The page reserves 36px of
+   top padding (see .scholr-landing wrapper) so initial content
+   does not slide under the banner. Same trick for the nav at top 36. */
+.scholr-landing .top-banner{position:fixed;top:0;left:0;right:0;z-index:70;background:#15161B;color:#FBFBF9;height:36px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;letter-spacing:.01em;padding:0 16px;}
 .scholr-landing .top-banner .new-tag{color:#FF8A4C;font-weight:700;margin-right:8px;text-transform:uppercase;letter-spacing:.08em;font-size:12px;}
 .scholr-landing .top-banner .sep{opacity:.4;margin:0 10px;}
 .scholr-landing .top-banner a{color:inherit;display:inline-flex;align-items:center;gap:6px;font-weight:600;}
 .scholr-landing .top-banner a .arr{display:inline-flex;transition:transform .2s ease;}
 .scholr-landing .top-banner a:hover .arr{transform:translateX(3px);}
-.scholr-landing header.nav{position:sticky;top:36px;z-index:60;background:color-mix(in srgb,var(--bg) 78%,transparent);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border-bottom:1px solid transparent;transition:border-color .25s ease,background .25s ease;}
+.scholr-landing header.nav{position:fixed;top:36px;left:0;right:0;z-index:60;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border-bottom:1px solid transparent;transition:border-color .25s ease,background .25s ease;}
 .scholr-landing header.nav.scrolled{border-bottom-color:var(--line);}
 .scholr-landing .nav-inner{display:flex;align-items:center;justify-content:space-between;height:76px;}
 .scholr-landing .brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:23px;letter-spacing:-.02em;color:var(--ink);background:none;border:none;cursor:pointer;font-family:var(--font-body);}
