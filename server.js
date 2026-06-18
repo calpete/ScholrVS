@@ -2062,6 +2062,143 @@ app.get('/course/:courseId/insights', requireAuth, requireCourseOwner, async (re
 //   - which students are struggling on which concepts (by name)
 //   - a "teach more of" priority list ranked by lowest mastery
 // Returns ONE payload the Insights UI can drill into without re-fetching.
+// Fake-data builders — used to populate the Insights dashboard for demos
+// when a course has zero real student activity. Both builders derive their
+// numbers from the DEMO_QUIZZES + DEMO_FLASHCARD_DECKS constants below so
+// the "class of 50" story stays consistent across concept mastery,
+// per-question distributions, and flashcard self-study. No DB writes.
+function buildFakeConceptInsights() {
+  const STUDENT_COUNT = 50;
+  // Persona buckets matching DEMO_STUDENTS below — used to estimate the
+  // student-tier counts (mastered / mixed / struggling) per concept.
+  const concepts = new Map();
+  for (const quiz of DEMO_QUIZZES) {
+    for (const q of quiz.questions) {
+      const target = quiz.targetMastery[q.concept] ?? 0.65;
+      const attempts = STUDENT_COUNT;
+      const correctCount = Math.round(attempts * target);
+      const wrongTotal = attempts - correctCount;
+      // Bias the wrong distribution so ONE option is the dominant trap
+      // (most-picked wrong) — the demo gold is the "Common wrong" callout
+      // pointing at exactly one option students fall for.
+      const wrongOptions = [0, 1, 2, 3].filter(i => i !== q.correct);
+      const topWrongIdx = wrongOptions[0];
+      const secondWrongIdx = wrongOptions[1];
+      const thirdWrongIdx = wrongOptions[2];
+      const topWrongCount = Math.round(wrongTotal * 0.58);
+      const secondWrongCount = Math.round(wrongTotal * 0.27);
+      const thirdWrongCount = Math.max(0, wrongTotal - topWrongCount - secondWrongCount);
+      const distribution = (q.options || []).map((opt, oi) => {
+        let count = 0;
+        if (oi === q.correct) count = correctCount;
+        else if (oi === topWrongIdx) count = topWrongCount;
+        else if (oi === secondWrongIdx) count = secondWrongCount;
+        else if (oi === thirdWrongIdx) count = thirdWrongCount;
+        return {
+          optionIndex: oi,
+          optionText: opt,
+          count,
+          pct: attempts > 0 ? count / attempts : 0,
+          isCorrect: oi === q.correct,
+        };
+      });
+      const wrongDistribution = distribution
+        .filter(d => !d.isCorrect && d.count > 0)
+        .map(d => ({ optionIndex: d.optionIndex, count: d.count }))
+        .sort((a, b) => b.count - a.count);
+      const topWrongOption = wrongDistribution[0] || null;
+      const questionData = {
+        text: q.q,
+        options: q.options,
+        correctIndex: q.correct,
+        explanation: q.explanation,
+        attempts,
+        correct: correctCount,
+        mastery: target,
+        topWrongOption,
+        wrongDistribution,
+        distribution,
+      };
+      let bucket = concepts.get(q.concept);
+      if (!bucket) {
+        bucket = { concept: q.concept, attempts: 0, correct: 0, questions: [] };
+        concepts.set(q.concept, bucket);
+      }
+      bucket.attempts += attempts;
+      bucket.correct += correctCount;
+      bucket.questions.push(questionData);
+    }
+  }
+  const conceptsArr = [...concepts.values()].map(b => {
+    const mastery = b.attempts > 0 ? b.correct / b.attempts : 0;
+    // Tier counts derived from mastery — rough distribution shaped to
+    // match what a real class of 50 would show at this mastery level.
+    let masteredStudents, mixedStudents, strugglingStudents;
+    if (mastery >= 0.85)      { masteredStudents = 36; mixedStudents = 11; strugglingStudents = 3; }
+    else if (mastery >= 0.65) { masteredStudents = 18; mixedStudents = 24; strugglingStudents = 8; }
+    else if (mastery >= 0.40) { masteredStudents = 7;  mixedStudents = 23; strugglingStudents = 20; }
+    else                      { masteredStudents = 2;  mixedStudents = 14; strugglingStudents = 34; }
+    return {
+      concept: b.concept,
+      attempts: b.attempts,
+      correct: b.correct,
+      mastery,
+      studentCount: STUDENT_COUNT,
+      masteredStudents,
+      mixedStudents,
+      strugglingStudents,
+      questions: b.questions.slice().sort((a, b) => a.mastery - b.mastery),
+      action: mastery >= 0.85 ? 'On track — no reinforcement needed'
+            : mastery >= 0.65 ? 'Mixed — quick recap will help'
+            : mastery >= 0.40 ? 'Concept needs a re-explanation in the next lecture'
+            : 'Major gap — schedule a dedicated review session',
+    };
+  }).sort((a, b) => a.mastery - b.mastery);
+  const totalAttempts = conceptsArr.reduce((s, c) => s + c.attempts, 0);
+  const totalCorrect = conceptsArr.reduce((s, c) => s + c.correct, 0);
+  const overallMastery = totalAttempts > 0 ? totalCorrect / totalAttempts : 0;
+  const teachMoreOf = conceptsArr.filter(c => c.mastery < 0.65 && c.attempts >= 2).slice(0, 6);
+  return {
+    overallMastery,
+    totalAttempts,
+    totalCorrect,
+    quizCount: DEMO_QUIZZES.length,
+    testCount: 1,
+    studentCount: STUDENT_COUNT,
+    concepts: conceptsArr,
+    teachMoreOf,
+  };
+}
+
+function buildFakeStudyInsights() {
+  // Persona distribution matching DEMO_STUDENTS.
+  const PERSONA_COUNT = {
+    topper: 5, allrounder: 20, struggling_cvp: 10, struggling_npv: 8, struggling_variance: 7,
+  };
+  const studyByConcept = new Map();
+  for (const [persona, count] of Object.entries(PERSONA_COUNT)) {
+    const deckSpecs = DEMO_FLASHCARD_DECKS[persona] || [];
+    for (const spec of deckSpecs) {
+      for (const concept of spec.concepts) {
+        let bucket = studyByConcept.get(concept);
+        if (!bucket) { bucket = { concept, deckCount: 0, cardCount: 0, studentSet: new Set() }; studyByConcept.set(concept, bucket); }
+        bucket.deckCount += count;
+        bucket.cardCount += count * 4; // avg ~4 cards per concept per deck
+        // Each persona group represents `count` distinct students.
+        for (let i = 0; i < count; i++) bucket.studentSet.add(`${persona}-${i}`);
+      }
+    }
+  }
+  const studyConcepts = [...studyByConcept.values()]
+    .map(b => ({ concept: b.concept, deckCount: b.deckCount, cardCount: b.cardCount, studentCount: Math.min(50, b.studentSet.size) }))
+    .sort((a, b) => b.deckCount - a.deckCount)
+    .slice(0, 12);
+  return {
+    totalDecks: studyConcepts.reduce((s, c) => s + c.deckCount, 0),
+    studyConcepts,
+  };
+}
+
 app.get('/course/:courseId/concept-insights', requireAuth, requireCourseOwner, async (req, res) => {
   const { courseId } = req.params;
   // Pull both quizzes and tests in parallel — same data shape, same aggregation.
@@ -2201,6 +2338,13 @@ app.get('/course/:courseId/concept-insights', requireAuth, requireCourseOwner, a
   const overallMastery = totalAttempts > 0 ? totalCorrect / totalAttempts : 0;
   const teachMoreOf = conceptsArr.filter(c => c.mastery < 0.65 && c.attempts >= 2).slice(0, 5);
 
+  // No real student data yet → render the page with synthetic
+  // 50-student class data so demos look populated. Real data overrides
+  // this the moment any quiz/test gets submitted.
+  if (conceptsArr.length === 0) {
+    return res.json(buildFakeConceptInsights());
+  }
+
   res.json({
     overallMastery,
     totalAttempts,
@@ -2253,6 +2397,11 @@ app.get('/course/:courseId/study-insights', requireAuth, requireCourseOwner, asy
     .map(b => ({ concept: b.concept, deckCount: b.deckCount, cardCount: b.cardCount, studentCount: b.studentIds.size }))
     .sort((a, b) => b.deckCount - a.deckCount)
     .slice(0, 12);
+  // No real flashcard activity yet → return fake 50-student class data
+  // so the Self-study signal section populates for demos.
+  if (studyArr.length === 0) {
+    return res.json(buildFakeStudyInsights());
+  }
   res.json({
     totalDecks: (decks || []).length,
     studyConcepts: studyArr,

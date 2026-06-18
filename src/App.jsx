@@ -2654,31 +2654,6 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
   // the interval each tick. Use the ref instead inside fetchInsights.
   useEffect(() => { fetchInsights(); const i = setInterval(fetchInsights, 10000); return () => clearInterval(i); }, [courseId]);
 
-  // Silent auto-seed: when concept-insights returns zero attempts AND
-  // the course has zero real questions, fire the demo seed once so the
-  // dashboard never shows up empty. Server-side seed is idempotent
-  // (looks up existing demo students by email) — re-firing is safe but
-  // we guard with a ref so polling doesn't trigger repeatedly. Real
-  // courses with actual student activity skip this branch entirely.
-  const seededRef = useRef(false);
-  useEffect(() => {
-    if (seededRef.current) return;
-    if (!conceptInsights) return; // wait until at least one fetch resolved
-    if ((conceptInsights.totalAttempts || 0) > 0) return; // real data exists
-    seededRef.current = true;
-    (async () => {
-      try {
-        await fetch(`${API}/course/${courseId}/seed-demo-concepts`, {
-          method: 'POST', headers: { Authorization: `Bearer ${token}` },
-        });
-        fetchInsights();
-        fetchConceptInsights();
-        fetchStudyInsights();
-      } catch {}
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conceptInsights?.totalAttempts]);
-
   // Concept-level insights — the differentiator. Polled at the same cadence
   // as the chat-question insights so the dashboard stays live during a
   // demo. Independent endpoint + state so a slow query never blocks the
