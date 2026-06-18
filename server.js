@@ -1492,16 +1492,17 @@ app.post('/contact', rateLimit(10), async (req, res) => {
       subject,
       text: lines,
     });
-    // Log the full Resend response so we can see EXACTLY what happened.
     // Resend's SDK returns { data, error } — `error` being non-null means
-    // the API rejected the call without throwing (a common SDK gotcha).
-    console.log(`📬 Resend response for ${submission.email}:`, JSON.stringify(resp));
+    // the API rejected the call without throwing. Branch on that so the
+    // happy path stays a clean one-line success log (Render's log viewer
+    // was flagging the full JSON dump as a false-positive error because
+    // it contains the substring `"error":null`).
     if (resp?.error) {
-      console.error('Resend returned error:', resp.error);
-    } else {
-      console.log(`✅ Email sent successfully — Resend id: ${resp?.data?.id || 'unknown'}`);
+      console.error('Resend rejected send for', submission.email, '·', resp.error);
+      return res.json({ ok: true, delivery: 'logged-after-error' });
     }
-    return res.json({ ok: true, delivery: 'sent', resendResponse: resp });
+    console.log(`✅ Email delivered to ${CONTACT_TO.join(', ')} · Resend id ${resp?.data?.id || 'unknown'}`);
+    return res.json({ ok: true, delivery: 'sent' });
   } catch (err) {
     console.error('Contact form delivery failed:', err?.message || err, err);
     // Still return 200 so the visitor doesn't see an error after
