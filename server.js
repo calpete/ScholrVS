@@ -2053,6 +2053,163 @@ app.get('/course/:courseId/insights', requireAuth, requireCourseOwner, async (re
   res.json(await getCourseInsights(req.params.courseId));
 });
 
+// Concept-level insights — the differentiator. Walks every saved quiz and
+// test for this course across ALL students, looks at each question's
+// concept tag + selected response, and rolls up:
+//   - per-concept mastery rate (correct / attempted)
+//   - the actual questions students missed inside each concept
+//   - the common wrong-option distribution per question
+//   - which students are struggling on which concepts (by name)
+//   - a "teach more of" priority list ranked by lowest mastery
+// Returns ONE payload the Insights UI can drill into without re-fetching.
+app.get('/course/:courseId/concept-insights', requireAuth, requireCourseOwner, async (req, res) => {
+  const { courseId } = req.params;
+  // Pull both quizzes and tests in parallel — same data shape, same aggregation.
+  const [quizzesRes, testsRes] = await Promise.all([
+    supabase.from('quizzes').select('id, student_id, topic, questions, last_score, attempts, created_at').eq('course_id', courseId),
+    supabase.from('tests').select('id, student_id, topic, questions, last_score, attempts, created_at').eq('course_id', courseId),
+  ]);
+  const all = [...(quizzesRes.data || []), ...(testsRes.data || [])];
+
+  // Collect every (concept, question text, correctIndex, optionsCount) once.
+  // Each question key = `${concept}::${question}` so identical questions
+  // reused across multiple students aggregate together.
+  // concept → { concept, attempts, correct, questions: Map<qKey, {text, correctIndex, options, attempts, correct, wrongCounts[]}>, students: Map<studentId, {attempted, correct}> }
+  const concepts = new Map();
+  // Per-student aggregate across the whole course so the UI can rank
+  // who's struggling overall — not just on one concept.
+  const studentTotals = new Map();
+  const struggleStudentIds = new Set();
+
+  for (const row of all) {
+    if (!Array.isArray(row.questions)) continue;
+    for (let i = 0; i < row.questions.length; i++) {
+      const q = row.questions[i] || {};
+      if (typeof q.selected !== 'number' || q.selected < 0) continue; // not answered yet
+      // Concept fallback hierarchy: explicit concept → quiz/test topic →
+      // "Uncategorized". Aggregation still works even when concept tagging
+      // hasn't propagated to all questions (old data, model misses).
+      const concept = (q.concept && q.concept.trim()) || row.topic || 'Uncategorized';
+      const isCorrect = q.selected === q.correct;
+      let bucket = concepts.get(concept);
+      if (!bucket) {
+        bucket = { concept, attempts: 0, correct: 0, questions: new Map(), studentTotals: new Map() };
+        concepts.set(concept, bucket);
+      }
+      bucket.attempts += 1;
+      if (isCorrect) bucket.correct += 1;
+      // Per-student inside this concept.
+      const studPrev = bucket.studentTotals.get(row.student_id) || { attempted: 0, correct: 0 };
+      studPrev.attempted += 1;
+      if (isCorrect) studPrev.correct += 1;
+      bucket.studentTotals.set(row.student_id, studPrev);
+      // Per-question detail.
+      const qKey = `${q.question || `q${i}`}`.slice(0, 280);
+      let qb = bucket.questions.get(qKey);
+      if (!qb) {
+        qb = {
+          text: q.question || `Question ${i + 1}`,
+          options: Array.isArray(q.options) ? q.options : [],
+          correctIndex: typeof q.correct === 'number' ? q.correct : 0,
+          explanation: q.explanation || '',
+          attempts: 0,
+          correct: 0,
+          wrongCounts: {}, // optionIndex → count
+        };
+        bucket.questions.set(qKey, qb);
+      }
+      qb.attempts += 1;
+      if (isCorrect) qb.correct += 1;
+      else qb.wrongCounts[q.selected] = (qb.wrongCounts[q.selected] || 0) + 1;
+      // Track every student that touched any question — populates struggleStudentIds list below.
+      struggleStudentIds.add(row.student_id);
+      const stTotal = studentTotals.get(row.student_id) || { attempted: 0, correct: 0 };
+      stTotal.attempted += 1;
+      if (isCorrect) stTotal.correct += 1;
+      studentTotals.set(row.student_id, stTotal);
+    }
+  }
+
+  // Look up student display names so the UI can list them by name, not uuid.
+  let nameById = new Map();
+  if (struggleStudentIds.size > 0) {
+    const ids = [...struggleStudentIds];
+    const { data: students } = await supabase.from('students')
+      .select('id, name, email').in('id', ids);
+    for (const s of students || []) nameById.set(s.id, { name: s.name || (s.email ? s.email.split('@')[0] : 'Student'), email: s.email || null });
+  }
+
+  // Shape the response. Concepts ranked by mastery ASC so the worst stuff
+  // is on top — "teach more of these."
+  const conceptsArr = [...concepts.values()].map(b => {
+    const mastery = b.attempts > 0 ? b.correct / b.attempts : 0;
+    const studentsArr = [...b.studentTotals.entries()].map(([sid, s]) => {
+      const stMastery = s.attempted > 0 ? s.correct / s.attempted : 0;
+      return {
+        studentId: sid,
+        name: nameById.get(sid)?.name || 'Student',
+        attempted: s.attempted,
+        correct: s.correct,
+        mastery: stMastery,
+        struggling: stMastery < 0.6,
+      };
+    }).sort((a, b) => a.mastery - b.mastery);
+    const questionsArr = [...b.questions.values()].map(q => {
+      const qMastery = q.attempts > 0 ? q.correct / q.attempts : 0;
+      // Most-picked wrong option for the drilldown "common wrong answer".
+      const wrongEntries = Object.entries(q.wrongCounts).map(([oi, c]) => ({ optionIndex: parseInt(oi, 10), count: c }));
+      wrongEntries.sort((a, b) => b.count - a.count);
+      return {
+        text: q.text,
+        options: q.options,
+        correctIndex: q.correctIndex,
+        explanation: q.explanation,
+        attempts: q.attempts,
+        correct: q.correct,
+        mastery: qMastery,
+        topWrongOption: wrongEntries[0] || null,
+        wrongDistribution: wrongEntries,
+      };
+    }).sort((a, b) => a.mastery - b.mastery);
+    return {
+      concept: b.concept,
+      attempts: b.attempts,
+      correct: b.correct,
+      mastery,
+      studentCount: studentsArr.length,
+      strugglingStudents: studentsArr.filter(s => s.struggling).length,
+      questions: questionsArr,
+      students: studentsArr,
+      // Suggested teaching action — short, actionable string the prof
+      // can scan in 1 second to know what to do with this concept.
+      action: mastery >= 0.85
+        ? 'On track — no reinforcement needed'
+        : mastery >= 0.65
+          ? 'Mixed — quick recap will help'
+          : mastery >= 0.40
+            ? 'Concept needs a re-explanation in the next lecture'
+            : 'Major gap — schedule a dedicated review session',
+    };
+  }).sort((a, b) => a.mastery - b.mastery);
+
+  // Top-line numbers for the dashboard header.
+  const totalAttempts = conceptsArr.reduce((s, c) => s + c.attempts, 0);
+  const totalCorrect = conceptsArr.reduce((s, c) => s + c.correct, 0);
+  const overallMastery = totalAttempts > 0 ? totalCorrect / totalAttempts : 0;
+  const teachMoreOf = conceptsArr.filter(c => c.mastery < 0.65 && c.attempts >= 2).slice(0, 5);
+
+  res.json({
+    overallMastery,
+    totalAttempts,
+    totalCorrect,
+    quizCount: (quizzesRes.data || []).length,
+    testCount: (testsRes.data || []).length,
+    studentCount: struggleStudentIds.size,
+    concepts: conceptsArr,
+    teachMoreOf,
+  });
+});
+
 // Owner-only — wipes all logged questions for this course so the professor
 // can reset analytics before sharing with real students. Does not touch
 // student chat history or course materials, only the questions table that
@@ -3064,8 +3221,15 @@ B: [option b]
 C: [option c]
 D: [option d]
 CORRECT: [A or B or C or D]
+CONCEPT: [a single specific concept name this question tests — 1-3 words, e.g. "Break-even Point", "Contribution Margin", "Net Present Value", "Variance Analysis". Use the actual named concept from the materials, NEVER a generic label like "General", "Other", "Module 1", "Chapter 4", or the broad topic from the TOPIC line above]
 EXPLANATION: [one sentence explanation]
 ---
+
+Concept naming rules — read carefully, professors use this for teaching insights:
+- Each CONCEPT must be a SPECIFIC NAMED IDEA from the course (a formula name, a method, a defined term).
+- Two questions testing the SAME named concept must use the EXACT same CONCEPT string (so "Break-even Point" appears identically across all break-even questions).
+- Different questions covering different aspects of the same topic should still get distinct concept tags (e.g. "Contribution Margin", "CM Ratio", "Contribution Margin per Unit" — not all just "Contribution Margin").
+- NEVER use "General", "Misc", "Other", "Topic 1", or anything that doesn't name a real idea.
 
 Generate the TOPIC line then all ${quizCount} questions now:`;
 
@@ -3102,7 +3266,12 @@ Generate the TOPIC line then all ${quizCount} questions now:`;
       const correctLetter = get('CORRECT:').toUpperCase().trim();
       const correct = ['A', 'B', 'C', 'D'].indexOf(correctLetter);
       const explanation = get('EXPLANATION:');
-      return { question, options, correct: correct === -1 ? 0 : correct, explanation };
+      // Normalize concept: strip markdown, drop generic labels so insights
+      // aggregate to meaningful named ideas, not "General" buckets that
+      // mask what students are actually missing.
+      let concept = get('CONCEPT:').replace(/^[\*"'\[]+|[\*"'\]]+$/g, '').trim();
+      if (/^(general|misc|other|none|n\/a|topic\s*\d+|module\s*\d+|chapter\s*\d+|section\s*\d+)$/i.test(concept)) concept = '';
+      return { question, options, correct: correct === -1 ? 0 : correct, explanation, concept };
     }).filter(q => q.question && q.options[0] !== 'A) ').slice(0, quizCount);
     if (questions.length === 0) return res.status(500).json({ error: 'Could not generate quiz questions' });
     // Persist so the student can revisit / retake from the Quizzes sidebar.
@@ -3250,26 +3419,40 @@ app.patch('/student/quizzes/:id', requireAuth, async (req, res) => {
   const raw = Number(req.body?.score);
   if (!Number.isFinite(raw)) return res.status(400).json({ error: 'score required' });
   const score = Math.max(0, Math.min(100, raw));
-  // Optimistic concurrency: try up to 3 times with a CAS-style update —
-  // the .eq('attempts', cur.attempts) clause makes the row only match if
-  // attempts is still what we read. If a parallel PATCH bumped the
-  // counter first, our update affects 0 rows and we re-read + retry.
+  // Per-question responses for concept-level insights. Each entry:
+  // { q: <question index>, selected: <option index> }. Server merges
+  // selected onto each questions[i] in the existing jsonb column so no
+  // schema migration is needed and the insights aggregator can read
+  // (concept, correct, selected) directly off the quiz row.
+  const responses = Array.isArray(req.body?.responses) ? req.body.responses : null;
   for (let attempt = 0; attempt < 3; attempt++) {
     const { data: cur } = await supabase.from('quizzes')
-      .select('best_score, attempts').eq('id', req.params.id).eq('student_id', req.user.id).single();
+      .select('best_score, attempts, questions').eq('id', req.params.id).eq('student_id', req.user.id).single();
     if (!cur) return res.status(404).json({ error: 'Not found' });
     const prevAttempts = cur.attempts ?? 0;
     const best = Math.max(cur.best_score ?? 0, score);
     const newAttempts = prevAttempts + 1;
+    // Merge the responses onto the persisted questions array. Latest
+    // attempt overwrites prior selected — insights show the most
+    // recent response per (student, question).
+    let mergedQuestions = cur.questions;
+    if (responses && Array.isArray(cur.questions)) {
+      const byIdx = new Map(responses.filter(r => Number.isInteger(r?.q) && Number.isInteger(r?.selected)).map(r => [r.q, r.selected]));
+      mergedQuestions = cur.questions.map((q, i) => {
+        if (!byIdx.has(i)) return q;
+        return { ...q, selected: byIdx.get(i) };
+      });
+    }
+    const update = { last_score: score, best_score: best, attempts: newAttempts };
+    if (responses) update.questions = mergedQuestions;
     const { data: updated, error: updErr } = await supabase.from('quizzes')
-      .update({ last_score: score, best_score: best, attempts: newAttempts })
+      .update(update)
       .eq('id', req.params.id).eq('student_id', req.user.id).eq('attempts', prevAttempts)
       .select('attempts').maybeSingle();
     if (updErr) return res.status(500).json({ error: updErr.message });
     if (updated) {
       return res.json({ success: true, attempts: newAttempts, last_score: score, best_score: best });
     }
-    // No row matched — someone else bumped attempts. Loop and re-read.
   }
   console.warn('PATCH /student/quizzes — CAS update failed after 3 retries');
   res.status(409).json({ error: 'Score update conflict — please retry' });
@@ -3350,8 +3533,15 @@ B: [option b]
 C: [option c]
 D: [option d]
 CORRECT: [A or B or C or D]
+CONCEPT: [a single specific concept name this question tests — 1-3 words, e.g. "Break-even Point", "Contribution Margin", "Net Present Value", "Variance Analysis". Use the actual named concept from the materials, NEVER a generic label like "General", "Other", "Module 1", "Chapter 4", or the broad topic from the TOPIC line above]
 EXPLANATION: [one sentence explanation grounded in the materials]
 ---
+
+Concept naming rules — read carefully, professors use this for teaching insights:
+- Each CONCEPT must be a SPECIFIC NAMED IDEA from the course (a formula name, a method, a defined term).
+- Two questions testing the SAME named concept must use the EXACT same CONCEPT string.
+- Different aspects of the same broad topic get distinct concept tags.
+- NEVER use "General", "Misc", "Other", "Topic 1", or anything that doesn't name a real idea.
 
 Generate all ${testCount} questions now:`;
 
@@ -3382,7 +3572,9 @@ Generate all ${testCount} questions now:`;
       const correctLetter = get('CORRECT:').toUpperCase().trim();
       const correct = ['A', 'B', 'C', 'D'].indexOf(correctLetter);
       const explanation = get('EXPLANATION:');
-      return { question, options, correct: correct === -1 ? 0 : correct, explanation };
+      let concept = get('CONCEPT:').replace(/^[\*"'\[]+|[\*"'\]]+$/g, '').trim();
+      if (/^(general|misc|other|none|n\/a|topic\s*\d+|module\s*\d+|chapter\s*\d+|section\s*\d+)$/i.test(concept)) concept = '';
+      return { question, options, correct: correct === -1 ? 0 : correct, explanation, concept };
     }).filter(q => q.question && q.options[0] !== 'A) ').slice(0, testCount);
     if (questions.length === 0) return res.status(500).json({ error: 'Could not generate test questions' });
     const effectiveTopic = (topic && topic.trim()) || modelTopic || `Practice Test · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
@@ -3435,16 +3627,26 @@ app.patch('/student/tests/:id', requireAuth, async (req, res) => {
   const raw = Number(req.body?.score);
   if (!Number.isFinite(raw)) return res.status(400).json({ error: 'score required' });
   const score = Math.max(0, Math.min(100, raw));
-  // Same CAS-style optimistic concurrency as /student/quizzes/:id.
+  const responses = Array.isArray(req.body?.responses) ? req.body.responses : null;
+  // Same CAS-style optimistic concurrency as /student/quizzes/:id, plus
+  // the per-question response merge so test attempts feed concept-level
+  // insights identically to quizzes.
   for (let attempt = 0; attempt < 3; attempt++) {
     const { data: cur } = await supabase.from('tests')
-      .select('best_score, attempts').eq('id', req.params.id).eq('student_id', req.user.id).single();
+      .select('best_score, attempts, questions').eq('id', req.params.id).eq('student_id', req.user.id).single();
     if (!cur) return res.status(404).json({ error: 'Not found' });
     const prevAttempts = cur.attempts ?? 0;
     const best = Math.max(cur.best_score ?? 0, score);
     const newAttempts = prevAttempts + 1;
+    let mergedQuestions = cur.questions;
+    if (responses && Array.isArray(cur.questions)) {
+      const byIdx = new Map(responses.filter(r => Number.isInteger(r?.q) && Number.isInteger(r?.selected)).map(r => [r.q, r.selected]));
+      mergedQuestions = cur.questions.map((q, i) => byIdx.has(i) ? { ...q, selected: byIdx.get(i) } : q);
+    }
+    const update = { last_score: score, best_score: best, attempts: newAttempts };
+    if (responses) update.questions = mergedQuestions;
     const { data: updated, error: updErr } = await supabase.from('tests')
-      .update({ last_score: score, best_score: best, attempts: newAttempts })
+      .update(update)
       .eq('id', req.params.id).eq('student_id', req.user.id).eq('attempts', prevAttempts)
       .select('attempts').maybeSingle();
     if (updErr) return res.status(500).json({ error: updErr.message });

@@ -2395,10 +2395,97 @@ function BigStat({ label, value, descriptor, accent }) {
   );
 }
 
+// Concept-mastery row inside the Concept Ledger. Clickable — toggles the
+// drilldown panel for that concept. Mastery is rendered as a horizontal
+// bar; color shifts from emerald (mastered) through amber (mixed) to
+// rose (gap) so a professor scanning the list can see hotspots at a
+// glance without reading any numbers.
+function ConceptRow({ c, expanded, onToggle }) {
+  const pct = Math.round(c.mastery * 100);
+  const tone = c.mastery >= 0.85 ? { bar: 'bg-emerald-500',  pill: 'bg-emerald-50 text-emerald-700 border-emerald-100', label: 'On track' }
+            : c.mastery >= 0.65 ? { bar: 'bg-amber-500',    pill: 'bg-amber-50 text-amber-700 border-amber-100',   label: 'Mixed' }
+            : c.mastery >= 0.40 ? { bar: 'bg-orange-500',   pill: 'bg-orange-50 text-orange-700 border-orange-100', label: 'Reinforce' }
+                                : { bar: 'bg-rose-500',     pill: 'bg-rose-50 text-rose-700 border-rose-100',      label: 'Major gap' };
+  return (
+    <div className={`border-b border-gray-100 last:border-0 transition-colors ${expanded ? 'bg-[#FBFBF9]' : 'hover:bg-[#FAFAF8]'}`}>
+      <button type="button" onClick={onToggle} className="w-full text-left grid grid-cols-[1fr_140px_120px_40px] md:grid-cols-[1fr_180px_140px_56px] gap-3 md:gap-6 items-center py-4 md:py-5 px-4 md:px-6">
+        <div className="min-w-0">
+          <p className="serif italic text-[19px] md:text-[21px] text-gray-900 leading-snug truncate">{c.concept}</p>
+          <div className="flex items-center gap-2 mt-1.5 text-[11px] text-gray-400">
+            <span><span className="tabular-nums font-semibold text-gray-600">{c.attempts}</span> attempt{c.attempts !== 1 ? 's' : ''}</span>
+            <span className="text-gray-300">·</span>
+            <span><span className="tabular-nums font-semibold text-gray-600">{c.studentCount}</span> student{c.studentCount !== 1 ? 's' : ''}</span>
+            {c.strugglingStudents > 0 && (<>
+              <span className="text-gray-300">·</span>
+              <span className="text-rose-600 font-medium">{c.strugglingStudents} struggling</span>
+            </>)}
+          </div>
+        </div>
+        <div className="hidden md:block">
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className={`h-full ${tone.bar} transition-all duration-500`} style={{ width: `${Math.max(2, pct)}%` }} />
+          </div>
+          <p className="text-[10px] tracking-[.14em] uppercase text-gray-400 font-semibold mt-1.5"><span className="tabular-nums text-gray-700">{pct}%</span> mastered</p>
+        </div>
+        <span className={`inline-flex items-center justify-self-end px-2.5 py-1 rounded-full border text-[11px] font-semibold tracking-wide ${tone.pill}`}>{tone.label}</span>
+        <span className="text-gray-300 group-hover:text-gray-600 justify-self-end">{expanded ? <ChevronLeft size={16} className="rotate-90" /> : <ChevronRight size={16} />}</span>
+      </button>
+      {expanded && (
+        <div className="px-4 md:px-6 pb-6 pt-1 fade-up">
+          <p className="text-[13px] text-gray-700 mb-4 leading-relaxed"><span className="text-[10px] font-bold tracking-[.16em] uppercase text-gray-400 mr-2">Suggested action</span>{c.action}</p>
+          {/* Per-question breakdown */}
+          {c.questions.length > 0 && (
+            <div className="mb-5">
+              <div className="text-[10px] font-bold tracking-[.16em] uppercase text-gray-400 mb-2.5">Questions in this concept</div>
+              <div className="space-y-2.5">
+                {c.questions.slice(0, 6).map((q, qi) => {
+                  const qpct = Math.round(q.mastery * 100);
+                  const wrongOpt = q.topWrongOption && Array.isArray(q.options) ? q.options[q.topWrongOption.optionIndex] : null;
+                  return (
+                    <div key={qi} className="bg-white border border-gray-200/80 rounded-2xl p-4">
+                      <p className="text-[14.5px] text-gray-900 leading-snug font-medium">{q.text}</p>
+                      <div className="flex items-center gap-2 mt-2 text-[11.5px] text-gray-500">
+                        <span><span className="tabular-nums font-semibold text-gray-700">{q.correct}</span>/<span className="tabular-nums">{q.attempts}</span> correct</span>
+                        <span className="text-gray-300">·</span>
+                        <span className={qpct < 50 ? 'text-rose-600 font-semibold' : 'text-gray-500'}>{qpct}% mastery</span>
+                      </div>
+                      {wrongOpt && q.topWrongOption.count >= 2 && (
+                        <p className="mt-2 text-[12px] text-rose-700 bg-rose-50 border border-rose-100 rounded-lg px-2.5 py-1.5 leading-snug"><span className="font-bold mr-1">Common wrong:</span>{String(wrongOpt).replace(/^[A-D]\)\s?/, '')} <span className="text-rose-500/70">({q.topWrongOption.count} student{q.topWrongOption.count !== 1 ? 's' : ''})</span></p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {/* Struggling students by name */}
+          {c.students.filter(s => s.struggling).length > 0 && (
+            <div>
+              <div className="text-[10px] font-bold tracking-[.16em] uppercase text-gray-400 mb-2.5">Students struggling with this concept</div>
+              <div className="flex flex-wrap gap-2">
+                {c.students.filter(s => s.struggling).slice(0, 12).map((s) => (
+                  <span key={s.studentId} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-rose-200 text-[12.5px] text-gray-800">
+                    <span className="font-semibold">{s.name}</span>
+                    <span className="text-rose-600 tabular-nums">{Math.round(s.mastery * 100)}%</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
   const courseId = course.id;
   const joinCode = course.join_code || course.code;
   const [insights, setInsights] = useState(null);
+  const [conceptInsights, setConceptInsights] = useState(null);
+  const [conceptLoading, setConceptLoading] = useState(true);
+  // Open drilldown panel for one concept at a time. null when collapsed.
+  const [openConcept, setOpenConcept] = useState(null);
   const [loading, setLoading] = useState(true);
   const [newCount, setNewCount] = useState(0);
   const [lastCount, setLastCount] = useState(0);
@@ -2497,6 +2584,22 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
   // Drop lastCount from deps — it changes on every poll and was recreating
   // the interval each tick. Use the ref instead inside fetchInsights.
   useEffect(() => { fetchInsights(); const i = setInterval(fetchInsights, 10000); return () => clearInterval(i); }, [courseId]);
+
+  // Concept-level insights — the differentiator. Polled at the same cadence
+  // as the chat-question insights so the dashboard stays live during a
+  // demo. Independent endpoint + state so a slow query never blocks the
+  // top-line page render.
+  const fetchConceptInsights = async () => {
+    try {
+      const res = await fetch(`${API}/course/${courseId}/concept-insights`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.status === 401) { if (onLogout) onLogout(); return; }
+      if (!res.ok) return;
+      const data = await res.json();
+      setConceptInsights(data);
+      setConceptLoading(false);
+    } catch {}
+  };
+  useEffect(() => { fetchConceptInsights(); const i = setInterval(fetchConceptInsights, 15000); return () => clearInterval(i); }, [courseId]);
   // Fetch the AI summary once on mount and again whenever total question count crosses a threshold
   useEffect(() => { if (insights?.totalQuestions > 0 && !summary) fetchSummary(); }, [insights?.totalQuestions]);
 
@@ -2657,6 +2760,78 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
           </div>
           <div className="bg-white border border-gray-200/80 rounded-3xl px-5 md:px-8 py-3 md:py-4 shadow-[0_2px_24px_-12px_rgba(15,15,15,0.08)]">
             <TopicLedger topics={d.topTopics} totalQuestions={d.weekQuestions} />
+          </div>
+        </section>
+
+        {/* CONCEPT MASTERY — the differentiator. What students MISS on
+            quizzes + tests, grouped by named concept, ranked worst-first.
+            Each row click-expands to show questions, common wrong answers,
+            and the students struggling. */}
+        <section className="px-6 md:px-12 pt-10 pb-12 border-b border-gray-200/70">
+          <div className="max-w-3xl mb-6">
+            <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Concept mastery</div>
+            <h3 className="serif text-[28px] md:text-[34px] text-gray-900 leading-tight tracking-tight">
+              {conceptInsights?.teachMoreOf?.[0]?.concept
+                ? <><span className="italic">{conceptInsights.teachMoreOf[0].concept}</span> needs the next lecture<span className="italic">.</span></>
+                : <>What your class is <span className="italic">missing</span><span className="italic">.</span></>}
+            </h3>
+            <p className="text-[14px] text-gray-500 mt-2.5 leading-relaxed">Every concept tested on a student quiz or practice test — ranked by where the class is struggling most. Click any concept to see the actual questions students missed, what wrong answers they picked, and which students need the most help.</p>
+            {conceptInsights && conceptInsights.totalAttempts > 0 && (
+              <div className="flex items-center gap-5 mt-5 text-[12.5px] text-gray-600">
+                <span><span className="serif text-[28px] tabular-nums text-gray-900 mr-1.5">{Math.round((conceptInsights.overallMastery || 0) * 100)}%</span>overall mastery</span>
+                <span className="text-gray-300">·</span>
+                <span><span className="tabular-nums font-semibold text-gray-900">{conceptInsights.totalAttempts}</span> attempts across <span className="tabular-nums font-semibold text-gray-900">{conceptInsights.studentCount}</span> student{conceptInsights.studentCount !== 1 ? 's' : ''}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Teach more of — quick-glance priority list at the top */}
+          {conceptInsights?.teachMoreOf?.length > 0 && (
+            <div className="mb-7 bg-[#15161B] text-white rounded-3xl px-6 md:px-8 py-6 md:py-7">
+              <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-white/60 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Teach more of these</div>
+              <p className="serif text-[20px] md:text-[22px] text-white leading-snug max-w-2xl mb-5 italic">If your class only had time for three concepts this week, these are the ones.</p>
+              <div className="flex flex-col gap-2.5">
+                {conceptInsights.teachMoreOf.map((c, i) => (
+                  <button key={c.concept} type="button" onClick={() => { setOpenConcept(openConcept === c.concept ? null : c.concept); }} className="group flex items-center gap-4 text-left px-4 py-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-colors">
+                    <span className="serif italic text-[20px] tabular-nums text-white/40 w-7 flex-shrink-0">{String(i + 1).padStart(2, '0')}</span>
+                    <span className="flex-1 min-w-0">
+                      <p className="text-[15.5px] font-semibold text-white truncate">{c.concept}</p>
+                      <p className="text-[12px] text-white/55 mt-0.5">{c.action}</p>
+                    </span>
+                    <span className="tabular-nums text-[15px] text-rose-300 font-semibold">{Math.round(c.mastery * 100)}%</span>
+                    <ChevronRight size={16} className="text-white/40 group-hover:text-white/80 transition-colors" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Full concept ledger */}
+          <div className="bg-white border border-gray-200/80 rounded-3xl overflow-hidden shadow-[0_2px_24px_-12px_rgba(15,15,15,0.08)]">
+            {conceptLoading ? (
+              <div className="py-12 text-center text-gray-400 text-[13px]">Loading concept data…</div>
+            ) : !conceptInsights?.concepts?.length ? (
+              <div className="py-14 text-center px-6">
+                <div className="inline-flex items-center gap-2 text-[10px] font-bold tracking-[.22em] uppercase text-gray-300 mb-4">
+                  <span className="block w-6 h-[1.5px] bg-current opacity-60 rounded-sm" />
+                  <span>Awaiting student quizzes &amp; tests</span>
+                  <span className="block w-6 h-[1.5px] bg-current opacity-60 rounded-sm" />
+                </div>
+                <p className="serif text-[20px] text-gray-700 leading-snug">Once your students take a quiz, this fills in<span className="italic">.</span></p>
+                <p className="text-[13px] text-gray-400 mt-2.5 max-w-md mx-auto leading-relaxed">Each question they answer feeds into the concept they touched. You'll see which ideas are landing and which need a re-explanation.</p>
+              </div>
+            ) : (
+              <div>
+                {conceptInsights.concepts.map((c) => (
+                  <ConceptRow
+                    key={c.concept}
+                    c={c}
+                    expanded={openConcept === c.concept}
+                    onToggle={() => setOpenConcept(openConcept === c.concept ? null : c.concept)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
@@ -3147,9 +3322,13 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
     }
     if (currentTestId) {
       try {
+        const responses = Object.entries(testAnswers).map(([qi, ai]) => ({
+          q: parseInt(qi, 10),
+          selected: Number.isInteger(ai) ? ai : -1,
+        }));
         await fetch(`${API}/student/tests/${currentTestId}`, {
           method: 'PATCH', headers: jsonHeaders,
-          body: JSON.stringify({ score: testScore }),
+          body: JSON.stringify({ score: testScore, responses }),
         });
         fetchSavedTests();
       } catch {}
@@ -3248,13 +3427,18 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
         });
       } catch {}
     }
-    // Persist the score onto the saved quiz so the Quizzes sidebar reflects
-    // best / last attempt without an extra refetch round-trip.
+    // Persist the score AND per-question responses so the Quizzes sidebar
+    // reflects best/last attempt AND the concept-level insights endpoint
+    // can compute mastery by walking saved questions[i].selected.
     if (currentQuizId) {
       try {
+        const responses = Object.entries(quizAnswers).map(([qi, ai]) => ({
+          q: parseInt(qi, 10),
+          selected: Number.isInteger(ai) ? ai : -1,
+        }));
         await fetch(`${API}/student/quizzes/${currentQuizId}`, {
           method: 'PATCH', headers: jsonHeaders,
-          body: JSON.stringify({ score: quizScore }),
+          body: JSON.stringify({ score: quizScore, responses }),
         });
         fetchSavedQuizzes();
       } catch {}
