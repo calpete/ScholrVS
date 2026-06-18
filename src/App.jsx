@@ -999,7 +999,17 @@ function ProfessorLogin({ onLogin, onGoSignup, onBack }) {
 
 function ProfessorSignup({ onLogin, onGoLogin, onBack }) {
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  // Prefill from the landing-page hero pill if the visitor entered their
+  // email there. Stored in sessionStorage by submitHero() on LandingPage.
+  // Cleared immediately so refreshing the form doesn't repopulate stale
+  // data from a previous session.
+  const [email, setEmail] = useState(() => {
+    try {
+      const v = sessionStorage.getItem('scholr_prefill_email') || '';
+      if (v) sessionStorage.removeItem('scholr_prefill_email');
+      return v;
+    } catch { return ''; }
+  });
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -5626,6 +5636,18 @@ html { scroll-behavior: smooth; }
 .scholr-landing .hero h1 .l2{display:block;font-style:italic;font-weight:500;}
 .scholr-landing .hero .lede{font-size:clamp(18px,2vw,22px);color:var(--muted);max-width:540px;margin:28px auto 0;line-height:1.5;}
 .scholr-landing .hero-actions{margin-top:40px;display:flex;justify-content:center;}
+/* Warp-style inline pill: email input + submit button in a single rounded
+   container. Input on the left expands, button anchored on the right.
+   Same .btn-primary ink treatment as the rest of the landing so it stays
+   on-brand — not the orange of the inspiration screenshot. */
+.scholr-landing .hero-pill{display:inline-flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-pill);padding:7px 7px 7px 22px;box-shadow:var(--shadow-sm);min-width:min(440px,92vw);transition:border-color .2s ease,box-shadow .2s ease;}
+.scholr-landing .hero-pill:focus-within{border-color:var(--ink);box-shadow:0 4px 18px -8px rgba(21,22,27,.22);}
+.scholr-landing .hero-pill input{flex:1;background:transparent;border:0;outline:0;font:inherit;font-size:15.5px;color:var(--ink);padding:10px 4px;min-width:0;}
+.scholr-landing .hero-pill input::placeholder{color:var(--muted-2);}
+.scholr-landing .hero-pill button[type=submit]{flex:none;display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:#fff;border:0;border-radius:var(--radius-pill);font-family:var(--font-body);font-weight:600;font-size:14.5px;padding:11px 18px;cursor:pointer;transition:transform .15s ease,background .2s ease;}
+.scholr-landing .hero-pill button[type=submit] svg{width:15px;height:15px;}
+.scholr-landing .hero-pill button[type=submit]:hover{background:#000;transform:translateY(-1px);}
+.scholr-landing .hero-pill button[type=submit] .arr{display:inline-flex;}
 .scholr-landing .hero-sub{margin-top:26px;font-size:16px;color:var(--muted-2);}
 .scholr-landing .hero-sub a{color:var(--ink);font-weight:700;margin-left:6px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;}
 .scholr-landing .hero-sub a svg{width:15px;height:15px;transition:transform .2s ease;}
@@ -5945,6 +5967,21 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
   const cur = LANDING_CONVOS[demo.idx];
   const goHome = (e) => { if (e) e.preventDefault(); navigate('/'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
+  // Warp-style inline hero CTA: capture the visitor's school email and
+  // pass it through to the professor signup form via sessionStorage.
+  // ProfessorSignup picks it up on mount and prefills the email field so
+  // the visitor doesn't retype it. Lossless even if the signup form
+  // doesn't read it — the email just gets ignored.
+  const [heroEmail, setHeroEmail] = useState('');
+  const submitHero = (e) => {
+    e.preventDefault();
+    const v = heroEmail.trim();
+    if (v) {
+      try { sessionStorage.setItem('scholr_prefill_email', v); } catch {}
+    }
+    onInstructor();
+  };
+
   return (
     <div className="scholr-landing" ref={rootRef}>
       <style>{LANDING_CSS}</style>
@@ -5972,7 +6009,17 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
             <h1>Every answer from<span className="l2">your course materials.</span></h1>
             <p className="lede">AI tutoring grounded in what your professor uploaded. Cited, accurate, and trustworthy.</p>
             <div className="hero-actions">
-              <button type="button" className="btn btn-primary btn-lg" onClick={onInstructor}>Start a course free <span className="arr"><Ic name="arrow-right" s={17} /></span></button>
+              <form className="hero-pill" onSubmit={submitHero}>
+                <input
+                  type="email"
+                  value={heroEmail}
+                  onChange={(e) => setHeroEmail(e.target.value)}
+                  placeholder="What's your school email?"
+                  autoComplete="email"
+                  aria-label="School email"
+                />
+                <button type="submit"><span className="arr"><Ic name="arrow-right" s={15} /></span>Start a course free</button>
+              </form>
             </div>
             <p className="hero-sub">Joining a class? <button type="button" onClick={() => setJoinOpen(true)}>Enter your join code <Ic name="arrow-right" s={15} /></button></p>
           </div>
