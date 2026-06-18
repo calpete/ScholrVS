@@ -2201,6 +2201,19 @@ function buildFakeStudyInsights() {
 
 app.get('/course/:courseId/concept-insights', requireAuth, requireCourseOwner, async (req, res) => {
   const { courseId } = req.params;
+  // ⚠️ DEMO MODE — always returns synthetic 50-student data so the
+  // Insights page is fully populated for the Tuesday demo regardless of
+  // any real activity in the course.
+  //
+  // ───────────────────────────────────────────────────────────────────
+  // 🔧 TO SWITCH TO REAL DATA (post-demo):
+  //   Delete the `return` line directly below this comment block.
+  //   The aggregation code below is unchanged production logic — it
+  //   will start computing mastery from real student attempts the moment
+  //   this early-return is removed.
+  // ───────────────────────────────────────────────────────────────────
+  return res.json(buildFakeConceptInsights());
+
   // Pull both quizzes and tests in parallel — same data shape, same aggregation.
   const [quizzesRes, testsRes] = await Promise.all([
     supabase.from('quizzes').select('id, student_id, topic, questions, last_score, attempts, created_at').eq('course_id', courseId),
@@ -2365,6 +2378,11 @@ app.get('/course/:courseId/concept-insights', requireAuth, requireCourseOwner, a
 // cross-reference with quiz mastery for the real teaching priority).
 app.get('/course/:courseId/study-insights', requireAuth, requireCourseOwner, async (req, res) => {
   const { courseId } = req.params;
+  // ⚠️ DEMO MODE — same pattern as /concept-insights. Always returns
+  // the fake "Self-study signal" data so the flashcard cross-reference
+  // section is populated alongside the concept ledger. Delete the
+  // return line below to switch back to real flashcard aggregation.
+  return res.json(buildFakeStudyInsights());
   const { data: decks } = await supabase.from('flashcard_decks')
     .select('id, student_id, topic, cards, created_at')
     .eq('course_id', courseId);
