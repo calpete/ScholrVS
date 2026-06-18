@@ -5590,7 +5590,7 @@ html { scroll-behavior: smooth; }
   --shadow-sm:0 1px 2px rgba(21,22,27,.04),0 1px 3px rgba(21,22,27,.05);
   --shadow-card:0 1px 2px rgba(21,22,27,.04),0 14px 34px -18px rgba(21,22,27,.16);
   --shadow-float:0 40px 90px -38px rgba(21,22,27,.34),0 8px 26px -16px rgba(21,22,27,.18);
-  --maxw:1120px;
+  --maxw:1280px;
   font-family:var(--font-body); background:var(--bg); color:var(--ink); line-height:1.55; font-size:17px;
   /* Reserve 36px at the top so the now-fixed promo banner doesn't sit
      on top of the page content on initial load. Nav has its own
@@ -5605,7 +5605,7 @@ html { scroll-behavior: smooth; }
 .scholr-landing svg{display:block;}
 .scholr-landing ::selection{background:var(--ink);color:var(--bg);}
 .scholr-landing [id]{scroll-margin-top:92px;}
-.scholr-landing .wrap{max-width:var(--maxw);margin:0 auto;padding:0 28px;}
+.scholr-landing .wrap{max-width:var(--maxw);margin:0 auto;padding:0 36px;}
 .scholr-landing .serif{font-family:var(--font-display);font-weight:500;letter-spacing:-.012em;}
 .scholr-landing .ital{font-style:italic;}
 .scholr-landing .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;font-family:var(--font-body);font-weight:600;font-size:16px;padding:14px 22px;border-radius:var(--btn-radius);border:1px solid transparent;cursor:pointer;transition:transform .15s ease,background .2s ease,box-shadow .2s ease,border-color .2s ease,color .2s ease;white-space:nowrap;}
@@ -5677,7 +5677,7 @@ html { scroll-behavior: smooth; }
 .scholr-landing .hero-sub a svg{width:15px;height:15px;transition:transform .2s ease;}
 .scholr-landing .hero-sub a:hover svg{transform:translateX(3px);}
 .scholr-landing .showband{background:var(--bg-2);border-top:1px solid var(--line);padding:48px 0 80px;}
-.scholr-landing .showband .wrap{max-width:1200px;}
+.scholr-landing .showband .wrap{max-width:1340px;}
 .scholr-landing .window{background:var(--surface);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-float);border:1px solid var(--line);font-family:"Inter",-apple-system,"Segoe UI",system-ui,sans-serif;--m-ink:#18181B;--m-muted:#6B7280;--m-faint:#9CA3AF;--m-line:#ECECEC;--m-hover:#F4F4F5;--m-active:#F1F1F0;}
 .scholr-landing .win-bar{display:flex;align-items:center;gap:14px;padding:13px 18px;background:#F3F3F4;border-bottom:1px solid var(--m-line);}
 .scholr-landing .win-lights{display:flex;gap:8px;flex:none;}
