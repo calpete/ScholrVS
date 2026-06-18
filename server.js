@@ -1485,16 +1485,25 @@ app.post('/contact', rateLimit(10), async (req, res) => {
       `Submitted:    ${submission.ts}`,
       `User-Agent:   ${submission.userAgent}`,
     ].filter(Boolean).join('\n');
-    await resend.emails.send({
+    const resp = await resend.emails.send({
       from: CONTACT_FROM,
       to: CONTACT_TO,
       replyTo: submission.email,
       subject,
       text: lines,
     });
-    return res.json({ ok: true, delivery: 'sent' });
+    // Log the full Resend response so we can see EXACTLY what happened.
+    // Resend's SDK returns { data, error } — `error` being non-null means
+    // the API rejected the call without throwing (a common SDK gotcha).
+    console.log(`📬 Resend response for ${submission.email}:`, JSON.stringify(resp));
+    if (resp?.error) {
+      console.error('Resend returned error:', resp.error);
+    } else {
+      console.log(`✅ Email sent successfully — Resend id: ${resp?.data?.id || 'unknown'}`);
+    }
+    return res.json({ ok: true, delivery: 'sent', resendResponse: resp });
   } catch (err) {
-    console.error('Contact form delivery failed:', err?.message || err);
+    console.error('Contact form delivery failed:', err?.message || err, err);
     // Still return 200 so the visitor doesn't see an error after
     // submitting — the lead is in the server log either way.
     return res.json({ ok: true, delivery: 'logged-after-error' });
