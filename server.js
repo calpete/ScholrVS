@@ -1488,7 +1488,7 @@ app.post('/contact', rateLimit(10), async (req, res) => {
     await resend.emails.send({
       from: CONTACT_FROM,
       to: CONTACT_TO,
-      reply_to: submission.email,
+      replyTo: submission.email,
       subject,
       text: lines,
     });
