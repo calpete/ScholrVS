@@ -2275,27 +2275,43 @@ app.get('/course/:courseId/study-insights', requireAuth, requireCourseOwner, asy
 // Owner-only. Safe to call multiple times — synthetic students are looked
 // up by email and reused; demo quizzes carry a [DEMO] marker on the topic
 // so they can be wiped with /seed-demo-concepts DELETE.
-// 15-student "class" with deliberately varied personas so the demo
-// dashboard reads like a real cross-section. Skill multiplier shapes
-// per-question correctness; persona shapes which concepts they ask
-// about + which flashcard decks they make.
-const DEMO_STUDENTS = [
-  { email: 'alex.chen+demo@scholr.study',         name: 'Alex Chen',         skill: 0.85, persona: 'allrounder' },
-  { email: 'maya.patel+demo@scholr.study',        name: 'Maya Patel',        skill: 0.95, persona: 'topper' },
-  { email: 'jordan.williams+demo@scholr.study',   name: 'Jordan Williams',   skill: 0.55, persona: 'struggling_cvp' },
-  { email: 'sam.rodriguez+demo@scholr.study',     name: 'Sam Rodriguez',     skill: 0.70, persona: 'allrounder' },
-  { email: 'taylor.kim+demo@scholr.study',        name: 'Taylor Kim',        skill: 0.40, persona: 'struggling_npv' },
-  { email: 'liam.osullivan+demo@scholr.study',    name: 'Liam O\'Sullivan',  skill: 0.62, persona: 'struggling_variance' },
-  { email: 'priya.mehta+demo@scholr.study',       name: 'Priya Mehta',       skill: 0.88, persona: 'topper' },
-  { email: 'noah.park+demo@scholr.study',         name: 'Noah Park',         skill: 0.48, persona: 'struggling_variance' },
-  { email: 'olivia.brown+demo@scholr.study',      name: 'Olivia Brown',      skill: 0.76, persona: 'allrounder' },
-  { email: 'devon.harris+demo@scholr.study',      name: 'Devon Harris',      skill: 0.58, persona: 'struggling_cvp' },
-  { email: 'sofia.martinez+demo@scholr.study',    name: 'Sofia Martinez',    skill: 0.81, persona: 'allrounder' },
-  { email: 'ethan.murphy+demo@scholr.study',      name: 'Ethan Murphy',      skill: 0.45, persona: 'struggling_npv' },
-  { email: 'aaliyah.thompson+demo@scholr.study',  name: 'Aaliyah Thompson',  skill: 0.78, persona: 'allrounder' },
-  { email: 'wei.zhang+demo@scholr.study',         name: 'Wei Zhang',         skill: 0.92, persona: 'topper' },
-  { email: 'fatima.ahmed+demo@scholr.study',      name: 'Fatima Ahmed',      skill: 0.50, persona: 'struggling_variance' },
+// 50-student class with persona distribution shaped to look like a real
+// undergraduate accounting section: 5 toppers, 20 allrounders, 25 split
+// across three struggle areas. Skill multiplier drives per-question
+// correctness; persona drives WHICH concepts they ask about and which
+// flashcard decks they make. Generated from first/last name pools so the
+// dashboard reads "real class of 50" without hardcoding 50 entries.
+const DEMO_FIRST = ['Alex','Maya','Jordan','Sam','Taylor','Liam','Priya','Noah','Olivia','Devon','Sofia','Ethan','Aaliyah','Wei','Fatima','Mia','Lucas','Zara','Carter','Imani','Ryan','Avery','Kai','Nina','Eli','Layla','Jaylen','Sienna','Owen','Aanya','Mason','Ruby','Caleb','Hana','Felix','Tariq','Ana','Jamal','Eve','Marcus','Kira','Theo','Sana','Ravi','Cora','Brooks','Daria','Quinn','Yusef','Esme'];
+const DEMO_LAST  = ['Chen','Patel','Williams','Rodriguez','Kim','OSullivan','Mehta','Park','Brown','Harris','Martinez','Murphy','Thompson','Zhang','Ahmed','Singh','Nguyen','Garcia','Davis','Kumar','Hassan','Lopez','Khan','Wright','Tanaka','Adebayo','Cohen','Yang','Rivera','Bell','Anderson','Reyes','Russo','Sharma','Walker','Lin','Bauer','Iqbal','Knight','Diaz','Goldberg','Ortiz','Powell','Foster','Mitchell','Choi','Cooper','Robinson','Mendoza','OConnor'];
+const PERSONA_PLAN = [
+  ...Array(5).fill('topper'),               // 10% — coasts through everything
+  ...Array(20).fill('allrounder'),          // 40% — average, mixed
+  ...Array(10).fill('struggling_cvp'),      // 20% — CVP pain area
+  ...Array(8).fill('struggling_npv'),       // 16% — capital budgeting pain area
+  ...Array(7).fill('struggling_variance'),  // 14% — variance analysis pain area
 ];
+const SKILL_BAND = {
+  topper:               { base: 0.90, spread: 0.08 },
+  allrounder:           { base: 0.65, spread: 0.22 },
+  struggling_cvp:       { base: 0.45, spread: 0.18 },
+  struggling_npv:       { base: 0.40, spread: 0.18 },
+  struggling_variance:  { base: 0.40, spread: 0.20 },
+};
+const DEMO_STUDENTS = PERSONA_PLAN.map((persona, i) => {
+  const first = DEMO_FIRST[i % DEMO_FIRST.length];
+  const last  = DEMO_LAST[(i * 7) % DEMO_LAST.length];
+  const handle = `${first}.${last}`.toLowerCase().replace(/[^a-z.]/g, '');
+  const band = SKILL_BAND[persona];
+  // Deterministic skill: function of index so the same student always
+  // gets the same skill across server restarts (so insights look stable).
+  const skillJitter = ((i * 13 + 7) % 100) / 100;
+  return {
+    email: `${handle}+demo${i}@scholr.study`,
+    name: `${first} ${last.replace(/^O/, "O'")}`,
+    skill: Math.max(0.20, Math.min(0.98, band.base + (skillJitter - 0.5) * band.spread)),
+    persona,
+  };
+});
 
 // Chat questions students realistically ask, themed by struggle area.
 // Each persona drops 3-4 of these into the questions table so the Topic
@@ -2307,6 +2323,8 @@ const DEMO_CHAT_QUESTIONS = {
     'When is it appropriate to use IRR over NPV for ranking projects?',
     'How does activity-based costing improve on job-order costing for overhead allocation?',
     'What\'s the intuition behind the materials quantity variance?',
+    'Can you explain how operating leverage interacts with margin of safety?',
+    'When does profitability index beat NPV for project ranking?',
   ],
   allrounder: [
     'Can you walk me through a contribution margin example with target profit?',
@@ -2314,6 +2332,9 @@ const DEMO_CHAT_QUESTIONS = {
     'How do I solve a break-even problem with multiple products?',
     'When do I use NPV vs payback period in a real decision?',
     'What\'s on the midterm exam?',
+    'Can you explain the difference between job-order and process costing with an example?',
+    'How does the high-low method work?',
+    'What\'s the discount rate I should use for NPV problems on the exam?',
   ],
   struggling_cvp: [
     'I keep getting break-even wrong — can you walk me through it slowly?',
@@ -2321,6 +2342,8 @@ const DEMO_CHAT_QUESTIONS = {
     'How do I find target profit units when CM ratio is given instead of CM per unit?',
     'Can you explain the CVP graph again? I don\'t understand the axes.',
     'What does "margin of safety" actually mean in plain English?',
+    'I don\'t understand operating leverage at all. Help?',
+    'What\'s the difference between margin of safety in dollars and as a percentage?',
   ],
   struggling_npv: [
     'What does discount rate actually mean and where does it come from?',
@@ -2328,6 +2351,9 @@ const DEMO_CHAT_QUESTIONS = {
     'How is IRR different from NPV? Aren\'t they the same?',
     'Why do we reject a project with negative NPV?',
     'Can you do a worked example of NPV step by step?',
+    'What\'s the profitability index and how is it different from NPV?',
+    'When would discounted payback give a different answer than regular payback?',
+    'How do I find the discount rate if it\'s not given?',
   ],
   struggling_variance: [
     'What\'s the difference between flexible budget and static budget?',
@@ -2335,36 +2361,44 @@ const DEMO_CHAT_QUESTIONS = {
     'Can you explain standard cost vs actual cost in an example?',
     'How do you calculate the materials price variance?',
     'What does the flexible budget variance actually tell me?',
+    'What\'s the difference between direct labor rate variance and efficiency variance?',
+    'I\'m confused about variable overhead spending vs efficiency variance.',
+    'How does fixed overhead volume variance work?',
   ],
 };
 
 // Flashcard deck topics by persona — students make decks on what they
-// THINK they need to study. Struggle personas make multiple decks on
-// their pain area; toppers make broader/advanced decks.
+// THINK they need to study. Struggle personas cluster decks on their
+// pain area (the cross-signal: they KNOW they're weak there).
 const DEMO_FLASHCARD_DECKS = {
   topper: [
-    { topic: 'Multi-Product CVP — Edge Cases', concepts: ['Contribution Margin Ratio', 'Target Profit'] },
-    { topic: 'Capital Budgeting — Ranking Projects', concepts: ['Net Present Value', 'Internal Rate of Return'] },
+    { topic: 'Multi-Product CVP — Edge Cases', concepts: ['Contribution Margin Ratio', 'Target Profit', 'Operating Leverage'] },
+    { topic: 'Capital Budgeting — Ranking Projects', concepts: ['Net Present Value', 'Internal Rate of Return', 'Profitability Index'] },
+    { topic: 'Advanced Variance Decomposition', concepts: ['Variable Overhead Variance', 'Fixed Overhead Variance'] },
   ],
   allrounder: [
-    { topic: 'CVP Formulas Cheat Sheet', concepts: ['Break-even Point', 'Contribution Margin', 'Contribution Margin Ratio'] },
-    { topic: 'Capital Budgeting Basics', concepts: ['Net Present Value', 'Payback Period'] },
-    { topic: 'Midterm Review', concepts: ['Break-even Point', 'Net Present Value', 'Standard Cost Variance'] },
+    { topic: 'CVP Formulas Cheat Sheet', concepts: ['Break-even Point', 'Contribution Margin', 'Contribution Margin Ratio', 'Margin of Safety'] },
+    { topic: 'Capital Budgeting Basics', concepts: ['Net Present Value', 'Payback Period', 'Discount Rate'] },
+    { topic: 'Cost Behavior Review', concepts: ['Fixed Costs', 'Variable Costs', 'Mixed Costs'] },
+    { topic: 'Midterm Review', concepts: ['Break-even Point', 'Net Present Value', 'Standard Cost Variance', 'Job Order Costing'] },
   ],
   struggling_cvp: [
     { topic: 'Break-Even Problems I Keep Missing', concepts: ['Break-even Point', 'Contribution Margin'] },
     { topic: 'CM vs CM Ratio Drill', concepts: ['Contribution Margin', 'Contribution Margin Ratio'] },
-    { topic: 'Target Profit Practice', concepts: ['Target Profit'] },
+    { topic: 'Target Profit Practice', concepts: ['Target Profit', 'Margin of Safety'] },
+    { topic: 'Operating Leverage — Help', concepts: ['Operating Leverage', 'Contribution Margin'] },
   ],
   struggling_npv: [
-    { topic: 'NPV from Scratch', concepts: ['Net Present Value'] },
+    { topic: 'NPV from Scratch', concepts: ['Net Present Value', 'Discount Rate'] },
     { topic: 'IRR and Discount Rates', concepts: ['Internal Rate of Return', 'Net Present Value'] },
-    { topic: 'Capital Budgeting Vocab', concepts: ['Net Present Value', 'Internal Rate of Return', 'Payback Period'] },
+    { topic: 'Capital Budgeting Vocab', concepts: ['Net Present Value', 'Internal Rate of Return', 'Payback Period', 'Discounted Payback'] },
+    { topic: 'Profitability Index Drill', concepts: ['Profitability Index', 'Net Present Value'] },
   ],
   struggling_variance: [
     { topic: 'Variance Analysis Step by Step', concepts: ['Flexible Budget Variance', 'Standard Cost Variance'] },
     { topic: 'Favorable vs Unfavorable Drill', concepts: ['Standard Cost Variance', 'Direct Materials Variance'] },
-    { topic: 'Materials Variance Worked Examples', concepts: ['Direct Materials Variance'] },
+    { topic: 'Materials Variance Worked Examples', concepts: ['Direct Materials Variance', 'Direct Labor Variance'] },
+    { topic: 'Overhead Variance Bootcamp', concepts: ['Variable Overhead Variance', 'Fixed Overhead Variance'] },
   ],
 };
 
@@ -2414,15 +2448,80 @@ const DEMO_FLASHCARD_CARDS = {
     { front: 'Materials price variance', back: '(Actual Price − Standard Price) × Actual Quantity' },
     { front: 'Materials quantity variance', back: '(Actual Quantity − Standard Quantity) × Standard Price' },
   ],
+  'Margin of Safety': [
+    { front: 'Margin of Safety formula', back: 'Actual Sales − Break-even Sales' },
+    { front: 'Margin of Safety percentage', back: '(Margin of Safety / Actual Sales) × 100%' },
+    { front: 'Why does Margin of Safety matter?', back: 'It shows how much sales can drop before the company hits break-even — the cushion against loss.' },
+  ],
+  'Operating Leverage': [
+    { front: 'Degree of Operating Leverage', back: 'Contribution Margin / Net Operating Income' },
+    { front: 'High DOL means…', back: 'A small % change in sales causes a much larger % change in operating income.' },
+  ],
+  'Discount Rate': [
+    { front: 'What does the discount rate represent?', back: 'The required rate of return — opportunity cost of capital, often the WACC, adjusted for project risk.' },
+    { front: 'Discount rate effect on NPV', back: 'Higher rate → lower NPV. Lower rate → higher NPV.' },
+  ],
+  'Discounted Payback': [
+    { front: 'Discounted payback definition', back: 'The time required for the PRESENT VALUE of cumulative cash inflows to equal the initial investment.' },
+    { front: 'Discounted payback vs payback', back: 'Both stop counting after recovery, but discounted payback applies the discount rate to each year\'s cash flow first.' },
+  ],
+  'Profitability Index': [
+    { front: 'Profitability Index formula', back: 'PV of future cash inflows / Initial Investment' },
+    { front: 'PI decision rule', back: 'Accept if PI ≥ 1; reject if PI < 1. Useful for ranking projects under capital rationing.' },
+  ],
+  'Direct Labor Variance': [
+    { front: 'Direct labor rate variance', back: '(Actual Rate − Standard Rate) × Actual Hours' },
+    { front: 'Direct labor efficiency variance', back: '(Actual Hours − Standard Hours Allowed) × Standard Rate' },
+  ],
+  'Variable Overhead Variance': [
+    { front: 'Variable OH spending variance', back: '(Actual Rate − Standard Rate) × Actual Hours' },
+    { front: 'Variable OH efficiency variance', back: '(Actual Hours − Standard Hours) × Standard Rate' },
+  ],
+  'Fixed Overhead Variance': [
+    { front: 'Fixed OH budget variance', back: 'Actual Fixed OH − Budgeted Fixed OH' },
+    { front: 'Fixed OH volume variance', back: 'Budgeted Fixed OH − (Standard Hours × Predetermined Fixed OH Rate)' },
+  ],
+  'Fixed Costs': [
+    { front: 'Fixed cost behavior — total', back: 'Total fixed cost is constant within the relevant range, regardless of activity.' },
+    { front: 'Fixed cost behavior — per unit', back: 'Per-unit fixed cost DECREASES as activity increases (spread over more units).' },
+  ],
+  'Variable Costs': [
+    { front: 'Variable cost behavior — total', back: 'Total variable cost CHANGES proportionally with activity level.' },
+    { front: 'Variable cost behavior — per unit', back: 'Per-unit variable cost is CONSTANT within the relevant range.' },
+  ],
+  'Mixed Costs': [
+    { front: 'Mixed cost formula', back: 'Y = a + bX, where a = fixed component, b = variable rate per unit of activity, X = activity level.' },
+    { front: 'High-low method', back: 'Variable rate = (High cost − Low cost) / (High activity − Low activity). Then solve for fixed component.' },
+  ],
+  'Job Order Costing': [
+    { front: 'When to use job-order costing', back: 'Custom or batch production where each job/order is distinct — construction, custom furniture, consulting jobs.' },
+    { front: 'Predetermined overhead rate', back: 'Estimated total overhead / Estimated allocation base. Set BEFORE the period; applied as jobs are worked on.' },
+  ],
+  'Process Costing': [
+    { front: 'When to use process costing', back: 'Continuous production of homogeneous units — refining, chemicals, food production.' },
+    { front: 'Equivalent units', back: 'Work done on partially completed units expressed in terms of completed-unit equivalents.' },
+  ],
+  'Activity-Based Costing': [
+    { front: 'ABC vs traditional costing', back: 'ABC uses multiple activity cost drivers (setups, inspections, machine hours) rather than a single allocation base — more accurate for complex overhead.' },
+    { front: 'When does ABC matter most?', back: 'When products consume overhead resources very differently, or when overhead is large relative to direct costs.' },
+  ],
 };
 
 // Realistic accounting questions tagged with the named concept they test.
 // Concepts are NAMED IDEAS — never "General", never "Module 1". Each
 // question lists 4 options with the correct index marked.
+// Four quizzes covering 18+ named accounting concepts. Target mastery is
+// the CLASS-LEVEL hit rate the seed aims for on each concept — varied so
+// the dashboard shows on-track concepts (Cost Behavior basics), mixed
+// concepts (CM Ratio), and clear teaching priorities (NPV, Variance,
+// Operating Leverage). Per-student outcome is target × student.skill.
 const DEMO_QUIZZES = [
   {
     topic: '[DEMO] Module 1 · Cost-Volume-Profit',
-    targetMastery: { 'Break-even Point': 0.90, 'Contribution Margin': 0.88, 'Contribution Margin Ratio': 0.60, 'Target Profit': 0.55 },
+    targetMastery: {
+      'Break-even Point': 0.90, 'Contribution Margin': 0.88, 'Contribution Margin Ratio': 0.62,
+      'Target Profit': 0.55, 'Margin of Safety': 0.50, 'Operating Leverage': 0.42,
+    },
     questions: [
       { concept: 'Break-even Point', q: 'Fixed Costs are $40,000. Selling Price per Unit is $25. Variable Cost per Unit is $15. What is the break-even point in units?',
         options: ['A) 1,600 units', 'B) 2,500 units', 'C) 4,000 units', 'D) 6,000 units'], correct: 2,
@@ -2448,11 +2547,26 @@ const DEMO_QUIZZES = [
       { concept: 'Target Profit', q: 'Fixed Costs are $90,000, CM Ratio is 30%, target profit is $30,000. What sales dollars are needed?',
         options: ['A) $300,000', 'B) $360,000', 'C) $400,000', 'D) $420,000'], correct: 2,
         explanation: 'Sales = (90,000 + 30,000) / 0.30 = $400,000.' },
+      { concept: 'Margin of Safety', q: 'Actual sales are $500,000 and break-even sales are $350,000. What is the margin of safety in dollars?',
+        options: ['A) $150,000', 'B) $200,000', 'C) $350,000', 'D) $500,000'], correct: 0,
+        explanation: 'MoS = Actual Sales − Break-even Sales = 500,000 − 350,000 = 150,000.' },
+      { concept: 'Margin of Safety', q: 'Margin of safety percentage is calculated as:',
+        options: ['A) (Margin of Safety / Break-even Sales) × 100', 'B) (Margin of Safety / Actual Sales) × 100', 'C) Margin of Safety / Fixed Costs', 'D) (Actual Sales − Variable Costs) / Sales'], correct: 1,
+        explanation: 'MoS % = (Margin of Safety / Actual Sales) × 100.' },
+      { concept: 'Operating Leverage', q: 'Operating Leverage is calculated as:',
+        options: ['A) Contribution Margin / Net Operating Income', 'B) Net Operating Income / Sales', 'C) Fixed Costs / Variable Costs', 'D) Sales / Contribution Margin'], correct: 0,
+        explanation: 'Degree of Operating Leverage = Contribution Margin / Net Operating Income.' },
+      { concept: 'Operating Leverage', q: 'A high degree of operating leverage means:',
+        options: ['A) The company has low fixed costs', 'B) Small changes in sales drive large changes in operating income', 'C) Variable costs equal fixed costs', 'D) Break-even point is very low'], correct: 1,
+        explanation: 'High DOL = small revenue change amplifies into a big operating-income change.' },
     ],
   },
   {
     topic: '[DEMO] Module 2 · Capital Budgeting',
-    targetMastery: { 'Net Present Value': 0.40, 'Internal Rate of Return': 0.35, 'Payback Period': 0.78 },
+    targetMastery: {
+      'Net Present Value': 0.42, 'Internal Rate of Return': 0.32, 'Payback Period': 0.78,
+      'Discounted Payback': 0.45, 'Profitability Index': 0.38, 'Discount Rate': 0.55,
+    },
     questions: [
       { concept: 'Net Present Value', q: 'An investment of $50,000 generates $20,000 per year for 3 years. With a discount rate of 10%, what is the approximate NPV?',
         options: ['A) −$300', 'B) $0', 'C) $10,000', 'D) $4,700'], correct: 0,
@@ -2460,23 +2574,44 @@ const DEMO_QUIZZES = [
       { concept: 'Net Present Value', q: 'If NPV is negative, the project should be:',
         options: ['A) Accepted', 'B) Rejected', 'C) Deferred', 'D) Re-evaluated at a lower rate'], correct: 1,
         explanation: 'A negative NPV means the project earns less than the required rate — reject.' },
+      { concept: 'Net Present Value', q: 'Increasing the discount rate causes a project\'s NPV to:',
+        options: ['A) Increase', 'B) Decrease', 'C) Stay the same', 'D) Become undefined'], correct: 1,
+        explanation: 'A higher discount rate decreases the PV of future cash flows, so NPV falls.' },
       { concept: 'Internal Rate of Return', q: 'IRR is the discount rate at which:',
         options: ['A) NPV is maximized', 'B) NPV equals zero', 'C) NPV equals initial investment', 'D) Payback equals project life'], correct: 1,
         explanation: 'IRR is by definition the discount rate where NPV = 0.' },
       { concept: 'Internal Rate of Return', q: 'A project has an IRR of 8%. If the required rate of return is 10%, you should:',
         options: ['A) Accept it', 'B) Reject it', 'C) Re-calculate using NPV', 'D) Defer the decision'], correct: 1,
         explanation: 'IRR (8%) < required rate (10%) → reject.' },
+      { concept: 'Internal Rate of Return', q: 'A drawback of IRR when comparing two mutually-exclusive projects is that it:',
+        options: ['A) Cannot be calculated when cash flows are negative', 'B) Can give a different ranking than NPV due to scale differences', 'C) Requires a positive discount rate', 'D) Always equals payback period'], correct: 1,
+        explanation: 'IRR can rank a smaller project higher than NPV does — scale problem.' },
       { concept: 'Payback Period', q: 'A $40,000 investment returns $10,000 per year. What is the payback period?',
         options: ['A) 2 years', 'B) 3 years', 'C) 4 years', 'D) 5 years'], correct: 2,
         explanation: 'Payback = $40,000 / $10,000 = 4 years.' },
       { concept: 'Payback Period', q: 'A weakness of the payback period method is that it:',
         options: ['A) Is hard to calculate', 'B) Ignores cash flows after payback and the time value of money', 'C) Is only useful for long projects', 'D) Requires NPV inputs'], correct: 1,
         explanation: 'Classic critique: ignores post-payback flows + ignores time value of money.' },
+      { concept: 'Discounted Payback', q: 'Discounted payback differs from regular payback because it:',
+        options: ['A) Uses after-tax cash flows only', 'B) Discounts each year\'s cash flow before computing payback', 'C) Excludes the initial investment', 'D) Adds salvage value at the end'], correct: 1,
+        explanation: 'Discounted payback applies the discount rate to each cash flow before summing.' },
+      { concept: 'Profitability Index', q: 'Profitability Index is calculated as:',
+        options: ['A) NPV / Initial Investment', 'B) PV of future cash flows / Initial Investment', 'C) NPV × IRR', 'D) Annual cash flow / Discount rate'], correct: 1,
+        explanation: 'PI = PV of future cash inflows / Initial Investment. PI > 1 → accept.' },
+      { concept: 'Profitability Index', q: 'When capital is rationed and projects must be ranked, the most useful metric is:',
+        options: ['A) Payback period', 'B) Profitability Index', 'C) Accounting rate of return', 'D) Initial investment alone'], correct: 1,
+        explanation: 'PI ranks projects by NPV per dollar invested — perfect for capital rationing.' },
+      { concept: 'Discount Rate', q: 'The discount rate used in NPV typically reflects:',
+        options: ['A) Inflation alone', 'B) The required rate of return / cost of capital', 'C) The risk-free rate', 'D) Average tax rate'], correct: 1,
+        explanation: 'Discount rate = required rate of return or cost of capital adjusted for project risk.' },
     ],
   },
   {
     topic: '[DEMO] Module 3 · Variance Analysis',
-    targetMastery: { 'Flexible Budget Variance': 0.25, 'Standard Cost Variance': 0.50, 'Direct Materials Variance': 0.65 },
+    targetMastery: {
+      'Flexible Budget Variance': 0.25, 'Standard Cost Variance': 0.48, 'Direct Materials Variance': 0.55,
+      'Direct Labor Variance': 0.45, 'Variable Overhead Variance': 0.32, 'Fixed Overhead Variance': 0.30,
+    },
     questions: [
       { concept: 'Flexible Budget Variance', q: 'The flexible budget variance is the difference between:',
         options: ['A) Static budget and actual results', 'B) Static budget and flexible budget', 'C) Flexible budget and actual results', 'D) Standard cost and actual cost'], correct: 2,
@@ -2499,6 +2634,69 @@ const DEMO_QUIZZES = [
       { concept: 'Direct Materials Variance', q: 'Actual quantity used was 1,100 lbs at $5.20. Standard was 1,000 lbs at $5.00. What is the materials quantity variance?',
         options: ['A) $500 Unfavorable', 'B) $500 Favorable', 'C) $520 Unfavorable', 'D) $220 Unfavorable'], correct: 0,
         explanation: 'Quantity variance = (1,100 − 1,000) × $5.00 = $500 Unfavorable.' },
+      { concept: 'Direct Labor Variance', q: 'Direct labor rate variance is calculated as:',
+        options: ['A) (Actual Hours − Standard Hours) × Standard Rate', 'B) (Actual Rate − Standard Rate) × Actual Hours', 'C) (Standard Hours × Standard Rate) − Actual Cost', 'D) Actual Hours × Standard Rate'], correct: 1,
+        explanation: 'Labor rate variance = (Actual Rate − Standard Rate) × Actual Hours.' },
+      { concept: 'Direct Labor Variance', q: 'Direct labor efficiency variance measures:',
+        options: ['A) Whether workers were paid the right wage', 'B) Whether workers used the planned number of hours', 'C) Total labor cost vs budget', 'D) Idle labor hours only'], correct: 1,
+        explanation: 'Efficiency variance = (Actual Hours − Standard Hours Allowed) × Standard Rate.' },
+      { concept: 'Variable Overhead Variance', q: 'Variable overhead spending variance is calculated using:',
+        options: ['A) Actual hours and standard rate', 'B) Actual hours and actual rate vs standard rate', 'C) Standard hours and standard rate', 'D) Sales volume and overhead rate'], correct: 1,
+        explanation: 'Spending variance = (Actual Rate − Standard Rate) × Actual Hours.' },
+      { concept: 'Variable Overhead Variance', q: 'Variable overhead efficiency variance reflects:',
+        options: ['A) Differences in overhead spending rate', 'B) Differences between actual and standard activity (hours)', 'C) Fixed overhead absorbed', 'D) Volume changes only'], correct: 1,
+        explanation: 'Efficiency variance = (Actual Hours − Standard Hours) × Standard Rate.' },
+      { concept: 'Fixed Overhead Variance', q: 'Fixed overhead budget variance is:',
+        options: ['A) Actual fixed overhead − Budgeted fixed overhead', 'B) Standard cost − Actual cost', 'C) Applied overhead − Actual overhead', 'D) Standard hours × Predetermined rate'], correct: 0,
+        explanation: 'Budget variance = Actual Fixed Overhead − Budgeted Fixed Overhead.' },
+      { concept: 'Fixed Overhead Variance', q: 'Fixed overhead volume variance arises because:',
+        options: ['A) Actual rate differs from standard rate', 'B) Actual activity differs from the activity used to compute the overhead rate', 'C) Workers are paid differently', 'D) Materials prices changed'], correct: 1,
+        explanation: 'Volume variance compares applied overhead with budgeted overhead — driven by activity differences.' },
+    ],
+  },
+  {
+    topic: '[DEMO] Module 4 · Cost Behavior & Costing Methods',
+    targetMastery: {
+      'Fixed Costs': 0.92, 'Variable Costs': 0.94, 'Mixed Costs': 0.72,
+      'Job Order Costing': 0.70, 'Process Costing': 0.55, 'Activity-Based Costing': 0.48,
+    },
+    questions: [
+      { concept: 'Fixed Costs', q: 'A fixed cost behaves as follows when activity increases (within the relevant range):',
+        options: ['A) Total cost increases', 'B) Total cost stays the same; per-unit cost decreases', 'C) Per-unit cost stays the same', 'D) Total cost decreases'], correct: 1,
+        explanation: 'Total fixed cost is unchanged; spreading it across more units lowers per-unit cost.' },
+      { concept: 'Fixed Costs', q: 'Which of the following is an example of a fixed cost?',
+        options: ['A) Direct materials', 'B) Sales commissions', 'C) Annual factory rent', 'D) Hourly labor'], correct: 2,
+        explanation: 'Rent is committed and does not vary with production volume.' },
+      { concept: 'Variable Costs', q: 'Per-unit variable cost behaves how as activity increases (within the relevant range)?',
+        options: ['A) Increases', 'B) Decreases', 'C) Remains constant', 'D) Becomes zero'], correct: 2,
+        explanation: 'Per-unit variable cost is constant by definition; total variable cost scales with activity.' },
+      { concept: 'Variable Costs', q: 'Which of the following is a variable cost?',
+        options: ['A) Plant manager salary', 'B) Direct materials', 'C) Property tax', 'D) Depreciation on equipment'], correct: 1,
+        explanation: 'Direct materials consumption scales 1:1 with units produced.' },
+      { concept: 'Mixed Costs', q: 'A mixed cost contains:',
+        options: ['A) Only fixed elements', 'B) Only variable elements', 'C) Both fixed and variable elements', 'D) Step-cost elements only'], correct: 2,
+        explanation: 'Mixed cost = Fixed component + Variable component (e.g., Y = a + bX).' },
+      { concept: 'Mixed Costs', q: 'The high-low method estimates the variable cost per unit by:',
+        options: ['A) Averaging all observations', 'B) Dividing the change in cost by the change in activity between the highest and lowest activity points', 'C) Using regression analysis', 'D) Using the median observation'], correct: 1,
+        explanation: 'High-low: variable rate = (cost at high − cost at low) / (activity at high − activity at low).' },
+      { concept: 'Job Order Costing', q: 'Job-order costing is most appropriate when:',
+        options: ['A) Products are identical and continuously produced', 'B) Each job or batch is distinct', 'C) There is no work-in-process inventory', 'D) Overhead is zero'], correct: 1,
+        explanation: 'Job-order suits custom or batch production — distinct jobs each carry their own cost.' },
+      { concept: 'Job Order Costing', q: 'In a job-order system, overhead is typically applied using a:',
+        options: ['A) Predetermined overhead rate based on estimated activity', 'B) Direct trace to each job', 'C) Process-costing equivalent units', 'D) Standard cost only'], correct: 0,
+        explanation: 'A predetermined rate is set at the start of the period and applied as activity occurs.' },
+      { concept: 'Process Costing', q: 'Process costing is appropriate when:',
+        options: ['A) Each unit is unique', 'B) Products are homogeneous and produced continuously', 'C) The firm does not use direct materials', 'D) Overhead is zero'], correct: 1,
+        explanation: 'Process costing averages costs across many identical units — refining, food production, chemicals.' },
+      { concept: 'Process Costing', q: 'In process costing, equivalent units of production reflect:',
+        options: ['A) Completed units only', 'B) Partially completed units expressed as a fraction of completed units', 'C) Sold units only', 'D) Units transferred out plus rework'], correct: 1,
+        explanation: 'Equivalent units account for work done on partially complete units in WIP.' },
+      { concept: 'Activity-Based Costing', q: 'Activity-Based Costing (ABC) improves on traditional costing by:',
+        options: ['A) Eliminating overhead', 'B) Assigning overhead based on multiple cost drivers rather than a single allocation base', 'C) Using direct labor hours as the only driver', 'D) Skipping overhead allocation entirely'], correct: 1,
+        explanation: 'ABC uses multiple activity drivers (setups, inspections, machine hours) to assign overhead more accurately.' },
+      { concept: 'Activity-Based Costing', q: 'A weakness of ABC is that it:',
+        options: ['A) Always reports lower costs', 'B) Is more complex and costly to implement than traditional methods', 'C) Cannot be used in service industries', 'D) Ignores direct costs'], correct: 1,
+        explanation: 'ABC requires identifying many cost pools and drivers — more accurate but more expensive.' },
     ],
   },
 ];
@@ -2507,88 +2705,107 @@ app.post('/course/:courseId/seed-demo-concepts', requireAuth, requireCourseOwner
   const { courseId } = req.params;
   const summary = { studentsReady: 0, quizzesInserted: 0, testsInserted: 0, decksInserted: 0, questionsInserted: 0, errors: [] };
 
-  // 1) Ensure each demo student exists. Look up by email first; create if
-  //    missing. Auth admin handles both flows.
-  const resolved = []; // [{ studentId, name, skill }]
-  for (const s of DEMO_STUDENTS) {
-    try {
-      let studentId = null;
-      // Auth admin listUsers — filtered by email when supported.
-      const { data: list } = await supabase.auth.admin.listUsers({ page: 1, perPage: 200 });
-      const existing = list?.users?.find(u => (u.email || '').toLowerCase() === s.email.toLowerCase());
-      if (existing) {
-        studentId = existing.id;
-      } else {
-        // Create a real auth user so the FK to auth.users is satisfied.
-        // Password is throwaway — demo accounts aren't meant to sign in.
-        const { data: created, error: cErr } = await supabase.auth.admin.createUser({
+  // 1) Resolve every demo student to an auth user id.
+  //    Critical perf fix: with 50 students we list all auth users ONCE
+  //    (paginating across pages of 1,000), build an email→id map, then
+  //    only call createUser for the ones genuinely missing. Previously
+  //    this listed all users in a loop = 50× the network cost and
+  //    enough latency to blow Render's 30s timeout.
+  const emailToId = new Map();
+  try {
+    let page = 1;
+    while (page <= 10) {
+      const { data: list } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+      const users = list?.users || [];
+      for (const u of users) if (u.email) emailToId.set(u.email.toLowerCase(), u.id);
+      if (users.length < 1000) break;
+      page += 1;
+    }
+  } catch (e) { summary.errors.push(`listUsers: ${e?.message || e}`); }
+
+  // Create missing auth users in parallel batches of 5. Auth admin has
+  // per-second rate limits; small batches stay safely under them while
+  // collapsing wall-clock time for 50 students from ~30s to ~6-8s.
+  const missing = DEMO_STUDENTS.filter(s => !emailToId.has(s.email.toLowerCase()));
+  const BATCH = 5;
+  for (let i = 0; i < missing.length; i += BATCH) {
+    const slice = missing.slice(i, i + BATCH);
+    const created = await Promise.all(slice.map(async (s) => {
+      try {
+        const { data, error } = await supabase.auth.admin.createUser({
           email: s.email,
           password: `demo-${randomUUID().slice(0, 12)}!Q`,
           email_confirm: true,
           user_metadata: { name: s.name, is_demo: true },
         });
-        if (cErr) throw cErr;
-        studentId = created?.user?.id || null;
+        if (error) throw error;
+        return { email: s.email, id: data?.user?.id };
+      } catch (e) {
+        summary.errors.push(`Create ${s.email}: ${e?.message || e}`);
+        return null;
       }
-      if (!studentId) { summary.errors.push(`Could not resolve ${s.email}`); continue; }
-      // Upsert students row + enroll in the course (idempotent).
-      await supabase.from('students').upsert({ id: studentId, email: s.email, name: s.name }, { onConflict: 'id' });
-      try {
-        await supabase.from('course_students').upsert({ course_id: courseId, student_id: studentId }, { onConflict: 'course_id,student_id' });
-      } catch {} // enrollment table may not exist on every deploy; soft-ignore
-      resolved.push({ studentId, name: s.name, skill: s.skill });
-      summary.studentsReady += 1;
-    } catch (e) {
-      summary.errors.push(`Student ${s.email}: ${e?.message || e}`);
-    }
+    }));
+    for (const c of created) if (c?.id) emailToId.set(c.email.toLowerCase(), c.id);
   }
 
-  // 2) For each (student, quiz) pair, generate a per-question response set
-  //    calibrated by the concept's target mastery + the student's skill,
-  //    then insert one quiz row with embedded selected indices.
-  //    Determinism is intentionally weak — we want some natural noise so
-  //    the demo data doesn't look hand-tuned.
+  // Upsert students rows + course enrollments in single batch operations.
+  const resolved = []; // [{ studentId, name, skill, persona }]
+  const studentRows = [];
+  const enrollmentRows = [];
+  for (const s of DEMO_STUDENTS) {
+    const studentId = emailToId.get(s.email.toLowerCase());
+    if (!studentId) continue;
+    studentRows.push({ id: studentId, email: s.email, name: s.name });
+    enrollmentRows.push({ course_id: courseId, student_id: studentId });
+    resolved.push({ studentId, name: s.name, skill: s.skill, persona: s.persona });
+  }
+  if (studentRows.length > 0) {
+    try {
+      await supabase.from('students').upsert(studentRows, { onConflict: 'id' });
+    } catch (e) { summary.errors.push(`students upsert: ${e?.message || e}`); }
+  }
+  if (enrollmentRows.length > 0) {
+    try {
+      await supabase.from('course_students').upsert(enrollmentRows, { onConflict: 'course_id,student_id' });
+    } catch {} // soft-ignore — enrollment table may not exist
+  }
+  summary.studentsReady = resolved.length;
+
+  // 2) Quiz rows — batched per-quiz so all 50 student attempts hit
+  //    Supabase in ONE call instead of 50. Calibration: per-question
+  //    probability = concept target × student skill, with intentional
+  //    randomness so the data doesn't look hand-tuned.
   for (const quiz of DEMO_QUIZZES) {
+    const rows = [];
     for (const stud of resolved) {
       const merged = quiz.questions.map(q => {
         const target = quiz.targetMastery[q.concept] ?? 0.65;
-        // Probability this specific student gets THIS question right.
-        // Multiply concept target by student skill, clamp to [0.05, 0.98].
         const pCorrect = Math.max(0.05, Math.min(0.98, target * stud.skill * 1.05));
         const gotIt = Math.random() < pCorrect;
         let selected = q.correct;
         if (!gotIt) {
-          // Pick a plausible wrong option — exclude the correct one.
           const wrongs = [0, 1, 2, 3].filter(i => i !== q.correct);
           selected = wrongs[Math.floor(Math.random() * wrongs.length)];
         }
-        return {
-          question: q.q,
-          options: q.options,
-          correct: q.correct,
-          concept: q.concept,
-          explanation: q.explanation,
-          selected,
-        };
+        return { question: q.q, options: q.options, correct: q.correct, concept: q.concept, explanation: q.explanation, selected };
       });
       const right = merged.filter(q => q.selected === q.correct).length;
-      const total = merged.length;
-      const lastScore = right;
-      try {
-        const { error } = await supabase.from('quizzes').insert({
-          student_id: stud.studentId,
-          course_id: courseId,
-          topic: quiz.topic,
-          questions: merged,
-          last_score: lastScore,
-          best_score: lastScore,
-          attempts: 1,
-        });
-        if (error) throw error;
-        summary.quizzesInserted += 1;
-      } catch (e) {
-        summary.errors.push(`Quiz "${quiz.topic}" for ${stud.name}: ${e?.message || e}`);
-      }
+      rows.push({
+        student_id: stud.studentId,
+        course_id: courseId,
+        topic: quiz.topic,
+        questions: merged,
+        last_score: right,
+        best_score: right,
+        attempts: 1,
+      });
+    }
+    try {
+      const { error } = await supabase.from('quizzes').insert(rows);
+      if (error) throw error;
+      summary.quizzesInserted += rows.length;
+    } catch (e) {
+      summary.errors.push(`Quiz "${quiz.topic}" batch: ${e?.message || e}`);
     }
   }
 
@@ -2599,11 +2816,11 @@ app.post('/course/:courseId/seed-demo-concepts', requireAuth, requireCourseOwner
   //    as a "Module 3 Practice Test" — variance is the worst-mastered
   //    concept area, so showing test attempts there reinforces the
   //    "teach more of these" priority on the dashboard.
-  const TEST_QUIZ = DEMO_QUIZZES[2]; // variance analysis
+  const TEST_QUIZ = DEMO_QUIZZES[2]; // variance analysis — worst-mastered
+  const testRows = [];
   for (const stud of resolved) {
-    // Not every student takes the test — randomly ~70% do for realism.
-    if (Math.random() > 0.7) continue;
-    const merged = TEST_QUIZ.questions.slice(0, 6).map(q => {
+    if (Math.random() > 0.7) continue; // ~70% of students take the test
+    const merged = TEST_QUIZ.questions.slice(0, 8).map(q => {
       const target = TEST_QUIZ.targetMastery[q.concept] ?? 0.65;
       const pCorrect = Math.max(0.05, Math.min(0.98, target * stud.skill * 1.05));
       const gotIt = Math.random() < pCorrect;
@@ -2615,77 +2832,80 @@ app.post('/course/:courseId/seed-demo-concepts', requireAuth, requireCourseOwner
       return { question: q.q, options: q.options, correct: q.correct, concept: q.concept, explanation: q.explanation, selected };
     });
     const right = merged.filter(q => q.selected === q.correct).length;
+    testRows.push({
+      student_id: stud.studentId,
+      course_id: courseId,
+      topic: '[DEMO] Module 3 · Practice Test (Variance)',
+      questions: merged,
+      last_score: right,
+      best_score: right,
+      attempts: 1,
+    });
+  }
+  if (testRows.length > 0) {
     try {
-      const { error } = await supabase.from('tests').insert({
-        student_id: stud.studentId,
-        course_id: courseId,
-        topic: '[DEMO] Module 3 · Practice Test (Variance)',
-        questions: merged,
-        last_score: right,
-        best_score: right,
-        attempts: 1,
-      });
+      const { error } = await supabase.from('tests').insert(testRows);
       if (error) throw error;
-      summary.testsInserted += 1;
+      summary.testsInserted = testRows.length;
     } catch (e) {
-      summary.errors.push(`Test for ${stud.name}: ${e?.message || e}`);
+      summary.errors.push(`Tests batch: ${e?.message || e}`);
     }
   }
 
-  // 4) Flashcard decks. Each student makes 1-3 decks themed to what their
-  //    persona is struggling with — a real signal of self-directed study.
-  //    Decks for strugglers cluster on their pain area, painting a clear
-  //    "students know they need help with X" story when the prof opens
-  //    Insights and sees flashcard activity correlating with quiz misses.
+  // 4) Flashcard decks — batched. Each student makes 1-4 decks themed to
+  //    their persona's pain area (strugglers cluster on what they're
+  //    failing — the cross-signal that sells the demo).
+  const deckRows = [];
   for (const stud of resolved) {
     const deckSpecs = DEMO_FLASHCARD_DECKS[stud.persona] || DEMO_FLASHCARD_DECKS.allrounder;
     for (const spec of deckSpecs) {
-      // Pull 4-6 cards from the concept pool across the requested concepts.
       const cards = [];
       for (const concept of spec.concepts) {
         const pool = DEMO_FLASHCARD_CARDS[concept] || [];
         for (const card of pool.slice(0, 2)) cards.push(card);
       }
       if (cards.length === 0) continue;
-      try {
-        const { error } = await supabase.from('flashcard_decks').insert({
-          student_id: stud.studentId,
-          course_id: courseId,
-          topic: `[DEMO] ${spec.topic}`,
-          cards,
-        });
-        if (error) throw error;
-        summary.decksInserted += 1;
-      } catch (e) {
-        summary.errors.push(`Deck "${spec.topic}" for ${stud.name}: ${e?.message || e}`);
-      }
+      deckRows.push({
+        student_id: stud.studentId,
+        course_id: courseId,
+        topic: `[DEMO] ${spec.topic}`,
+        cards,
+      });
+    }
+  }
+  if (deckRows.length > 0) {
+    try {
+      const { error } = await supabase.from('flashcard_decks').insert(deckRows);
+      if (error) throw error;
+      summary.decksInserted = deckRows.length;
+    } catch (e) {
+      summary.errors.push(`Decks batch: ${e?.message || e}`);
     }
   }
 
   // 5) Chat questions — populate the questions table that drives the
-  //    existing Topic Ledger so chat activity ALSO lines up with concept
-  //    misses (the cross-signal that sells the demo: students are ASKING
-  //    about the concepts they're MISSING — Scholr can show both).
+  //    existing Topic Ledger. Cross-signal: students are ASKING about the
+  //    concepts they're MISSING on quizzes.
+  const questionRows = [];
   for (const stud of resolved) {
     const pool = DEMO_CHAT_QUESTIONS[stud.persona] || DEMO_CHAT_QUESTIONS.allrounder;
-    // 2-4 questions per student spread over the past 10 days.
-    const count = 2 + Math.floor(Math.random() * 3);
+    const count = 2 + Math.floor(Math.random() * 4); // 2-5 per student
     for (let i = 0; i < count; i++) {
       const q = pool[Math.floor(Math.random() * pool.length)];
-      try {
-        const { error } = await supabase.from('questions').insert({
-          course_id: courseId,
-          question: q,
-          // Strugglers ask questions where Scholr couldn't fully resolve
-          // confidence — flagged questions are a real signal for profs.
-          confident: stud.persona.startsWith('struggling') ? Math.random() > 0.4 : true,
-        });
-        if (error) throw error;
-        summary.questionsInserted += 1;
-      } catch (e) {
-        // Question logging is non-essential — soft-ignore individual
-        // failures so the rest of the seed still completes.
-      }
+      questionRows.push({
+        course_id: courseId,
+        question: q,
+        confident: stud.persona.startsWith('struggling') ? Math.random() > 0.4 : true,
+      });
+    }
+  }
+  if (questionRows.length > 0) {
+    try {
+      const { error } = await supabase.from('questions').insert(questionRows);
+      if (error) throw error;
+      summary.questionsInserted = questionRows.length;
+    } catch (e) {
+      summary.errors.push(`Questions batch: ${e?.message || e}`);
     }
   }
 
