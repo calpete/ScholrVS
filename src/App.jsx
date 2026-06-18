@@ -2484,6 +2484,10 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
   const [insights, setInsights] = useState(null);
   const [conceptInsights, setConceptInsights] = useState(null);
   const [conceptLoading, setConceptLoading] = useState(true);
+  // Study insights — flashcard activity rolled up by concept. Independent
+  // poll so the section renders the moment data lands; staleness here
+  // doesn't block concept mastery.
+  const [studyInsights, setStudyInsights] = useState(null);
   // Open drilldown panel for one concept at a time. null when collapsed.
   const [openConcept, setOpenConcept] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2493,6 +2497,39 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
   const [summaryGeneratedAt, setSummaryGeneratedAt] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
+  // Seed/unseed demo data for the Insights demo. Disabled while a call is
+  // in flight; toast on completion. Both endpoints are owner-only.
+  const [seeding, setSeeding] = useState(false);
+  const [seedToast, setSeedToast] = useState(null);
+  const seedDemo = async () => {
+    setSeeding(true);
+    try {
+      const res = await fetch(`${API}/course/${courseId}/seed-demo-concepts`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setSeedToast(`Seeded ${data.studentsReady || 0} students · ${data.quizzesInserted || 0} quizzes`);
+        fetchInsights(); fetchConceptInsights();
+      } else {
+        setSeedToast(data?.error || 'Seed failed — check server logs');
+      }
+    } catch { setSeedToast('Seed failed — server unreachable'); }
+    setSeeding(false);
+    setTimeout(() => setSeedToast(null), 4000);
+  };
+  const wipeDemo = async () => {
+    setSeeding(true);
+    try {
+      const res = await fetch(`${API}/course/${courseId}/seed-demo-concepts`, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) { setSeedToast('Demo data removed'); fetchInsights(); fetchConceptInsights(); }
+      else setSeedToast('Could not remove demo data');
+    } catch { setSeedToast('Server unreachable'); }
+    setSeeding(false);
+    setTimeout(() => setSeedToast(null), 4000);
+  };
   const [clearing, setClearing] = useState(false);
   const [clearError, setClearError] = useState('');
   const [copiedJoin, setCopiedJoin] = useState(false);
@@ -2585,6 +2622,31 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
   // the interval each tick. Use the ref instead inside fetchInsights.
   useEffect(() => { fetchInsights(); const i = setInterval(fetchInsights, 10000); return () => clearInterval(i); }, [courseId]);
 
+  // Auto-fire the demo seed when the Insights URL is visited with
+  // ?demo=true. Idempotent server-side (looks up existing students by
+  // email) so safe to re-trigger. Guarded by a ref so the polling effect
+  // doesn't keep calling it. Cleans the query param after firing so a
+  // refresh doesn't double-seed.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('demo') !== 'true') return;
+    seededRef.current = true;
+    (async () => {
+      try {
+        await fetch(`${API}/course/${courseId}/seed-demo-concepts`, {
+          method: 'POST', headers: { Authorization: `Bearer ${token}` },
+        });
+        // Strip ?demo=true so a reload doesn't seed again.
+        const cleanUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, '', cleanUrl);
+        fetchInsights();
+        fetchConceptInsights();
+      } catch {}
+    })();
+  }, [courseId]);
+
   // Concept-level insights — the differentiator. Polled at the same cadence
   // as the chat-question insights so the dashboard stays live during a
   // demo. Independent endpoint + state so a slow query never blocks the
@@ -2600,6 +2662,17 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
     } catch {}
   };
   useEffect(() => { fetchConceptInsights(); const i = setInterval(fetchConceptInsights, 15000); return () => clearInterval(i); }, [courseId]);
+
+  const fetchStudyInsights = async () => {
+    try {
+      const res = await fetch(`${API}/course/${courseId}/study-insights`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.status === 401) { if (onLogout) onLogout(); return; }
+      if (!res.ok) return;
+      const data = await res.json();
+      setStudyInsights(data);
+    } catch {}
+  };
+  useEffect(() => { fetchStudyInsights(); const i = setInterval(fetchStudyInsights, 20000); return () => clearInterval(i); }, [courseId]);
   // Fetch the AI summary once on mount and again whenever total question count crosses a threshold
   useEffect(() => { if (insights?.totalQuestions > 0 && !summary) fetchSummary(); }, [insights?.totalQuestions]);
 
@@ -2720,6 +2793,7 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
       <div className="px-6 md:px-12 py-3 border-b border-gray-200/70 flex items-center justify-between gap-2 bg-white/40">
         <p className="text-[11.5px] text-gray-400 italic">Updates every 10 seconds — refreshing the morning debrief once a day.</p>
         <div className="flex items-center gap-2">
+          {seedToast && <span className="px-3 py-1.5 rounded-full bg-gray-900 text-white text-[11px] font-medium tabular-nums">{seedToast}</span>}
           {newCount > 0 && <button onClick={() => { setNewCount(0); fetchInsights(); }} className="px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">↑ {newCount} new</button>}
           <button onClick={clearData} className="px-3 py-1.5 rounded-full bg-white border border-gray-200 hover:border-red-300 hover:text-red-600 text-gray-500 text-xs font-medium transition-colors">Clear data</button>
         </div>
@@ -2834,6 +2908,59 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
             )}
           </div>
         </section>
+
+        {/* WHAT STUDENTS ARE STUDYING — flashcard activity rolled up by
+            concept. Cross-signals beautifully against Concept Mastery: a
+            concept that's BOTH heavily studied AND missed = clear "the
+            class knows they need help here" priority. */}
+        {studyInsights?.studyConcepts?.length > 0 && (() => {
+          // Build a quick map of concept → mastery so we can highlight
+          // concepts students are studying that they're ALSO missing.
+          const masteryByConcept = new Map();
+          for (const c of conceptInsights?.concepts || []) masteryByConcept.set(c.concept, c.mastery);
+          const max = Math.max(...studyInsights.studyConcepts.map(s => s.deckCount), 1);
+          return (
+            <section className="px-6 md:px-12 pt-10 pb-12 border-b border-gray-200/70 bg-[#FBFBF9]">
+              <div className="max-w-3xl mb-6">
+                <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Self-study signal</div>
+                <h3 className="serif text-[28px] md:text-[34px] text-gray-900 leading-tight tracking-tight">What students are <span className="italic">studying</span> on their own<span className="italic">.</span></h3>
+                <p className="text-[14px] text-gray-500 mt-2.5 leading-relaxed">Concepts your class is voluntarily making flashcards about. When this list overlaps with concepts they're missing on quizzes, it's the strongest signal that students KNOW they need help here — re-teaching it will land.</p>
+                <p className="text-[12.5px] text-gray-500 mt-2"><span className="tabular-nums font-semibold text-gray-900">{studyInsights.totalDecks}</span> deck{studyInsights.totalDecks !== 1 ? 's' : ''} made across {studyInsights.studyConcepts.length} concept{studyInsights.studyConcepts.length !== 1 ? 's' : ''}.</p>
+              </div>
+              <div className="bg-white border border-gray-200/80 rounded-3xl px-5 md:px-8 py-3 md:py-5 shadow-[0_2px_24px_-12px_rgba(15,15,15,0.08)]">
+                <div className="divide-y divide-gray-100">
+                  {studyInsights.studyConcepts.map((s, i) => {
+                    const mastery = masteryByConcept.get(s.concept);
+                    const crossSignal = mastery !== undefined && mastery < 0.65;
+                    const widthPct = (s.deckCount / max) * 100;
+                    return (
+                      <div key={s.concept} className="grid grid-cols-[42px_1fr_140px_72px] md:grid-cols-[56px_1fr_180px_96px] gap-4 md:gap-6 items-baseline py-4 md:py-5">
+                        <span className="serif text-[26px] md:text-[30px] text-gray-300 leading-none tabular-nums tracking-tight">{String(i + 1).padStart(2, '0')}</span>
+                        <div className="min-w-0">
+                          <p className="serif italic text-[18px] md:text-[20px] text-gray-900 leading-snug truncate">{s.concept}</p>
+                          {crossSignal ? (
+                            <p className="text-[11.5px] uppercase tracking-[.12em] text-rose-700 font-semibold mt-1.5">↘ Studying it · {Math.round(mastery * 100)}% mastery — re-teach</p>
+                          ) : (
+                            <p className="text-[11px] uppercase tracking-[.12em] text-gray-400 font-semibold mt-1.5">{s.studentCount} student{s.studentCount !== 1 ? 's' : ''} · {s.cardCount} cards</p>
+                          )}
+                        </div>
+                        <div className="hidden md:block">
+                          <div className="h-[2px] bg-gray-100 rounded-full overflow-hidden">
+                            <div className={`h-full ${crossSignal ? 'bg-rose-500' : 'bg-[#2A4D8F]/70'} rounded-full transition-all duration-500`} style={{ width: `${widthPct}%` }} />
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="serif text-[24px] md:text-[28px] text-gray-900 tabular-nums leading-none">{s.deckCount}</span>
+                          <p className="text-[10px] tracking-[.18em] uppercase text-gray-400 font-semibold mt-1.5">deck{s.deckCount !== 1 ? 's' : ''}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+          );
+        })()}
 
         {/* MORNING DEBRIEF — full-width editorial column on ink-black */}
         <section className="bg-[#15161B] text-white px-6 md:px-12 pt-12 pb-14 border-b border-gray-200/70">

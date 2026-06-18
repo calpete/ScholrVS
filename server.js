@@ -2210,6 +2210,502 @@ app.get('/course/:courseId/concept-insights', requireAuth, requireCourseOwner, a
   });
 });
 
+// What students are STUDYING — flashcard activity rolled up by concept.
+// Each deck has a list of cards; we infer concepts by scanning card text
+// against the question concepts we already know about. The Insights page
+// shows the top concepts students are voluntarily making cards on — a
+// strong signal of where they think THEY need help (which we can then
+// cross-reference with quiz mastery for the real teaching priority).
+app.get('/course/:courseId/study-insights', requireAuth, requireCourseOwner, async (req, res) => {
+  const { courseId } = req.params;
+  const { data: decks } = await supabase.from('flashcard_decks')
+    .select('id, student_id, topic, cards, created_at')
+    .eq('course_id', courseId);
+  // Pull all distinct concepts the course's quizzes know about so we
+  // can match flashcards against them. Without this we'd just bucket
+  // by deck topic, which is noisier.
+  const { data: quizzes } = await supabase.from('quizzes')
+    .select('questions').eq('course_id', courseId);
+  const knownConcepts = new Set();
+  for (const q of quizzes || []) {
+    if (Array.isArray(q.questions)) for (const item of q.questions) if (item?.concept) knownConcepts.add(item.concept);
+  }
+  // concept → { concept, deckCount, cardCount, studentIds: Set }
+  const conceptStudy = new Map();
+  for (const deck of decks || []) {
+    const cards = Array.isArray(deck.cards) ? deck.cards : [];
+    const cardText = (deck.topic || '') + ' ' + cards.map(c => `${c.front || ''} ${c.back || ''}`).join(' ');
+    const cardTextLower = cardText.toLowerCase();
+    for (const concept of knownConcepts) {
+      if (cardTextLower.includes(concept.toLowerCase())) {
+        let bucket = conceptStudy.get(concept);
+        if (!bucket) { bucket = { concept, deckCount: 0, cardCount: 0, studentIds: new Set() }; conceptStudy.set(concept, bucket); }
+        bucket.deckCount += 1;
+        bucket.cardCount += cards.length;
+        bucket.studentIds.add(deck.student_id);
+      }
+    }
+  }
+  const studyArr = [...conceptStudy.values()]
+    .map(b => ({ concept: b.concept, deckCount: b.deckCount, cardCount: b.cardCount, studentCount: b.studentIds.size }))
+    .sort((a, b) => b.deckCount - a.deckCount)
+    .slice(0, 12);
+  res.json({
+    totalDecks: (decks || []).length,
+    studyConcepts: studyArr,
+  });
+});
+
+// ── Demo seeding for the Insights Concept Mastery section ────────────────────
+// One-call setup for demos: creates 5 synthetic students + 3 realistic
+// accounting quizzes with concept tags + embedded responses calibrated to
+// show clear teaching priorities when the dashboard loads.
+//
+// Calibration intentionally varied so the demo isn't flat:
+//   - "Break-even Point", "Contribution Margin"   → ~85-90% mastery (On track)
+//   - "Contribution Margin Ratio", "Target Profit" → ~60% mastery (Mixed)
+//   - "Net Present Value", "IRR"                  → ~40% mastery (Reinforce)
+//   - "Flexible Budget Variance"                  → ~25% mastery (Major gap)
+// Each student also has a skill multiplier so individual rows differ
+// (Maya breezes through, Taylor struggles, others land in between).
+//
+// Owner-only. Safe to call multiple times — synthetic students are looked
+// up by email and reused; demo quizzes carry a [DEMO] marker on the topic
+// so they can be wiped with /seed-demo-concepts DELETE.
+// 15-student "class" with deliberately varied personas so the demo
+// dashboard reads like a real cross-section. Skill multiplier shapes
+// per-question correctness; persona shapes which concepts they ask
+// about + which flashcard decks they make.
+const DEMO_STUDENTS = [
+  { email: 'alex.chen+demo@scholr.study',         name: 'Alex Chen',         skill: 0.85, persona: 'allrounder' },
+  { email: 'maya.patel+demo@scholr.study',        name: 'Maya Patel',        skill: 0.95, persona: 'topper' },
+  { email: 'jordan.williams+demo@scholr.study',   name: 'Jordan Williams',   skill: 0.55, persona: 'struggling_cvp' },
+  { email: 'sam.rodriguez+demo@scholr.study',     name: 'Sam Rodriguez',     skill: 0.70, persona: 'allrounder' },
+  { email: 'taylor.kim+demo@scholr.study',        name: 'Taylor Kim',        skill: 0.40, persona: 'struggling_npv' },
+  { email: 'liam.osullivan+demo@scholr.study',    name: 'Liam O\'Sullivan',  skill: 0.62, persona: 'struggling_variance' },
+  { email: 'priya.mehta+demo@scholr.study',       name: 'Priya Mehta',       skill: 0.88, persona: 'topper' },
+  { email: 'noah.park+demo@scholr.study',         name: 'Noah Park',         skill: 0.48, persona: 'struggling_variance' },
+  { email: 'olivia.brown+demo@scholr.study',      name: 'Olivia Brown',      skill: 0.76, persona: 'allrounder' },
+  { email: 'devon.harris+demo@scholr.study',      name: 'Devon Harris',      skill: 0.58, persona: 'struggling_cvp' },
+  { email: 'sofia.martinez+demo@scholr.study',    name: 'Sofia Martinez',    skill: 0.81, persona: 'allrounder' },
+  { email: 'ethan.murphy+demo@scholr.study',      name: 'Ethan Murphy',      skill: 0.45, persona: 'struggling_npv' },
+  { email: 'aaliyah.thompson+demo@scholr.study',  name: 'Aaliyah Thompson',  skill: 0.78, persona: 'allrounder' },
+  { email: 'wei.zhang+demo@scholr.study',         name: 'Wei Zhang',         skill: 0.92, persona: 'topper' },
+  { email: 'fatima.ahmed+demo@scholr.study',      name: 'Fatima Ahmed',      skill: 0.50, persona: 'struggling_variance' },
+];
+
+// Chat questions students realistically ask, themed by struggle area.
+// Each persona drops 3-4 of these into the questions table so the Topic
+// Ledger + concept-cross-reference can correlate "what they're asking"
+// with "what they're missing."
+const DEMO_CHAT_QUESTIONS = {
+  topper: [
+    'How would the CVP formula change for a multi-product mix?',
+    'When is it appropriate to use IRR over NPV for ranking projects?',
+    'How does activity-based costing improve on job-order costing for overhead allocation?',
+    'What\'s the intuition behind the materials quantity variance?',
+  ],
+  allrounder: [
+    'Can you walk me through a contribution margin example with target profit?',
+    'What\'s the difference between contribution margin and gross margin?',
+    'How do I solve a break-even problem with multiple products?',
+    'When do I use NPV vs payback period in a real decision?',
+    'What\'s on the midterm exam?',
+  ],
+  struggling_cvp: [
+    'I keep getting break-even wrong — can you walk me through it slowly?',
+    'What\'s the difference between contribution margin and contribution margin ratio?',
+    'How do I find target profit units when CM ratio is given instead of CM per unit?',
+    'Can you explain the CVP graph again? I don\'t understand the axes.',
+    'What does "margin of safety" actually mean in plain English?',
+  ],
+  struggling_npv: [
+    'What does discount rate actually mean and where does it come from?',
+    'I\'m totally lost on NPV. Can you start from scratch?',
+    'How is IRR different from NPV? Aren\'t they the same?',
+    'Why do we reject a project with negative NPV?',
+    'Can you do a worked example of NPV step by step?',
+  ],
+  struggling_variance: [
+    'What\'s the difference between flexible budget and static budget?',
+    'I don\'t get when a variance is favorable vs unfavorable.',
+    'Can you explain standard cost vs actual cost in an example?',
+    'How do you calculate the materials price variance?',
+    'What does the flexible budget variance actually tell me?',
+  ],
+};
+
+// Flashcard deck topics by persona — students make decks on what they
+// THINK they need to study. Struggle personas make multiple decks on
+// their pain area; toppers make broader/advanced decks.
+const DEMO_FLASHCARD_DECKS = {
+  topper: [
+    { topic: 'Multi-Product CVP — Edge Cases', concepts: ['Contribution Margin Ratio', 'Target Profit'] },
+    { topic: 'Capital Budgeting — Ranking Projects', concepts: ['Net Present Value', 'Internal Rate of Return'] },
+  ],
+  allrounder: [
+    { topic: 'CVP Formulas Cheat Sheet', concepts: ['Break-even Point', 'Contribution Margin', 'Contribution Margin Ratio'] },
+    { topic: 'Capital Budgeting Basics', concepts: ['Net Present Value', 'Payback Period'] },
+    { topic: 'Midterm Review', concepts: ['Break-even Point', 'Net Present Value', 'Standard Cost Variance'] },
+  ],
+  struggling_cvp: [
+    { topic: 'Break-Even Problems I Keep Missing', concepts: ['Break-even Point', 'Contribution Margin'] },
+    { topic: 'CM vs CM Ratio Drill', concepts: ['Contribution Margin', 'Contribution Margin Ratio'] },
+    { topic: 'Target Profit Practice', concepts: ['Target Profit'] },
+  ],
+  struggling_npv: [
+    { topic: 'NPV from Scratch', concepts: ['Net Present Value'] },
+    { topic: 'IRR and Discount Rates', concepts: ['Internal Rate of Return', 'Net Present Value'] },
+    { topic: 'Capital Budgeting Vocab', concepts: ['Net Present Value', 'Internal Rate of Return', 'Payback Period'] },
+  ],
+  struggling_variance: [
+    { topic: 'Variance Analysis Step by Step', concepts: ['Flexible Budget Variance', 'Standard Cost Variance'] },
+    { topic: 'Favorable vs Unfavorable Drill', concepts: ['Standard Cost Variance', 'Direct Materials Variance'] },
+    { topic: 'Materials Variance Worked Examples', concepts: ['Direct Materials Variance'] },
+  ],
+};
+
+// Flashcard card pool by concept — what would land on a real student's
+// flashcard if they were trying to memorize it.
+const DEMO_FLASHCARD_CARDS = {
+  'Break-even Point': [
+    { front: 'Break-even Point (units) formula', back: 'Fixed Costs / Contribution Margin per Unit' },
+    { front: 'Break-even Point (sales dollars) formula', back: 'Fixed Costs / Contribution Margin Ratio' },
+    { front: 'What does break-even point represent?', back: 'The level of sales at which total revenues equal total costs — zero profit, zero loss.' },
+  ],
+  'Contribution Margin': [
+    { front: 'Contribution Margin formula', back: 'Sales − Variable Costs' },
+    { front: 'CM per unit formula', back: 'Selling Price per Unit − Variable Cost per Unit' },
+    { front: 'Why is CM (not gross margin) used for break-even?', back: 'CM isolates variable cost behavior, which is what changes with volume — gross margin includes fixed cost of goods sold.' },
+  ],
+  'Contribution Margin Ratio': [
+    { front: 'CM Ratio formula', back: 'Contribution Margin / Sales (or CM per unit / Selling Price per unit)' },
+    { front: 'CM Ratio interpretation', back: 'The fraction of each sales dollar that contributes to fixed costs and profit.' },
+  ],
+  'Target Profit': [
+    { front: 'Target Profit Units formula', back: '(Fixed Costs + Target Profit) / CM per Unit' },
+    { front: 'Target Profit Sales Dollars formula', back: '(Fixed Costs + Target Profit) / CM Ratio' },
+  ],
+  'Net Present Value': [
+    { front: 'NPV formula', back: 'Σ (Cash Flows / (1 + r)^t) − Initial Investment' },
+    { front: 'NPV decision rule', back: 'Accept if NPV ≥ 0, reject if NPV < 0.' },
+    { front: 'What does the discount rate represent?', back: 'The required rate of return / cost of capital used to translate future cash flows to today\'s dollars.' },
+  ],
+  'Internal Rate of Return': [
+    { front: 'IRR definition', back: 'The discount rate at which NPV equals zero.' },
+    { front: 'IRR decision rule', back: 'Accept if IRR ≥ required rate of return; reject otherwise.' },
+  ],
+  'Payback Period': [
+    { front: 'Payback Period formula', back: 'Initial Investment / Annual Cash Inflow' },
+    { front: 'Main weakness of payback', back: 'Ignores cash flows after payback AND ignores time value of money.' },
+  ],
+  'Flexible Budget Variance': [
+    { front: 'Flexible budget variance formula', back: 'Actual Results − Flexible Budget (at actual activity level)' },
+    { front: 'Why use a flexible budget vs static?', back: 'A flexible budget adjusts for actual activity, so variances reveal cost-control issues rather than just volume differences.' },
+  ],
+  'Standard Cost Variance': [
+    { front: 'Standard cost variance formula', back: 'Actual Cost − Standard Cost' },
+    { front: 'Favorable variance meaning', back: 'For costs: actual was LESS than standard. For revenues: actual was MORE than expected.' },
+  ],
+  'Direct Materials Variance': [
+    { front: 'Materials price variance', back: '(Actual Price − Standard Price) × Actual Quantity' },
+    { front: 'Materials quantity variance', back: '(Actual Quantity − Standard Quantity) × Standard Price' },
+  ],
+};
+
+// Realistic accounting questions tagged with the named concept they test.
+// Concepts are NAMED IDEAS — never "General", never "Module 1". Each
+// question lists 4 options with the correct index marked.
+const DEMO_QUIZZES = [
+  {
+    topic: '[DEMO] Module 1 · Cost-Volume-Profit',
+    targetMastery: { 'Break-even Point': 0.90, 'Contribution Margin': 0.88, 'Contribution Margin Ratio': 0.60, 'Target Profit': 0.55 },
+    questions: [
+      { concept: 'Break-even Point', q: 'Fixed Costs are $40,000. Selling Price per Unit is $25. Variable Cost per Unit is $15. What is the break-even point in units?',
+        options: ['A) 1,600 units', 'B) 2,500 units', 'C) 4,000 units', 'D) 6,000 units'], correct: 2,
+        explanation: 'Break-even units = Fixed Costs / (Selling Price − Variable Cost) = 40,000 / (25 − 15) = 4,000.' },
+      { concept: 'Break-even Point', q: 'A company has fixed costs of $120,000 and a contribution margin per unit of $30. What is its break-even point in units?',
+        options: ['A) 3,000', 'B) 4,000', 'C) 6,000', 'D) 12,000'], correct: 1,
+        explanation: '120,000 / 30 = 4,000 units.' },
+      { concept: 'Contribution Margin', q: 'Sales total $200,000 and variable costs total $80,000. What is total contribution margin?',
+        options: ['A) $80,000', 'B) $120,000', 'C) $200,000', 'D) $280,000'], correct: 1,
+        explanation: 'CM = Sales − Variable Costs = 200,000 − 80,000 = 120,000.' },
+      { concept: 'Contribution Margin', q: 'Selling price per unit is $50, variable cost per unit is $30. What is the contribution margin per unit?',
+        options: ['A) $20', 'B) $30', 'C) $50', 'D) $80'], correct: 0,
+        explanation: 'CM per unit = $50 − $30 = $20.' },
+      { concept: 'Contribution Margin Ratio', q: 'Sales are $500,000 and contribution margin is $200,000. What is the contribution margin ratio?',
+        options: ['A) 20%', 'B) 30%', 'C) 40%', 'D) 60%'], correct: 2,
+        explanation: 'CM Ratio = CM / Sales = 200,000 / 500,000 = 40%.' },
+      { concept: 'Contribution Margin Ratio', q: 'Selling price is $80, variable cost is $48. What is the CM ratio?',
+        options: ['A) 25%', 'B) 40%', 'C) 48%', 'D) 60%'], correct: 1,
+        explanation: 'CM Ratio = ($80 − $48) / $80 = 32/80 = 40%.' },
+      { concept: 'Target Profit', q: 'Fixed Costs are $60,000. CM per unit is $20. The target profit is $20,000. How many units must be sold?',
+        options: ['A) 3,000', 'B) 4,000', 'C) 5,000', 'D) 6,000'], correct: 1,
+        explanation: '(60,000 + 20,000) / 20 = 4,000 units.' },
+      { concept: 'Target Profit', q: 'Fixed Costs are $90,000, CM Ratio is 30%, target profit is $30,000. What sales dollars are needed?',
+        options: ['A) $300,000', 'B) $360,000', 'C) $400,000', 'D) $420,000'], correct: 2,
+        explanation: 'Sales = (90,000 + 30,000) / 0.30 = $400,000.' },
+    ],
+  },
+  {
+    topic: '[DEMO] Module 2 · Capital Budgeting',
+    targetMastery: { 'Net Present Value': 0.40, 'Internal Rate of Return': 0.35, 'Payback Period': 0.78 },
+    questions: [
+      { concept: 'Net Present Value', q: 'An investment of $50,000 generates $20,000 per year for 3 years. With a discount rate of 10%, what is the approximate NPV?',
+        options: ['A) −$300', 'B) $0', 'C) $10,000', 'D) $4,700'], correct: 0,
+        explanation: 'PV of cash flows ≈ 49,737. NPV = 49,737 − 50,000 = −$263, closest to −$300.' },
+      { concept: 'Net Present Value', q: 'If NPV is negative, the project should be:',
+        options: ['A) Accepted', 'B) Rejected', 'C) Deferred', 'D) Re-evaluated at a lower rate'], correct: 1,
+        explanation: 'A negative NPV means the project earns less than the required rate — reject.' },
+      { concept: 'Internal Rate of Return', q: 'IRR is the discount rate at which:',
+        options: ['A) NPV is maximized', 'B) NPV equals zero', 'C) NPV equals initial investment', 'D) Payback equals project life'], correct: 1,
+        explanation: 'IRR is by definition the discount rate where NPV = 0.' },
+      { concept: 'Internal Rate of Return', q: 'A project has an IRR of 8%. If the required rate of return is 10%, you should:',
+        options: ['A) Accept it', 'B) Reject it', 'C) Re-calculate using NPV', 'D) Defer the decision'], correct: 1,
+        explanation: 'IRR (8%) < required rate (10%) → reject.' },
+      { concept: 'Payback Period', q: 'A $40,000 investment returns $10,000 per year. What is the payback period?',
+        options: ['A) 2 years', 'B) 3 years', 'C) 4 years', 'D) 5 years'], correct: 2,
+        explanation: 'Payback = $40,000 / $10,000 = 4 years.' },
+      { concept: 'Payback Period', q: 'A weakness of the payback period method is that it:',
+        options: ['A) Is hard to calculate', 'B) Ignores cash flows after payback and the time value of money', 'C) Is only useful for long projects', 'D) Requires NPV inputs'], correct: 1,
+        explanation: 'Classic critique: ignores post-payback flows + ignores time value of money.' },
+    ],
+  },
+  {
+    topic: '[DEMO] Module 3 · Variance Analysis',
+    targetMastery: { 'Flexible Budget Variance': 0.25, 'Standard Cost Variance': 0.50, 'Direct Materials Variance': 0.65 },
+    questions: [
+      { concept: 'Flexible Budget Variance', q: 'The flexible budget variance is the difference between:',
+        options: ['A) Static budget and actual results', 'B) Static budget and flexible budget', 'C) Flexible budget and actual results', 'D) Standard cost and actual cost'], correct: 2,
+        explanation: 'Flexible budget variance = Actual Results − Flexible Budget at actual activity.' },
+      { concept: 'Flexible Budget Variance', q: 'Actual sales were 12,000 units at $25. Flexible budget at 12,000 units showed sales of $312,000. What is the sales-price flexible-budget variance?',
+        options: ['A) $12,000 Favorable', 'B) $12,000 Unfavorable', 'C) $24,000 Favorable', 'D) Zero'], correct: 1,
+        explanation: 'Actual: 12,000 × $25 = $300,000. Flexible: $312,000. Variance = $12,000 Unfavorable.' },
+      { concept: 'Flexible Budget Variance', q: 'A favorable flexible budget variance for variable costs indicates:',
+        options: ['A) Actual variable costs exceeded the budget at actual activity', 'B) Actual variable costs were less than the budget at actual activity', 'C) The static budget was set too low', 'D) Sales volume increased'], correct: 1,
+        explanation: 'Favorable variable cost variance = actual costs LESS than budgeted at the actual activity level.' },
+      { concept: 'Standard Cost Variance', q: 'Standard cost variance is calculated as:',
+        options: ['A) Standard cost minus actual cost', 'B) Actual cost minus standard cost', 'C) Standard cost minus budgeted cost', 'D) Budgeted cost minus actual cost'], correct: 1,
+        explanation: 'Standard cost variance = Actual Cost − Standard Cost. Positive = Unfavorable.' },
+      { concept: 'Standard Cost Variance', q: 'A favorable variance means:',
+        options: ['A) Actual was higher than expected (good for revenue)', 'B) Actual was lower than expected (good for costs)', 'C) Actual equals budget', 'D) Variance was reversed'], correct: 1,
+        explanation: 'Favorable for costs = actual LESS than expected. Favorable for revenue = actual MORE than expected.' },
+      { concept: 'Direct Materials Variance', q: 'The materials price variance isolates the impact of:',
+        options: ['A) Quantity used vs allowed', 'B) Price paid vs standard price', 'C) Yield from materials', 'D) Material substitution'], correct: 1,
+        explanation: 'Price variance = (Actual Price − Standard Price) × Actual Quantity.' },
+      { concept: 'Direct Materials Variance', q: 'Actual quantity used was 1,100 lbs at $5.20. Standard was 1,000 lbs at $5.00. What is the materials quantity variance?',
+        options: ['A) $500 Unfavorable', 'B) $500 Favorable', 'C) $520 Unfavorable', 'D) $220 Unfavorable'], correct: 0,
+        explanation: 'Quantity variance = (1,100 − 1,000) × $5.00 = $500 Unfavorable.' },
+    ],
+  },
+];
+
+app.post('/course/:courseId/seed-demo-concepts', requireAuth, requireCourseOwner, async (req, res) => {
+  const { courseId } = req.params;
+  const summary = { studentsReady: 0, quizzesInserted: 0, testsInserted: 0, decksInserted: 0, questionsInserted: 0, errors: [] };
+
+  // 1) Ensure each demo student exists. Look up by email first; create if
+  //    missing. Auth admin handles both flows.
+  const resolved = []; // [{ studentId, name, skill }]
+  for (const s of DEMO_STUDENTS) {
+    try {
+      let studentId = null;
+      // Auth admin listUsers — filtered by email when supported.
+      const { data: list } = await supabase.auth.admin.listUsers({ page: 1, perPage: 200 });
+      const existing = list?.users?.find(u => (u.email || '').toLowerCase() === s.email.toLowerCase());
+      if (existing) {
+        studentId = existing.id;
+      } else {
+        // Create a real auth user so the FK to auth.users is satisfied.
+        // Password is throwaway — demo accounts aren't meant to sign in.
+        const { data: created, error: cErr } = await supabase.auth.admin.createUser({
+          email: s.email,
+          password: `demo-${randomUUID().slice(0, 12)}!Q`,
+          email_confirm: true,
+          user_metadata: { name: s.name, is_demo: true },
+        });
+        if (cErr) throw cErr;
+        studentId = created?.user?.id || null;
+      }
+      if (!studentId) { summary.errors.push(`Could not resolve ${s.email}`); continue; }
+      // Upsert students row + enroll in the course (idempotent).
+      await supabase.from('students').upsert({ id: studentId, email: s.email, name: s.name }, { onConflict: 'id' });
+      try {
+        await supabase.from('course_students').upsert({ course_id: courseId, student_id: studentId }, { onConflict: 'course_id,student_id' });
+      } catch {} // enrollment table may not exist on every deploy; soft-ignore
+      resolved.push({ studentId, name: s.name, skill: s.skill });
+      summary.studentsReady += 1;
+    } catch (e) {
+      summary.errors.push(`Student ${s.email}: ${e?.message || e}`);
+    }
+  }
+
+  // 2) For each (student, quiz) pair, generate a per-question response set
+  //    calibrated by the concept's target mastery + the student's skill,
+  //    then insert one quiz row with embedded selected indices.
+  //    Determinism is intentionally weak — we want some natural noise so
+  //    the demo data doesn't look hand-tuned.
+  for (const quiz of DEMO_QUIZZES) {
+    for (const stud of resolved) {
+      const merged = quiz.questions.map(q => {
+        const target = quiz.targetMastery[q.concept] ?? 0.65;
+        // Probability this specific student gets THIS question right.
+        // Multiply concept target by student skill, clamp to [0.05, 0.98].
+        const pCorrect = Math.max(0.05, Math.min(0.98, target * stud.skill * 1.05));
+        const gotIt = Math.random() < pCorrect;
+        let selected = q.correct;
+        if (!gotIt) {
+          // Pick a plausible wrong option — exclude the correct one.
+          const wrongs = [0, 1, 2, 3].filter(i => i !== q.correct);
+          selected = wrongs[Math.floor(Math.random() * wrongs.length)];
+        }
+        return {
+          question: q.q,
+          options: q.options,
+          correct: q.correct,
+          concept: q.concept,
+          explanation: q.explanation,
+          selected,
+        };
+      });
+      const right = merged.filter(q => q.selected === q.correct).length;
+      const total = merged.length;
+      const lastScore = right;
+      try {
+        const { error } = await supabase.from('quizzes').insert({
+          student_id: stud.studentId,
+          course_id: courseId,
+          topic: quiz.topic,
+          questions: merged,
+          last_score: lastScore,
+          best_score: lastScore,
+          attempts: 1,
+        });
+        if (error) throw error;
+        summary.quizzesInserted += 1;
+      } catch (e) {
+        summary.errors.push(`Quiz "${quiz.topic}" for ${stud.name}: ${e?.message || e}`);
+      }
+    }
+  }
+
+  // 3) Tests — same shape as quizzes but persist to the tests table so
+  //    the insights aggregator counts them under testCount and gives
+  //    professors signal across multiple assessment types.
+  //    Pick the first 6 questions from the 3rd quiz (variance analysis)
+  //    as a "Module 3 Practice Test" — variance is the worst-mastered
+  //    concept area, so showing test attempts there reinforces the
+  //    "teach more of these" priority on the dashboard.
+  const TEST_QUIZ = DEMO_QUIZZES[2]; // variance analysis
+  for (const stud of resolved) {
+    // Not every student takes the test — randomly ~70% do for realism.
+    if (Math.random() > 0.7) continue;
+    const merged = TEST_QUIZ.questions.slice(0, 6).map(q => {
+      const target = TEST_QUIZ.targetMastery[q.concept] ?? 0.65;
+      const pCorrect = Math.max(0.05, Math.min(0.98, target * stud.skill * 1.05));
+      const gotIt = Math.random() < pCorrect;
+      let selected = q.correct;
+      if (!gotIt) {
+        const wrongs = [0, 1, 2, 3].filter(i => i !== q.correct);
+        selected = wrongs[Math.floor(Math.random() * wrongs.length)];
+      }
+      return { question: q.q, options: q.options, correct: q.correct, concept: q.concept, explanation: q.explanation, selected };
+    });
+    const right = merged.filter(q => q.selected === q.correct).length;
+    try {
+      const { error } = await supabase.from('tests').insert({
+        student_id: stud.studentId,
+        course_id: courseId,
+        topic: '[DEMO] Module 3 · Practice Test (Variance)',
+        questions: merged,
+        last_score: right,
+        best_score: right,
+        attempts: 1,
+      });
+      if (error) throw error;
+      summary.testsInserted += 1;
+    } catch (e) {
+      summary.errors.push(`Test for ${stud.name}: ${e?.message || e}`);
+    }
+  }
+
+  // 4) Flashcard decks. Each student makes 1-3 decks themed to what their
+  //    persona is struggling with — a real signal of self-directed study.
+  //    Decks for strugglers cluster on their pain area, painting a clear
+  //    "students know they need help with X" story when the prof opens
+  //    Insights and sees flashcard activity correlating with quiz misses.
+  for (const stud of resolved) {
+    const deckSpecs = DEMO_FLASHCARD_DECKS[stud.persona] || DEMO_FLASHCARD_DECKS.allrounder;
+    for (const spec of deckSpecs) {
+      // Pull 4-6 cards from the concept pool across the requested concepts.
+      const cards = [];
+      for (const concept of spec.concepts) {
+        const pool = DEMO_FLASHCARD_CARDS[concept] || [];
+        for (const card of pool.slice(0, 2)) cards.push(card);
+      }
+      if (cards.length === 0) continue;
+      try {
+        const { error } = await supabase.from('flashcard_decks').insert({
+          student_id: stud.studentId,
+          course_id: courseId,
+          topic: `[DEMO] ${spec.topic}`,
+          cards,
+        });
+        if (error) throw error;
+        summary.decksInserted += 1;
+      } catch (e) {
+        summary.errors.push(`Deck "${spec.topic}" for ${stud.name}: ${e?.message || e}`);
+      }
+    }
+  }
+
+  // 5) Chat questions — populate the questions table that drives the
+  //    existing Topic Ledger so chat activity ALSO lines up with concept
+  //    misses (the cross-signal that sells the demo: students are ASKING
+  //    about the concepts they're MISSING — Scholr can show both).
+  for (const stud of resolved) {
+    const pool = DEMO_CHAT_QUESTIONS[stud.persona] || DEMO_CHAT_QUESTIONS.allrounder;
+    // 2-4 questions per student spread over the past 10 days.
+    const count = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < count; i++) {
+      const q = pool[Math.floor(Math.random() * pool.length)];
+      try {
+        const { error } = await supabase.from('questions').insert({
+          course_id: courseId,
+          question: q,
+          // Strugglers ask questions where Scholr couldn't fully resolve
+          // confidence — flagged questions are a real signal for profs.
+          confident: stud.persona.startsWith('struggling') ? Math.random() > 0.4 : true,
+        });
+        if (error) throw error;
+        summary.questionsInserted += 1;
+      } catch (e) {
+        // Question logging is non-essential — soft-ignore individual
+        // failures so the rest of the seed still completes.
+      }
+    }
+  }
+
+  console.log(`🌱 Demo seed for course ${courseId}: ${summary.studentsReady} students · ${summary.quizzesInserted} quizzes · ${summary.testsInserted} tests · ${summary.decksInserted} decks · ${summary.questionsInserted} questions${summary.errors.length ? ` · ${summary.errors.length} errors` : ''}`);
+  res.json({ ok: true, ...summary });
+});
+
+// Owner-only — wipes ALL [DEMO]-marked seed data so the prof can reset
+// concept insights between demos without nuking real student data.
+// Touches quizzes, tests, and flashcard_decks; chat questions are not
+// individually marked so they're left in place (low-noise either way).
+app.delete('/course/:courseId/seed-demo-concepts', requireAuth, requireCourseOwner, async (req, res) => {
+  const { courseId } = req.params;
+  const errors = [];
+  for (const table of ['quizzes', 'tests', 'flashcard_decks']) {
+    const { error } = await supabase.from(table)
+      .delete().eq('course_id', courseId).ilike('topic', '[DEMO]%');
+    if (error) errors.push(`${table}: ${error.message}`);
+  }
+  if (errors.length) return res.status(500).json({ error: errors.join('; ') });
+  res.json({ ok: true });
+});
+
 // Owner-only — wipes all logged questions for this course so the professor
 // can reset analytics before sharing with real students. Does not touch
 // student chat history or course materials, only the questions table that
