@@ -6038,10 +6038,15 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
   // submission is logged server-side either way (Render console becomes
   // the audit trail if Resend hiccups).
   const [heroSubmitted, setHeroSubmitted] = useState(false);
+  // Empty-email submit opens the full contact modal so we still capture a
+  // lead instead of dropping the visitor onto the signup form. ContactModal
+  // collects name, email, institution, and message — strictly more info
+  // than the inline pill ever could.
+  const [demoModalOpen, setDemoModalOpen] = useState(false);
   const submitHero = async (e) => {
     e.preventDefault();
     const v = heroEmail.trim();
-    if (!v) { onInstructor(); return; } // no email → straight to signup
+    if (!v) { setDemoModalOpen(true); return; }
     try { sessionStorage.setItem('scholr_prefill_email', v); } catch {}
     setHeroSubmitted(true);
     try {
@@ -6480,6 +6485,17 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
           </div>
         </div>
       )}
+
+      {/* Demo-request modal — fires when the visitor clicks "See a Demo"
+          with an empty email field. Same component used by /for-professors,
+          /for-students, /about so the request format stays consistent. */}
+      <ContactModal
+        open={demoModalOpen}
+        onClose={() => setDemoModalOpen(false)}
+        type="demo"
+        title="Request a demo"
+        sub="Tell us a bit about your course and we'll show you what Scholr can do."
+      />
     </div>
   );
 }
