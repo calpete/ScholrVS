@@ -6337,6 +6337,530 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
   );
 }
 
+// ─── Marketing sub-pages ─────────────────────────────────────────────────
+// Dedicated landing-style pages for /for-professors, /for-students,
+// /how-it-works, /about. Each one is a real standalone page (not just a
+// scroll anchor on the main landing) so links shared in emails, on
+// LinkedIn, etc. land the visitor on a page written FOR them. The shared
+// `MarketingShell` provides the nav + footer + .scholr-landing CSS scope
+// so every sub-page inherits the main landing's typography, color, and
+// chrome — no theme drift between pages.
+
+const SUBPAGE_CSS = `
+.scholr-landing .sp-hero{padding:96px 0 80px;text-align:left;}
+.scholr-landing .sp-hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:80px;align-items:center;}
+.scholr-landing .sp-eye{display:inline-flex;align-items:center;gap:10px;font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:26px;}
+.scholr-landing .sp-eye .pin{width:24px;height:1.5px;background:currentColor;opacity:.5;border-radius:2px;}
+.scholr-landing .sp-h1{font-family:var(--font-display);font-weight:500;font-size:clamp(44px,5.8vw,76px);line-height:1.0;letter-spacing:-.024em;color:var(--ink);}
+.scholr-landing .sp-h1 .ital{font-style:italic;font-weight:500;}
+.scholr-landing .sp-lede{font-size:clamp(17px,1.5vw,20px);color:var(--muted);max-width:540px;margin:30px 0 36px;line-height:1.55;}
+.scholr-landing .sp-cta-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;}
+.scholr-landing .sp-hero-meta{margin-top:22px;font-size:14.5px;color:var(--muted-2);}
+.scholr-landing .sp-hero-side{display:flex;flex-direction:column;gap:16px;}
+.scholr-landing .sp-stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;box-shadow:var(--shadow-sm);}
+.scholr-landing .sp-stat .num{font-family:var(--font-display);font-weight:500;font-size:42px;line-height:1;letter-spacing:-.02em;color:var(--ink);}
+.scholr-landing .sp-stat .num em{font-style:italic;font-weight:500;}
+.scholr-landing .sp-stat .lbl{margin-top:8px;font-size:14px;color:var(--muted);line-height:1.5;}
+.scholr-landing .sp-section{padding:88px 0;border-top:1px solid var(--line);}
+.scholr-landing .sp-section.alt{background:var(--bg-2);}
+.scholr-landing .sp-section.dark{background:var(--ink);color:#FBFBF9;border-top:1px solid #2A2C33;}
+.scholr-landing .sp-section.dark .sp-eye{color:rgba(255,255,255,.55);}
+.scholr-landing .sp-section.dark .sp-section-h{color:#FBFBF9;}
+.scholr-landing .sp-section.dark .sp-section-lede{color:rgba(255,255,255,.66);}
+.scholr-landing .sp-section.dark .sp-feat{background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.10);}
+.scholr-landing .sp-section.dark .sp-feat .ft-h{color:#FBFBF9;}
+.scholr-landing .sp-section.dark .sp-feat .ft-d{color:rgba(255,255,255,.62);}
+.scholr-landing .sp-section.dark .sp-feat .ft-i{background:rgba(255,255,255,.08);color:#FBFBF9;}
+.scholr-landing .sp-section-h{font-family:var(--font-display);font-weight:500;font-size:clamp(34px,4vw,52px);line-height:1.05;letter-spacing:-.022em;color:var(--ink);max-width:760px;}
+.scholr-landing .sp-section-h .ital{font-style:italic;font-weight:500;}
+.scholr-landing .sp-section-lede{margin-top:18px;font-size:17.5px;color:var(--muted);max-width:620px;line-height:1.55;}
+.scholr-landing .sp-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:48px;}
+.scholr-landing .sp-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:48px;}
+.scholr-landing .sp-feat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:28px;box-shadow:var(--shadow-sm);transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;}
+.scholr-landing .sp-feat:hover{transform:translateY(-2px);box-shadow:var(--shadow-card);border-color:var(--line-2);}
+.scholr-landing .sp-feat .ft-i{width:38px;height:38px;border-radius:11px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;color:var(--ink);margin-bottom:18px;}
+.scholr-landing .sp-feat .ft-i svg{width:18px;height:18px;}
+.scholr-landing .sp-feat .ft-h{font-family:var(--font-display);font-weight:500;font-size:21px;letter-spacing:-.012em;line-height:1.25;color:var(--ink);margin-bottom:10px;}
+.scholr-landing .sp-feat .ft-d{font-size:15px;color:var(--muted);line-height:1.55;}
+.scholr-landing .sp-steps{display:flex;flex-direction:column;gap:8px;margin-top:48px;border-top:1px solid var(--line);}
+.scholr-landing .sp-step{display:grid;grid-template-columns:80px 1fr 1fr;gap:36px;padding:34px 0;border-bottom:1px solid var(--line);align-items:start;}
+.scholr-landing .sp-step .sp-step-n{font-family:var(--font-display);font-weight:500;font-style:italic;font-size:42px;color:var(--muted-2);line-height:1;letter-spacing:-.018em;}
+.scholr-landing .sp-step .sp-step-h{font-family:var(--font-display);font-weight:500;font-size:26px;letter-spacing:-.014em;line-height:1.2;color:var(--ink);}
+.scholr-landing .sp-step .sp-step-d{font-size:15.5px;color:var(--muted);line-height:1.6;}
+.scholr-landing .sp-faq{display:flex;flex-direction:column;border-top:1px solid var(--line);margin-top:48px;}
+.scholr-landing .sp-faq-row{padding:26px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr 1.4fr;gap:48px;align-items:start;}
+.scholr-landing .sp-faq-q{font-family:var(--font-display);font-weight:500;font-size:21px;letter-spacing:-.012em;color:var(--ink);line-height:1.3;}
+.scholr-landing .sp-faq-a{font-size:15.5px;color:var(--muted);line-height:1.6;}
+.scholr-landing .sp-cta-band{background:var(--ink);color:#FBFBF9;padding:96px 0;text-align:center;}
+.scholr-landing .sp-cta-band h2{font-family:var(--font-display);font-weight:500;font-size:clamp(38px,4.8vw,62px);line-height:1.04;letter-spacing:-.024em;}
+.scholr-landing .sp-cta-band h2 .ital{font-style:italic;}
+.scholr-landing .sp-cta-band p{margin:22px auto 36px;font-size:17.5px;color:rgba(255,255,255,.72);max-width:520px;line-height:1.55;}
+.scholr-landing .sp-cta-band .btn-ghost{background:transparent;color:#FBFBF9;border-color:rgba(255,255,255,.22);}
+.scholr-landing .sp-cta-band .btn-ghost:hover{border-color:#FBFBF9;background:rgba(255,255,255,.05);}
+.scholr-landing .sp-cta-band .btn-primary{background:#FBFBF9;color:var(--ink);}
+.scholr-landing .sp-cta-band .btn-primary:hover{background:#fff;}
+.scholr-landing .sp-vlist{display:flex;flex-direction:column;gap:16px;margin-top:32px;}
+.scholr-landing .sp-vlist li{display:flex;align-items:start;gap:14px;font-size:16.5px;color:var(--ink-2);line-height:1.55;list-style:none;}
+.scholr-landing .sp-vlist .ck{flex:none;width:24px;height:24px;border-radius:8px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;color:var(--ink);margin-top:1px;}
+.scholr-landing .sp-vlist .ck svg{width:13px;height:13px;}
+.scholr-landing .nav-links a.active{color:var(--ink);font-weight:600;}
+@media (max-width: 820px) {
+  .scholr-landing .sp-hero{padding:64px 0 56px;}
+  .scholr-landing .sp-hero-grid{grid-template-columns:1fr;gap:40px;}
+  .scholr-landing .sp-section{padding:60px 0;}
+  .scholr-landing .sp-grid-3, .scholr-landing .sp-grid-2{grid-template-columns:1fr;}
+  .scholr-landing .sp-step{grid-template-columns:1fr;gap:8px;padding:26px 0;}
+  .scholr-landing .sp-step .sp-step-n{font-size:30px;}
+  .scholr-landing .sp-faq-row{grid-template-columns:1fr;gap:12px;}
+  .scholr-landing .nav-links{display:none;}
+}
+`;
+
+// Shared shell — header + footer + .scholr-landing scope. Marks the
+// currently-active nav link so visitors know where they are in the
+// information architecture without having to read the URL bar.
+function MarketingShell({ children, onSignIn, onInstructor, onStudent, currentPath }) {
+  const navigate = useNavigate();
+  const [navScrolled, setNavScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setNavScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }); }, [currentPath]);
+  const go = (path) => (e) => { if (e) e.preventDefault(); navigate(path); };
+  const isActive = (path) => currentPath === path;
+  return (
+    <div className="scholr-landing">
+      <style>{LANDING_CSS}</style>
+      <style>{SUBPAGE_CSS}</style>
+      <header className={`nav${navScrolled ? ' scrolled' : ''}`}>
+        <div className="wrap nav-inner">
+          <a className="brand" href="/" onClick={go('/')}><LandingLogo s={36} />Scholr</a>
+          <nav className="nav-links">
+            <a href="/how-it-works"   className={isActive('/how-it-works')   ? 'active' : ''} onClick={go('/how-it-works')}>How it works</a>
+            <a href="/for-professors" className={isActive('/for-professors') ? 'active' : ''} onClick={go('/for-professors')}>For professors</a>
+            <a href="/for-students"   className={isActive('/for-students')   ? 'active' : ''} onClick={go('/for-students')}>For students</a>
+            <a href="/about"          className={isActive('/about')          ? 'active' : ''} onClick={go('/about')}>About</a>
+          </nav>
+          <div className="nav-right">
+            <button type="button" className="btn btn-ghost btn-pill" onClick={onSignIn}>Sign in</button>
+          </div>
+        </div>
+      </header>
+      <main>{children}</main>
+      <footer className="foot">
+        <div className="wrap">
+          <div className="foot-grid">
+            <div>
+              <a className="brand" href="/" onClick={go('/')}><LandingLogo s={34} />Scholr</a>
+              <p className="tag">An AI tutor built from your professor's exact course materials. Cited, accurate, and grounded in your class.</p>
+            </div>
+            <div className="foot-col">
+              <h4>Explore</h4>
+              <a href="/how-it-works"   onClick={go('/how-it-works')}>How it works</a>
+              <a href="/for-professors" onClick={go('/for-professors')}>For professors</a>
+              <a href="/for-students"   onClick={go('/for-students')}>For students</a>
+              <a href="/about"          onClick={go('/about')}>About</a>
+            </div>
+            <div className="foot-col">
+              <h4>Legal</h4>
+              <a href="#" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }}>Privacy</a>
+              <a href="#" onClick={(e) => { e.preventDefault(); navigate('/terms'); }}>Terms</a>
+            </div>
+          </div>
+          <div className="foot-bottom">
+            <div>© 2026 Scholr, Inc. · Grounded in your course materials.</div>
+            <div className="social">
+              <a href="mailto:hello@scholr.study" aria-label="Email Scholr">hello@scholr.study</a>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+// Reusable building blocks. Composing pages from these guarantees the
+// typography + spacing + dark-band rhythm stays identical across all four
+// pages — so /for-professors and /for-students feel like sibling pages
+// rather than separately designed sites.
+function SpFeat({ icon, h, d }) {
+  return (
+    <div className="sp-feat">
+      <div className="ft-i"><Ic name={icon} s={18} /></div>
+      <div className="ft-h">{h}</div>
+      <div className="ft-d">{d}</div>
+    </div>
+  );
+}
+function SpStep({ n, h, d }) {
+  return (
+    <div className="sp-step">
+      <div className="sp-step-n">{n}</div>
+      <div className="sp-step-h">{h}</div>
+      <div className="sp-step-d">{d}</div>
+    </div>
+  );
+}
+function SpFaq({ rows }) {
+  return (
+    <div className="sp-faq">
+      {rows.map((r, i) => (
+        <div className="sp-faq-row" key={i}>
+          <div className="sp-faq-q">{r.q}</div>
+          <div className="sp-faq-a">{r.a}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+function SpCheckList({ items }) {
+  return (
+    <ul className="sp-vlist">
+      {items.map((t, i) => (
+        <li key={i}><span className="ck"><Ic name="check" s={13} /></span>{t}</li>
+      ))}
+    </ul>
+  );
+}
+function SpCtaBand({ headline, sub, primaryLabel, onPrimary, secondaryLabel, onSecondary }) {
+  return (
+    <section className="sp-cta-band">
+      <div className="wrap">
+        <h2>{headline}</h2>
+        {sub && <p>{sub}</p>}
+        <div className="sp-cta-row" style={{ justifyContent: 'center' }}>
+          {primaryLabel && <button type="button" className="btn btn-primary btn-lg btn-pill" onClick={onPrimary}>{primaryLabel} <span className="arr"><Ic name="arrow-right" s={17} /></span></button>}
+          {secondaryLabel && <button type="button" className="btn btn-ghost btn-lg btn-pill" onClick={onSecondary}>{secondaryLabel}</button>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── /for-professors ──────────────────────────────────────────────────────
+function ForProfessorsPage({ onSignIn, onInstructor, onStudent }) {
+  return (
+    <MarketingShell currentPath="/for-professors" onSignIn={onSignIn} onInstructor={onInstructor} onStudent={onStudent}>
+      <section className="sp-hero">
+        <div className="wrap">
+          <div className="sp-hero-grid">
+            <div>
+              <div className="sp-eye"><span className="pin" /> For professors &amp; departments</div>
+              <h1 className="sp-h1">Office hours that <span className="ital">never close.</span></h1>
+              <p className="sp-lede">Scholr answers your students' questions from your materials — cited to the exact page — so you can focus on the questions only you can answer.</p>
+              <div className="sp-cta-row">
+                <button type="button" className="btn btn-primary btn-lg btn-pill" onClick={onInstructor}>Start your first course <span className="arr"><Ic name="arrow-right" s={17} /></span></button>
+                <a href="mailto:hello@scholr.study?subject=Scholr%20pilot" className="btn btn-ghost btn-lg btn-pill">Request a pilot</a>
+              </div>
+              <p className="sp-hero-meta">Free for the 2026 academic year while in beta · Set up in an afternoon</p>
+            </div>
+            <div className="sp-hero-side">
+              <div className="sp-stat"><div className="num">5–15<em> min</em></div><div className="lbl">Median setup. Upload your syllabus + readings, share a join code, done.</div></div>
+              <div className="sp-stat"><div className="num">100%</div><div className="lbl">Of answers cite the exact page they came from — students can verify, you can stand behind it.</div></div>
+              <div className="sp-stat"><div className="num">24/7</div><div className="lbl">Students get answers at 3am the night before an exam. Without paging you.</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="sp-section">
+        <div className="wrap">
+          <div className="sp-eye"><span className="pin" /> Why professors choose Scholr</div>
+          <h2 className="sp-section-h">Built around the work you'd <span className="ital">rather not</span> repeat.</h2>
+          <p className="sp-section-lede">The same five questions in every office hour. The same syllabus clarifications in every email. Scholr handles those — so the meetings that reach you are the ones that need you.</p>
+          <div className="sp-grid-3">
+            <SpFeat icon="file-text"    h="Grounded in YOUR materials"  d="Your syllabus, lecture notes, slides, readings. No internet, no Wikipedia, no model invention — if the answer isn't in your files, Scholr says so." />
+            <SpFeat icon="shield-check" h="Cited to the page"            d="Every answer points to the slide, page, or chapter it came from. Students can verify in one click. You can stand behind every answer your class sees." />
+            <SpFeat icon="bar-chart"    h="See what's confusing — live" d="A real-time Topic Ledger surfaces what your class is actually asking about. Adjust the next lecture to the gaps, not the guesses." />
+            <SpFeat icon="upload"       h="Upload once, scale forever"   d="One PDF reaches 50 students or 500. Indexed in minutes, served instantly. Re-upload to update — students see the new material on the next question." />
+            <SpFeat icon="clock"        h="Answers when you're asleep"   d="2am cramming. Saturday confusion. The week of a TA's emergency. Scholr is there with the same answers you'd give — drawn from the same materials." />
+            <SpFeat icon="sparkles"     h="Quizzes &amp; flashcards, free" d="Students can ask Scholr to generate a quiz from any chapter, a flashcard deck on any topic, or a study guide for any exam — using your materials as the source." />
+          </div>
+        </div>
+      </section>
+
+      <section className="sp-section alt">
+        <div className="wrap">
+          <div className="sp-eye"><span className="pin" /> Control + privacy</div>
+          <h2 className="sp-section-h">Your materials. Your <span className="ital">course.</span> Your call.</h2>
+          <p className="sp-section-lede">A tutor that uses YOUR PDFs is only useful if you control what happens to them. Scholr is built around that.</p>
+          <SpCheckList items={[
+            "Your uploaded materials are scoped to your course only — no other class, professor, or student can see them.",
+            "Answers stay inside the course's materials. The model cannot invent a definition or quote a textbook you didn't upload.",
+            "Delete a document and its embeddings are wiped — including from the index that powers retrieval.",
+            "You see what your students ask. Students see only their own chats. Their conversations are never used to train a base model.",
+            "When the semester ends, you can archive the course or delete it outright. Nothing leaks forward.",
+          ]} />
+        </div>
+      </section>
+
+      <section className="sp-section dark">
+        <div className="wrap">
+          <div className="sp-eye"><span className="pin" /> Common questions</div>
+          <h2 className="sp-section-h">What professors usually <span className="ital">want to know.</span></h2>
+          <SpFaq rows={[
+            { q: "How long does setup actually take?",        a: "Median is 10 minutes. Upload your syllabus and 1–3 core PDFs, choose a course name, and share the join code. Students are in their first chat within a class period." },
+            { q: "Does it work with my textbook?",            a: "If you can upload it as a PDF and you have the right to share it with your class, Scholr can index it. We don't host textbook content — you bring what you already license." },
+            { q: "What about academic integrity?",            a: "Scholr is a tutor, not a homework-solver. It will explain a concept, build a study guide, or walk through a worked example — but it asks before completing an assignment from scratch. You can disable specific behaviors per course." },
+            { q: "Can students see other students' questions?", a: "No. Each student sees only their own chats and notes. You see anonymized aggregates in the Insights dashboard so you can spot patterns without surveilling individuals." },
+            { q: "What does it cost?",                         a: "Free for the 2026 academic year for instructors piloting it. We'll be transparent about pricing before that changes — no surprise mid-semester invoices." },
+            { q: "Can I try it with one class first?",         a: "Yes — that's the whole point. Each course is its own scoped environment. Pilot with one section, see if it works, then decide." },
+          ]} />
+        </div>
+      </section>
+
+      <SpCtaBand
+        headline={<>Give your class an AI tutor<br /><span className="ital">that actually knows it.</span></>}
+        sub="Set up your course in an afternoon. Free to start. No credit card."
+        primaryLabel="Start a course"
+        onPrimary={onInstructor}
+        secondaryLabel="Talk to our team"
+        onSecondary={() => { window.location.href = 'mailto:hello@scholr.study?subject=Scholr%20-%20Talk%20to%20your%20team'; }}
+      />
+    </MarketingShell>
+  );
+}
+
+// ─── /for-students ────────────────────────────────────────────────────────
+function ForStudentsPage({ onSignIn, onStudent, onInstructor }) {
+  return (
+    <MarketingShell currentPath="/for-students" onSignIn={onSignIn} onInstructor={onInstructor} onStudent={onStudent}>
+      <section className="sp-hero">
+        <div className="wrap">
+          <div className="sp-hero-grid">
+            <div>
+              <div className="sp-eye"><span className="pin" /> For students</div>
+              <h1 className="sp-h1">Get unstuck without <span className="ital">waiting</span> for office hours.</h1>
+              <p className="sp-lede">Ask anything about your class. Scholr answers from your professor's exact materials — with the slide, page, or chapter cited right there. No hallucinations. No "I'm not sure" runaround.</p>
+              <div className="sp-cta-row">
+                <button type="button" className="btn btn-primary btn-lg btn-pill" onClick={onStudent}>Sign in <span className="arr"><Ic name="arrow-right" s={17} /></span></button>
+                <button type="button" className="btn btn-ghost btn-lg btn-pill" onClick={onStudent}>I have a join code</button>
+              </div>
+              <p className="sp-hero-meta">Free with your class join code · 24/7 · Cited to your real syllabus</p>
+            </div>
+            <div className="sp-hero-side">
+              <div className="sp-stat"><div className="num">3<em>am</em></div><div className="lbl">Open the night before an exam, ask a question, get an answer with citations. No "your TA is asleep."</div></div>
+              <div className="sp-stat"><div className="num">0</div><div className="lbl">Things made up. Every answer comes from a doc your professor actually uploaded.</div></div>
+              <div className="sp-stat"><div className="num">/quiz</div><div className="lbl">Make a quiz, build a flashcard deck, generate a study guide — all from your real course material.</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="sp-section">
+        <div className="wrap">
+          <div className="sp-eye"><span className="pin" /> Why students use Scholr</div>
+          <h2 className="sp-section-h">A tutor that knows YOUR class. <span className="ital">Not the internet.</span></h2>
+          <p className="sp-section-lede">ChatGPT will give you a textbook answer. Scholr gives you YOUR professor's answer — the one that's actually going to be on the exam.</p>
+          <div className="sp-grid-3">
+            <SpFeat icon="file-text"    h="Cited to the exact page"  d="Every answer shows you where it came from — syllabus §3, lecture 6 slide 14, chapter 4 page 132. You can flip to it and check." />
+            <SpFeat icon="shield-check" h="Won't invent answers"      d="If the materials don't cover something, Scholr says so honestly instead of making up a definition. The trust is the whole point." />
+            <SpFeat icon="sparkles"     h="Quizzes &amp; flashcards"   d="Type /quiz, /test, or /cards plus a topic. Scholr builds a real practice quiz, exam, or flashcard deck from your course materials." />
+            <SpFeat icon="message-square" h="No judgment, no waiting" d="Ask the question you didn't want to ask in lecture. Ask it five times if you need to. Scholr won't side-eye you." />
+            <SpFeat icon="clock"        h="Open whenever you are"     d="2am cramming. Sunday-night panic. The week before finals. Same answers, same materials, every time." />
+            <SpFeat icon="bar-chart"    h="Built for the real exam"   d="Cram lists, key formulas, common traps — Scholr structures its answers around what students actually need before an exam." />
+          </div>
+        </div>
+      </section>
+
+      <section className="sp-section alt">
+        <div className="wrap">
+          <div className="sp-eye"><span className="pin" /> Things students actually ask</div>
+          <h2 className="sp-section-h">If you'd ask a smart upperclassman, <span className="ital">you can ask Scholr.</span></h2>
+          <div className="sp-grid-2">
+            <SpFeat icon="message-square" h={<>"What's on the midterm and how is it weighted?"</>} d="Pulled straight from your syllabus. Date, format, scope, weight, what's closed-book." />
+            <SpFeat icon="message-square" h={<>"Explain contribution margin like I'm new."</>} d="The definition, the formula, the worked example — using your textbook's framing, not a Wikipedia paraphrase." />
+            <SpFeat icon="message-square" h={<>"What if my homework is a day late?"</>} d="From the syllabus's late policy, with the page cited. No more digging through PDFs to find one sentence." />
+            <SpFeat icon="message-square" h={<>"Quiz me on chapter 4."</>} d="Type /quiz · chapter 4. Scholr generates 5–10 multiple-choice questions with answers and explanations." />
+            <SpFeat icon="message-square" h={<>"Build me a study guide for the final."</>} d="Topics, formulas, concepts, and a 'if you only had an hour' cram list — all from your course's actual materials." />
+            <SpFeat icon="message-square" h={<>"I'm lost — where do I start?"</>} d="Scholr maps a roadmap based on what's been covered and what's coming next on the syllabus. No more 'where do I even begin.'" />
+          </div>
+        </div>
+      </section>
+
+      <section className="sp-section dark">
+        <div className="wrap">
+          <div className="sp-eye"><span className="pin" /> Common questions</div>
+          <h2 className="sp-section-h">Stuff students <span className="ital">usually ask.</span></h2>
+          <SpFaq rows={[
+            { q: "How do I join my class?",                  a: "Your professor shares a join code or a join link. Paste the code on the home page or click the link — you'll be in your class within a minute." },
+            { q: "Does it cost anything?",                   a: "Not while your class is on Scholr's free pilot. If that ever changes, your professor will tell you — not us." },
+            { q: "Can my professor see my chats?",           a: "No. Professors see anonymized aggregates of what their class is asking about — but they cannot read your individual conversations." },
+            { q: "Will it just do my homework for me?",      a: "It'll help you understand and walk you through worked examples — but it'll usually ask you to take a swing first before writing your assignment from scratch. That's intentional." },
+            { q: "What if it gets something wrong?",         a: "Click the citation to verify against the source. If a real mismatch shows up, hit the thumbs-down — your professor sees that signal and can correct the materials." },
+            { q: "Does it work with my professor's textbook?", a: "If your professor uploaded the PDF, yes — Scholr indexes it and grounds answers in it. If they didn't upload it, Scholr won't pretend to know it." },
+          ]} />
+        </div>
+      </section>
+
+      <SpCtaBand
+        headline={<>Stop waiting for office hours.<br /><span className="ital">Start asking.</span></>}
+        sub="Free with your class join code. Open 24/7. Every answer cited to your real syllabus."
+        primaryLabel="I have a join code"
+        onPrimary={onStudent}
+        secondaryLabel="Sign in"
+        onSecondary={onStudent}
+      />
+    </MarketingShell>
+  );
+}
+
+// ─── /how-it-works ────────────────────────────────────────────────────────
+function HowItWorksPage({ onSignIn, onInstructor, onStudent }) {
+  return (
+    <MarketingShell currentPath="/how-it-works" onSignIn={onSignIn} onInstructor={onInstructor} onStudent={onStudent}>
+      <section className="sp-hero">
+        <div className="wrap">
+          <div className="sp-hero-grid">
+            <div>
+              <div className="sp-eye"><span className="pin" /> How it works</div>
+              <h1 className="sp-h1">Upload your course. <span className="ital">Index it.</span> Cite every answer.</h1>
+              <p className="sp-lede">Scholr is a retrieval-grounded tutor — every answer is rooted in a real chunk of a real document your professor uploaded. Here's the pipeline that makes that possible.</p>
+              <div className="sp-cta-row">
+                <button type="button" className="btn btn-primary btn-lg btn-pill" onClick={onInstructor}>Start a course <span className="arr"><Ic name="arrow-right" s={17} /></span></button>
+                <button type="button" className="btn btn-ghost btn-lg btn-pill" onClick={onStudent}>Join a class</button>
+              </div>
+            </div>
+            <div className="sp-hero-side">
+              <div className="sp-stat"><div className="num">RAG</div><div className="lbl">Retrieval-augmented generation. The model can only quote what we surface — your actual materials, not its training data.</div></div>
+              <div className="sp-stat"><div className="num">768<em>-dim</em></div><div className="lbl">Vector embeddings on every chunk. Semantic search finds the right passage even when the student doesn't use the right keyword.</div></div>
+              <div className="sp-stat"><div className="num">Vision</div><div className="lbl">PDF pages are rendered to images so the model can SEE diagrams, equations, and slides — not just the OCR'd text.</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="sp-section">
+        <div className="wrap">
+          <div className="sp-eye"><span className="pin" /> The pipeline</div>
+          <h2 className="sp-section-h">Four steps from <span className="ital">your upload</span> to a cited answer.</h2>
+          <div className="sp-steps">
+            <SpStep n="01" h="Professor uploads materials"  d="Syllabus, lecture slides, readings, textbook PDFs. Each file is text-extracted, chunked into ~2,000-char passages, embedded into 768-dim vectors, and indexed. PDFs also get their pages rendered to images so the model can read diagrams." />
+            <SpStep n="02" h="Student asks a question"     d="The question is embedded into the same vector space. Semantic similarity finds the 8 most relevant passages from across the course's library — often spanning multiple documents the student didn't know to look at." />
+            <SpStep n="03" h="Model grounds its answer"     d="Only the retrieved passages enter the model's context. The prompt requires citations, refuses to invent missing material, and asks the student to clarify when the materials don't fully answer. No hallucinated formulas. No textbook the professor didn't upload." />
+            <SpStep n="04" h="Answer arrives with sources"  d="Every answer streams in token by token, with citation chips showing which document(s) it drew from. The student can hover a citation to see the source file. The professor sees this question land in their Topic Ledger." />
+          </div>
+        </div>
+      </section>
+
+      <section className="sp-section alt">
+        <div className="wrap">
+          <div className="sp-eye"><span className="pin" /> What makes it different</div>
+          <h2 className="sp-section-h">Three guarantees we build the product around.</h2>
+          <p className="sp-section-lede">Most "AI tutors" are ChatGPT with a school-colored wrapper. Scholr is built differently from the first commit.</p>
+          <div className="sp-grid-3">
+            <SpFeat icon="shield-check" h="Grounded retrieval"   d="The model can't answer from anything other than what was retrieved. If the relevant passages aren't there, the model is told to say so — not to fill the gap from its training." />
+            <SpFeat icon="file-text"    h="Cited by construction" d="Citations are part of the response contract, not a post-hoc label. The model writes the answer knowing it will be tied to a source the student can verify." />
+            <SpFeat icon="sparkles"     h="Honest when unsure"    d="If the materials don't cover a question, Scholr asks for clarification instead of guessing. 'I don't see that in your materials' is a feature, not a bug." />
+          </div>
+        </div>
+      </section>
+
+      <section className="sp-section dark">
+        <div className="wrap">
+          <div className="sp-eye"><span className="pin" /> Under the hood</div>
+          <h2 className="sp-section-h">For the curious.</h2>
+          <SpFaq rows={[
+            { q: "Which model answers questions?",           a: "Day-to-day questions run on gpt-4o-mini for speed and cost. Comprehensive exam-prep questions automatically upgrade to gpt-4o for deeper synthesis." },
+            { q: "What's the embedding stack?",              a: "Vertex AI's text-embedding-004 (768-dim). Chunks live in Supabase + pgvector. A custom RPC handles semantic search against the course's chunk set." },
+            { q: "How does the vision part work?",           a: "Every page of every uploaded PDF is rendered to a PNG, stored, and made available to the model at chat time. For questions about diagrams or slide layouts, the model literally sees the slide." },
+            { q: "What stops it from hallucinating?",        a: "Three layers: (1) the prompt explicitly forbids inventing material; (2) only retrieved passages enter context; (3) doc-spread retrieval ensures every uploaded doc has a chance to contribute, so the model can't fall back on training when the materials are present." },
+            { q: "How does it know it's grounded?",          a: "Each response includes a marker indicating whether the materials were sufficient. If they weren't, the answer is flagged and the citation pill changes." },
+            { q: "What's the data flow?",                    a: "Your materials → Supabase Storage. Chunks + embeddings → Supabase Postgres. Queries → Vertex AI (embedding) + OpenAI (generation). Nothing trains a public model. Delete a course and everything goes with it." },
+          ]} />
+        </div>
+      </section>
+
+      <SpCtaBand
+        headline={<>See it work for <span className="ital">your class.</span></>}
+        sub="Free for the 2026 academic year while in beta. Set up in an afternoon."
+        primaryLabel="Start a course"
+        onPrimary={onInstructor}
+        secondaryLabel="I'm a student"
+        onSecondary={onStudent}
+      />
+    </MarketingShell>
+  );
+}
+
+// ─── /about ───────────────────────────────────────────────────────────────
+function AboutPage({ onSignIn, onInstructor, onStudent }) {
+  return (
+    <MarketingShell currentPath="/about" onSignIn={onSignIn} onInstructor={onInstructor} onStudent={onStudent}>
+      <section className="sp-hero">
+        <div className="wrap">
+          <div className="sp-hero-grid">
+            <div>
+              <div className="sp-eye"><span className="pin" /> About Scholr</div>
+              <h1 className="sp-h1">Built for the question every student is <span className="ital">afraid to ask.</span></h1>
+              <p className="sp-lede">Scholr is an AI tutor that gives every student in a class the experience of having a tutor who read the syllabus, attended every lecture, and remembers the answer to every question.</p>
+              <div className="sp-cta-row">
+                <button type="button" className="btn btn-primary btn-lg btn-pill" onClick={onInstructor}>Start a course <span className="arr"><Ic name="arrow-right" s={17} /></span></button>
+                <a href="mailto:hello@scholr.study" className="btn btn-ghost btn-lg btn-pill">Get in touch</a>
+              </div>
+            </div>
+            <div className="sp-hero-side">
+              <div className="sp-stat"><div className="num">Why</div><div className="lbl">Office hours don't scale. Email doesn't scale. TAs are great but they're stretched. Scholr fills the gap between "I'm stuck" and "I get it" — without burning out anyone in the chain.</div></div>
+              <div className="sp-stat"><div className="num">How</div><div className="lbl">Grounded in your professor's exact materials. Cited to the page. Honest when it doesn't know. Calmer than a chat window has any right to be.</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="sp-section">
+        <div className="wrap">
+          <div className="sp-eye"><span className="pin" /> What we believe</div>
+          <h2 className="sp-section-h">The principles we won't compromise.</h2>
+          <div className="sp-grid-2">
+            <SpFeat icon="shield-check" h="Grounded over clever"   d="An AI tutor that confidently makes things up is worse than no tutor at all. Every answer is rooted in a real passage from your professor's materials — never the model's training data, never the open web." />
+            <SpFeat icon="file-text"    h="Cited by default"        d="A student who has to wonder whether the answer is real is a student who can't trust the tool. Every answer points to its source so verification is one click away." />
+            <SpFeat icon="message-square" h="Honest when unsure"     d="When the materials don't cover a question, Scholr says so — and asks for clarification — instead of guessing. The 'I don't know' is part of what makes the rest trustworthy." />
+            <SpFeat icon="sparkles"     h="Calm, not loud"           d="Students under pressure don't need another animated dashboard. The chat is quiet. The cites are subtle. The tutor talks like a smart upperclassman, not a sales bot." />
+          </div>
+        </div>
+      </section>
+
+      <section className="sp-section alt">
+        <div className="wrap">
+          <div className="sp-eye"><span className="pin" /> Why now</div>
+          <h2 className="sp-section-h">"Office hours that scale" is finally <span className="ital">a real thing.</span></h2>
+          <p className="sp-section-lede">For most of higher ed's history, "I have a question about this reading" meant waiting until Tuesday at 2pm or hoping someone on the GroupMe knew. Large language models, vector retrieval, and modern multimodal grounding mean that's no longer the only option — IF the system is built with the right constraints. That's what Scholr is.</p>
+          <SpCheckList items={[
+            "Every model upgrade we ship is in service of being more accurate, not flashier.",
+            "Every UI change is in service of the student under pressure at 11pm — not the product demo.",
+            "Every professor feature is in service of seeing the class clearly without surveilling individual students.",
+            "Every privacy choice defaults to 'less data, more scoped, more deletable.'",
+          ]} />
+        </div>
+      </section>
+
+      <section className="sp-section dark">
+        <div className="wrap">
+          <div className="sp-eye"><span className="pin" /> Contact</div>
+          <h2 className="sp-section-h">Talk to us.</h2>
+          <p className="sp-section-lede">Piloting Scholr in your class, evaluating it for a department, or just curious about how a piece of the system works — we'd love to hear from you.</p>
+          <div className="sp-grid-2" style={{ marginTop: 40 }}>
+            <SpFeat icon="message-square" h="hello@scholr.study"  d="The fastest way to reach us. We respond within a business day." />
+            <SpFeat icon="shield-check"   h="Privacy &amp; security" d={<>Read our <a href="/privacy" style={{ textDecoration: 'underline' }}>privacy policy</a> and <a href="/terms" style={{ textDecoration: 'underline' }}>terms</a>. Or email us — we'll answer specific questions on the record.</>} />
+          </div>
+        </div>
+      </section>
+
+      <SpCtaBand
+        headline={<>Give your class an AI tutor<br /><span className="ital">that actually knows it.</span></>}
+        sub="Free for the 2026 academic year while in beta. Set up in an afternoon."
+        primaryLabel="Start a course"
+        onPrimary={onInstructor}
+        secondaryLabel="I'm a student"
+        onSecondary={onStudent}
+      />
+    </MarketingShell>
+  );
+}
+
 // ─── Legal pages ──────────────────────────────────────────────────────────
 function LegalPageLayout({ title, children }) {
   const navigate = useNavigate();
@@ -6755,14 +7279,13 @@ export default function App() {
       <Routes>
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
-        {/* Deep-link routes for shareable URLs to landing-page sections.
-            Each renders the LandingPage and auto-scrolls to the matching
-            section on mount, so /for-professors, /for-students,
-            /how-it-works, /about all work as real share-friendly links. */}
-        <Route path="/for-professors" element={<LandingPage initialAnchor="professors" onStudent={() => navigate('/student/login')} onInstructor={() => { navigate('/'); setScreen('prof-signup'); }} onSignIn={() => { navigate('/'); setScreen('smart-signin'); }} onJoinCode={handleJoinCodeEntry} />} />
-        <Route path="/for-students" element={<LandingPage initialAnchor="students" onStudent={() => navigate('/student/login')} onInstructor={() => { navigate('/'); setScreen('prof-signup'); }} onSignIn={() => { navigate('/'); setScreen('smart-signin'); }} onJoinCode={handleJoinCodeEntry} />} />
-        <Route path="/how-it-works" element={<LandingPage initialAnchor="how" onStudent={() => navigate('/student/login')} onInstructor={() => { navigate('/'); setScreen('prof-signup'); }} onSignIn={() => { navigate('/'); setScreen('smart-signin'); }} onJoinCode={handleJoinCodeEntry} />} />
-        <Route path="/about" element={<LandingPage initialAnchor="top" onStudent={() => navigate('/student/login')} onInstructor={() => { navigate('/'); setScreen('prof-signup'); }} onSignIn={() => { navigate('/'); setScreen('smart-signin'); }} onJoinCode={handleJoinCodeEntry} />} />
+        {/* Dedicated marketing pages — each one is a real standalone page
+            with its own hero, content sections, and CTA, sharing the main
+            landing's nav + footer + theme via MarketingShell. */}
+        <Route path="/for-professors" element={<ForProfessorsPage onStudent={() => navigate('/student/login')} onInstructor={() => { navigate('/'); setScreen('prof-signup'); }} onSignIn={() => { navigate('/'); setScreen('smart-signin'); }} />} />
+        <Route path="/for-students"   element={<ForStudentsPage   onStudent={() => navigate('/student/login')} onInstructor={() => { navigate('/'); setScreen('prof-signup'); }} onSignIn={() => { navigate('/'); setScreen('smart-signin'); }} />} />
+        <Route path="/how-it-works"   element={<HowItWorksPage    onStudent={() => navigate('/student/login')} onInstructor={() => { navigate('/'); setScreen('prof-signup'); }} onSignIn={() => { navigate('/'); setScreen('smart-signin'); }} />} />
+        <Route path="/about"          element={<AboutPage         onStudent={() => navigate('/student/login')} onInstructor={() => { navigate('/'); setScreen('prof-signup'); }} onSignIn={() => { navigate('/'); setScreen('smart-signin'); }} />} />
         <Route path="/join/:code" element={<JoinCoursePage studentToken={studentToken} studentUser={studentUser} onStudentLogin={handleStudentLogin} onEnterCourse={handleEnterCourse} />} />
         <Route path="/student/login" element={<StudentLogin onLogin={handleStudentLogin} onGoSignup={() => navigate('/student/signup')} onBack={() => navigate('/')} pendingJoinCode={pendingJoinCode} />} />
         <Route path="/student/signup" element={<StudentSignup onLogin={handleStudentLogin} onGoLogin={() => navigate('/student/login')} onBack={() => navigate('/')} pendingJoinCode={pendingJoinCode} />} />
