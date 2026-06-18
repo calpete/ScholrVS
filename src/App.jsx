@@ -5630,12 +5630,18 @@ html { scroll-behavior: smooth; }
 .scholr-landing .nav-links a{font-size:15.5px;font-weight:500;color:var(--muted);transition:color .15s ease;cursor:pointer;}
 .scholr-landing .nav-links a:hover{color:var(--ink);}
 .scholr-landing .nav-right{display:flex;align-items:center;gap:14px;}
-.scholr-landing .hero{text-align:center;padding:78px 0 86px;position:relative;}
-.scholr-landing .hero .chip{margin-bottom:34px;}
-.scholr-landing .hero h1{font-family:var(--font-display);font-weight:500;font-size:clamp(46px,7.4vw,96px);line-height:.98;letter-spacing:-.025em;color:var(--ink);}
+/* Warp-style left-aligned hero — smaller display type, content pinned
+   to the left so it fills the screen instead of floating in the middle.
+   The wrap already caps at 1120px; the hero's inner column caps tighter
+   so the headline reads as a confident two-line statement rather than
+   a giant centered banner. */
+.scholr-landing .hero{text-align:left;padding:88px 0 64px;position:relative;}
+.scholr-landing .hero .hero-col{max-width:780px;}
+.scholr-landing .hero .chip{margin-bottom:28px;}
+.scholr-landing .hero h1{font-family:var(--font-display);font-weight:500;font-size:clamp(40px,5.6vw,76px);line-height:1.02;letter-spacing:-.025em;color:var(--ink);}
 .scholr-landing .hero h1 .l2{display:block;font-style:italic;font-weight:500;}
-.scholr-landing .hero .lede{font-size:clamp(18px,2vw,22px);color:var(--muted);max-width:540px;margin:28px auto 0;line-height:1.5;}
-.scholr-landing .hero-actions{margin-top:40px;display:flex;justify-content:center;}
+.scholr-landing .hero .lede{font-size:clamp(17px,1.5vw,20px);color:var(--muted);max-width:520px;margin:26px 0 0;line-height:1.55;}
+.scholr-landing .hero-actions{margin-top:34px;display:flex;justify-content:flex-start;}
 /* Warp-style inline pill: email input + submit button in a single rounded
    container. Input on the left expands, button anchored on the right.
    Same .btn-primary ink treatment as the rest of the landing so it stays
@@ -5652,7 +5658,7 @@ html { scroll-behavior: smooth; }
 .scholr-landing .hero-sub a{color:var(--ink);font-weight:700;margin-left:6px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;}
 .scholr-landing .hero-sub a svg{width:15px;height:15px;transition:transform .2s ease;}
 .scholr-landing .hero-sub a:hover svg{transform:translateX(3px);}
-.scholr-landing .showband{background:var(--bg-2);border-top:1px solid var(--line);padding:80px 0 96px;}
+.scholr-landing .showband{background:var(--bg-2);border-top:1px solid var(--line);padding:48px 0 80px;}
 .scholr-landing .showband .wrap{max-width:1080px;}
 .scholr-landing .window{background:var(--surface);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-float);border:1px solid var(--line);font-family:"Inter",-apple-system,"Segoe UI",system-ui,sans-serif;--m-ink:#18181B;--m-muted:#6B7280;--m-faint:#9CA3AF;--m-line:#ECECEC;--m-hover:#F4F4F5;--m-active:#F1F1F0;}
 .scholr-landing .win-bar{display:flex;align-items:center;gap:14px;padding:13px 18px;background:#F3F3F4;border-bottom:1px solid var(--m-line);}
@@ -6020,6 +6026,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
         {/* HERO */}
         <section className="hero">
           <div className="wrap stagger">
+            <div className="hero-col">
             <span className="chip"><span className="dot live" /> Course-grounded AI tutoring</span>
             <h1>Every answer from<span className="l2">your course materials.</span></h1>
             <p className="lede">AI tutoring grounded in what your professor uploaded. Cited, accurate, and trustworthy.</p>
@@ -6043,6 +6050,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
               </form>
             </div>
             <p className="hero-sub">Joining a class? <button type="button" onClick={() => setJoinOpen(true)}>Enter your join code <Ic name="arrow-right" s={15} /></button></p>
+            </div>
           </div>
         </section>
 
