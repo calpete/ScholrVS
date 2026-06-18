@@ -5802,6 +5802,41 @@ html { scroll-behavior: smooth; }
 .scholr-landing .foot-bottom .social a{color:var(--muted);transition:color .15s;cursor:pointer;}
 .scholr-landing .foot-bottom .social a:hover{color:var(--ink);}
 .scholr-landing .foot-bottom .social svg{width:19px;height:19px;}
+/* Giant wordmark sign-off — same architecture Warp uses below their
+   footer. The display serif "Scholr" is enormous, filled with
+   horizontal stripes for texture, and bleeds off both edges of the
+   viewport so it reads as a graphic flourish rather than literal text.
+   Sits on the cream background so it visually closes the page. */
+.scholr-landing .brand-signoff{background:var(--bg);overflow:hidden;line-height:0;padding:24px 0 0;border-top:1px solid var(--line);}
+.scholr-landing .brand-signoff .word{
+  font-family:var(--font-display);
+  font-weight:500;
+  font-style:italic;
+  font-size:clamp(180px,28vw,460px);
+  letter-spacing:-.045em;
+  line-height:.82;
+  text-align:center;
+  display:block;
+  white-space:nowrap;
+  user-select:none;
+  /* Striped fill — repeating horizontal lines through the letterforms */
+  background:repeating-linear-gradient(
+    180deg,
+    rgba(21,22,27,.22) 0,
+    rgba(21,22,27,.22) 2px,
+    transparent 2px,
+    transparent 7px
+  );
+  -webkit-background-clip:text;
+  background-clip:text;
+  -webkit-text-fill-color:transparent;
+  color:transparent;
+  /* Bleed past the viewport edges */
+  width:108%;
+  margin-left:-4%;
+  padding-bottom:14px;
+  transform:translateY(8%);
+}
 .scholr-landing #demoChat{display:flex;flex-direction:column;gap:16px;flex:1;padding:4px 2px 2px;}
 .scholr-landing .d-user{text-align:right;animation:lp-dIn .5s cubic-bezier(.2,.7,.2,1) both;}
 .scholr-landing .d-user .d-q{display:inline-block;max-width:78%;font-size:15px;font-weight:600;color:var(--m-ink);line-height:1.4;}
@@ -6386,6 +6421,13 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
         </div>
       </footer>
 
+      {/* Giant wordmark sign-off — Warp-style graphic flourish below the
+          footer. Pure CSS striped-fill of the display serif, bleeds off
+          both viewport edges. Reads as a brand stamp, not literal text. */}
+      <section className="brand-signoff" aria-hidden="true">
+        <span className="word">Scholr</span>
+      </section>
+
       {/* Talk-to-our-team contact form — submits via mailto: into the visitor's mail client */}
       {talkOpen && (
         <div className="lp-modal" onClick={closeTalk}>
@@ -6585,6 +6627,9 @@ function MarketingShell({ children, onSignIn, onInstructor, onStudent, currentPa
           </div>
         </div>
       </footer>
+      <section className="brand-signoff" aria-hidden="true">
+        <span className="word">Scholr</span>
+      </section>
     </div>
   );
 }
