@@ -5621,7 +5621,17 @@ html { scroll-behavior: smooth; }
 .scholr-landing .dot.live::after{content:"";position:absolute;inset:-4px;border-radius:999px;border:1.5px solid currentColor;opacity:.35;animation:lp-ping 2.4s cubic-bezier(0,0,.2,1) infinite;}
 @keyframes lp-ping{0%{transform:scale(.6);opacity:.6;}80%,100%{transform:scale(1.7);opacity:0;}}
 .scholr-landing .chip{display:inline-flex;align-items:center;gap:9px;padding:8px 16px;border-radius:var(--radius-pill);background:var(--surface);border:1px solid var(--line);font-size:14.5px;font-weight:600;color:var(--ink-2);box-shadow:var(--shadow-sm);white-space:nowrap;}
-.scholr-landing header.nav{position:sticky;top:0;z-index:60;background:color-mix(in srgb,var(--bg) 78%,transparent);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border-bottom:1px solid transparent;transition:border-color .25s ease,background .25s ease;}
+/* Sticky promo banner above the nav. Both stay pinned when scrolling,
+   stacked: banner top:0, nav top:36px. Dark surface so the cream nav
+   reads as the primary chrome and the banner is the secondary thin
+   line. Use a real, current announcement — never fake metrics. */
+.scholr-landing .top-banner{position:sticky;top:0;z-index:70;background:#15161B;color:#FBFBF9;height:36px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;letter-spacing:.01em;padding:0 16px;}
+.scholr-landing .top-banner .new-tag{color:#FF8A4C;font-weight:700;margin-right:8px;text-transform:uppercase;letter-spacing:.08em;font-size:12px;}
+.scholr-landing .top-banner .sep{opacity:.4;margin:0 10px;}
+.scholr-landing .top-banner a{color:inherit;display:inline-flex;align-items:center;gap:6px;font-weight:600;}
+.scholr-landing .top-banner a .arr{display:inline-flex;transition:transform .2s ease;}
+.scholr-landing .top-banner a:hover .arr{transform:translateX(3px);}
+.scholr-landing header.nav{position:sticky;top:36px;z-index:60;background:color-mix(in srgb,var(--bg) 78%,transparent);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border-bottom:1px solid transparent;transition:border-color .25s ease,background .25s ease;}
 .scholr-landing header.nav.scrolled{border-bottom-color:var(--line);}
 .scholr-landing .nav-inner{display:flex;align-items:center;justify-content:space-between;height:76px;}
 .scholr-landing .brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:23px;letter-spacing:-.02em;color:var(--ink);background:none;border:none;cursor:pointer;font-family:var(--font-body);}
@@ -5659,7 +5669,7 @@ html { scroll-behavior: smooth; }
 .scholr-landing .hero-sub a svg{width:15px;height:15px;transition:transform .2s ease;}
 .scholr-landing .hero-sub a:hover svg{transform:translateX(3px);}
 .scholr-landing .showband{background:var(--bg-2);border-top:1px solid var(--line);padding:48px 0 80px;}
-.scholr-landing .showband .wrap{max-width:1080px;}
+.scholr-landing .showband .wrap{max-width:1200px;}
 .scholr-landing .window{background:var(--surface);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-float);border:1px solid var(--line);font-family:"Inter",-apple-system,"Segoe UI",system-ui,sans-serif;--m-ink:#18181B;--m-muted:#6B7280;--m-faint:#9CA3AF;--m-line:#ECECEC;--m-hover:#F4F4F5;--m-active:#F1F1F0;}
 .scholr-landing .win-bar{display:flex;align-items:center;gap:14px;padding:13px 18px;background:#F3F3F4;border-bottom:1px solid var(--m-line);}
 .scholr-landing .win-lights{display:flex;gap:8px;flex:none;}
@@ -5687,7 +5697,7 @@ html { scroll-behavior: smooth; }
 .scholr-landing .src-chip svg{width:14px;height:14px;color:var(--m-faint);}
 .scholr-landing .main-input{margin:auto 22px 22px;display:flex;align-items:center;gap:10px;padding:11px 12px 11px 16px;border:1px solid var(--m-line);border-radius:var(--radius-pill);background:#fff;}
 .scholr-landing .main-input span{color:var(--m-faint);}
-.scholr-landing section.band{padding:104px 0;}
+.scholr-landing section.band{padding:84px 0;}
 .scholr-landing .sec-head{max-width:700px;margin:0 auto 60px;text-align:center;}
 .scholr-landing .sec-head .eyebrow{justify-content:center;margin-bottom:20px;}
 .scholr-landing .sec-head h2{font-family:var(--font-display);font-weight:500;font-size:clamp(32px,4.2vw,50px);line-height:1.04;letter-spacing:-.022em;}
@@ -6005,6 +6015,17 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
   return (
     <div className="scholr-landing" ref={rootRef}>
       <style>{LANDING_CSS}</style>
+
+      {/* Warp-style sticky promo banner above the nav. Both bands stay
+          pinned on scroll, stacked. Real, current announcement only —
+          no inflated stats. Updates here are a one-line copy edit. */}
+      <div className="top-banner">
+        <span className="new-tag">New</span>
+        <a href="/for-professors" onClick={(e) => { e.preventDefault(); navigate('/for-professors'); }}>
+          Free for the 2026 academic year while in beta
+          <span className="arr"><Ic name="arrow-right" s={13} /></span>
+        </a>
+      </div>
 
       <header className={`nav${navScrolled ? ' scrolled' : ''}`}>
         <div className="wrap nav-inner">
@@ -6511,6 +6532,15 @@ function MarketingShell({ children, onSignIn, onInstructor, onStudent, currentPa
     <div className="scholr-landing">
       <style>{LANDING_CSS}</style>
       <style>{SUBPAGE_CSS}</style>
+      {/* Same sticky promo banner as the main landing — keeps chrome
+          consistent across every public-facing page. */}
+      <div className="top-banner">
+        <span className="new-tag">New</span>
+        <a href="/for-professors" onClick={go('/for-professors')}>
+          Free for the 2026 academic year while in beta
+          <span className="arr"><Ic name="arrow-right" s={13} /></span>
+        </a>
+      </div>
       <header className={`nav${navScrolled ? ' scrolled' : ''}`}>
         <div className="wrap nav-inner">
           <a className="brand" href="/" onClick={go('/')}><LandingLogo s={36} />Scholr</a>
