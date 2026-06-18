@@ -5863,10 +5863,25 @@ html { scroll-behavior: smooth; }
 .scholr-landing .lp-join-alt:hover{color:var(--ink);}
 `;
 
-function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode }) {
+function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnchor }) {
   const navigate = useNavigate();
   const rootRef = useRef(null);
   const [navScrolled, setNavScrolled] = useState(false);
+  // Deep-link support: when the page mounts with a known section, scroll it
+  // into view after a tick (gives the DOM time to lay out + the reveal
+  // observer to register). Falls through to top-of-page if the anchor
+  // doesn't resolve. Driven by the dedicated /for-professors,
+  // /for-students, /how-it-works, /about routes so each section has its
+  // own shareable URL instead of just a hash anchor.
+  useEffect(() => {
+    if (!initialAnchor) return;
+    const t = setTimeout(() => {
+      const el = document.getElementById(initialAnchor);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 80);
+    return () => clearTimeout(t);
+  }, [initialAnchor]);
   const [demo, setDemo] = useState({ idx: 0, phase: 'user' });
   const [talkOpen, setTalkOpen] = useState(false);
   const [talkSent, setTalkSent] = useState(false);
@@ -5936,12 +5951,12 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode }) {
 
       <header className={`nav${navScrolled ? ' scrolled' : ''}`}>
         <div className="wrap nav-inner">
-          <a className="brand" href="#top" onClick={goHome}><LandingLogo s={36} />Scholr</a>
+          <a className="brand" href="/" onClick={goHome}><LandingLogo s={36} />Scholr</a>
           <nav className="nav-links">
-            <a href="#how">How it works</a>
-            <a href="#professors">For professors</a>
-            <a href="#students">For students</a>
-            <a href="#features">Features</a>
+            <a href="/how-it-works" onClick={(e) => { e.preventDefault(); navigate('/how-it-works'); }}>How it works</a>
+            <a href="/for-professors" onClick={(e) => { e.preventDefault(); navigate('/for-professors'); }}>For professors</a>
+            <a href="/for-students" onClick={(e) => { e.preventDefault(); navigate('/for-students'); }}>For students</a>
+            <a href="/about" onClick={(e) => { e.preventDefault(); navigate('/about'); }}>About</a>
           </nav>
           <div className="nav-right">
             <button type="button" className="btn btn-ghost btn-pill" onClick={onSignIn}>Sign in</button>
@@ -6249,15 +6264,15 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode }) {
         <div className="wrap">
           <div className="foot-grid">
             <div>
-              <a className="brand" href="#top" onClick={goHome}><LandingLogo s={34} />Scholr</a>
+              <a className="brand" href="/" onClick={goHome}><LandingLogo s={34} />Scholr</a>
               <p className="tag">An AI tutor built from your professor's exact course materials. Cited, accurate, and grounded in your class.</p>
             </div>
             <div className="foot-col">
               <h4>Explore</h4>
-              <a href="#how">How it works</a>
-              <a href="#features">Features</a>
-              <a href="#professors">For professors</a>
-              <a href="#students">For students</a>
+              <a href="/how-it-works" onClick={(e) => { e.preventDefault(); navigate('/how-it-works'); }}>How it works</a>
+              <a href="/for-professors" onClick={(e) => { e.preventDefault(); navigate('/for-professors'); }}>For professors</a>
+              <a href="/for-students" onClick={(e) => { e.preventDefault(); navigate('/for-students'); }}>For students</a>
+              <a href="/about" onClick={(e) => { e.preventDefault(); navigate('/about'); }}>About</a>
             </div>
             <div className="foot-col">
               <h4>Legal</h4>
@@ -6740,6 +6755,14 @@ export default function App() {
       <Routes>
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/terms" element={<TermsPage />} />
+        {/* Deep-link routes for shareable URLs to landing-page sections.
+            Each renders the LandingPage and auto-scrolls to the matching
+            section on mount, so /for-professors, /for-students,
+            /how-it-works, /about all work as real share-friendly links. */}
+        <Route path="/for-professors" element={<LandingPage initialAnchor="professors" onStudent={() => navigate('/student/login')} onInstructor={() => { navigate('/'); setScreen('prof-signup'); }} onSignIn={() => { navigate('/'); setScreen('smart-signin'); }} onJoinCode={handleJoinCodeEntry} />} />
+        <Route path="/for-students" element={<LandingPage initialAnchor="students" onStudent={() => navigate('/student/login')} onInstructor={() => { navigate('/'); setScreen('prof-signup'); }} onSignIn={() => { navigate('/'); setScreen('smart-signin'); }} onJoinCode={handleJoinCodeEntry} />} />
+        <Route path="/how-it-works" element={<LandingPage initialAnchor="how" onStudent={() => navigate('/student/login')} onInstructor={() => { navigate('/'); setScreen('prof-signup'); }} onSignIn={() => { navigate('/'); setScreen('smart-signin'); }} onJoinCode={handleJoinCodeEntry} />} />
+        <Route path="/about" element={<LandingPage initialAnchor="top" onStudent={() => navigate('/student/login')} onInstructor={() => { navigate('/'); setScreen('prof-signup'); }} onSignIn={() => { navigate('/'); setScreen('smart-signin'); }} onJoinCode={handleJoinCodeEntry} />} />
         <Route path="/join/:code" element={<JoinCoursePage studentToken={studentToken} studentUser={studentUser} onStudentLogin={handleStudentLogin} onEnterCourse={handleEnterCourse} />} />
         <Route path="/student/login" element={<StudentLogin onLogin={handleStudentLogin} onGoSignup={() => navigate('/student/signup')} onBack={() => navigate('/')} pendingJoinCode={pendingJoinCode} />} />
         <Route path="/student/signup" element={<StudentSignup onLogin={handleStudentLogin} onGoLogin={() => navigate('/student/login')} onBack={() => navigate('/')} pendingJoinCode={pendingJoinCode} />} />
