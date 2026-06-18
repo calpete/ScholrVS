@@ -2433,42 +2433,74 @@ function ConceptRow({ c, expanded, onToggle }) {
       {expanded && (
         <div className="px-4 md:px-6 pb-6 pt-1 fade-up">
           <p className="text-[13px] text-gray-700 mb-4 leading-relaxed"><span className="text-[10px] font-bold tracking-[.16em] uppercase text-gray-400 mr-2">Suggested action</span>{c.action}</p>
-          {/* Per-question breakdown */}
+
+          {/* Class-level mastery distribution — anonymized counts only */}
+          <div className="mb-5 grid grid-cols-3 gap-2">
+            <div className="bg-emerald-50 border border-emerald-100 rounded-2xl px-4 py-3">
+              <div className="text-[10px] font-bold tracking-[.14em] uppercase text-emerald-700/80">Mastered</div>
+              <div className="serif text-[26px] text-emerald-700 tabular-nums leading-none mt-1">{c.masteredStudents || 0}</div>
+              <div className="text-[10.5px] text-emerald-700/70 mt-1">≥ 80% on this concept</div>
+            </div>
+            <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3">
+              <div className="text-[10px] font-bold tracking-[.14em] uppercase text-amber-700/80">Mixed</div>
+              <div className="serif text-[26px] text-amber-700 tabular-nums leading-none mt-1">{c.mixedStudents || 0}</div>
+              <div className="text-[10.5px] text-amber-700/70 mt-1">50–79% on this concept</div>
+            </div>
+            <div className="bg-rose-50 border border-rose-100 rounded-2xl px-4 py-3">
+              <div className="text-[10px] font-bold tracking-[.14em] uppercase text-rose-700/80">Struggling</div>
+              <div className="serif text-[26px] text-rose-700 tabular-nums leading-none mt-1">{c.strugglingStudents || 0}</div>
+              <div className="text-[10.5px] text-rose-700/70 mt-1">&lt; 50% on this concept</div>
+            </div>
+          </div>
+
+          {/* Per-question breakdown with answer distribution */}
           {c.questions.length > 0 && (
-            <div className="mb-5">
-              <div className="text-[10px] font-bold tracking-[.16em] uppercase text-gray-400 mb-2.5">Questions in this concept</div>
+            <div className="mb-2">
+              <div className="text-[10px] font-bold tracking-[.16em] uppercase text-gray-400 mb-2.5">Questions in this concept · how the class answered</div>
               <div className="space-y-2.5">
                 {c.questions.slice(0, 6).map((q, qi) => {
                   const qpct = Math.round(q.mastery * 100);
-                  const wrongOpt = q.topWrongOption && Array.isArray(q.options) ? q.options[q.topWrongOption.optionIndex] : null;
                   return (
                     <div key={qi} className="bg-white border border-gray-200/80 rounded-2xl p-4">
                       <p className="text-[14.5px] text-gray-900 leading-snug font-medium">{q.text}</p>
                       <div className="flex items-center gap-2 mt-2 text-[11.5px] text-gray-500">
                         <span><span className="tabular-nums font-semibold text-gray-700">{q.correct}</span>/<span className="tabular-nums">{q.attempts}</span> correct</span>
                         <span className="text-gray-300">·</span>
-                        <span className={qpct < 50 ? 'text-rose-600 font-semibold' : 'text-gray-500'}>{qpct}% mastery</span>
+                        <span className={qpct < 50 ? 'text-rose-600 font-semibold' : qpct < 80 ? 'text-amber-700' : 'text-emerald-700'}>{qpct}% mastery</span>
                       </div>
-                      {wrongOpt && q.topWrongOption.count >= 2 && (
-                        <p className="mt-2 text-[12px] text-rose-700 bg-rose-50 border border-rose-100 rounded-lg px-2.5 py-1.5 leading-snug"><span className="font-bold mr-1">Common wrong:</span>{String(wrongOpt).replace(/^[A-D]\)\s?/, '')} <span className="text-rose-500/70">({q.topWrongOption.count} student{q.topWrongOption.count !== 1 ? 's' : ''})</span></p>
+                      {/* Per-option answer distribution — correct option in
+                          emerald, wrong picks in rose, unpicked in gray. */}
+                      {Array.isArray(q.distribution) && q.distribution.length > 0 && (
+                        <div className="mt-3 space-y-1.5">
+                          {q.distribution.map((d) => {
+                            const pct = Math.round(d.pct * 100);
+                            const barColor = d.isCorrect ? 'bg-emerald-500' : d.count > 0 ? 'bg-rose-400' : 'bg-gray-200';
+                            const labelColor = d.isCorrect ? 'text-emerald-700' : d.count > 0 ? 'text-rose-700' : 'text-gray-400';
+                            const optLetter = String.fromCharCode(65 + d.optionIndex);
+                            const optText = String(d.optionText || '').replace(/^[A-D]\)\s?/, '');
+                            return (
+                              <div key={d.optionIndex} className="grid grid-cols-[18px_1fr_44px] gap-2 items-center">
+                                <span className={`text-[11px] font-bold tabular-nums ${labelColor}`}>{optLetter}{d.isCorrect && <span className="ml-0.5">✓</span>}</span>
+                                <div className="min-w-0 flex items-center gap-2">
+                                  <span className={`text-[12.5px] truncate ${d.isCorrect ? 'text-emerald-900 font-medium' : d.count > 0 ? 'text-rose-900' : 'text-gray-400'}`}>{optText}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <div className="flex-1 h-[6px] bg-gray-100 rounded-full overflow-hidden min-w-[34px]">
+                                    <div className={`h-full ${barColor} rounded-full transition-all duration-500`} style={{ width: `${Math.max(d.count > 0 ? 6 : 0, pct)}%` }} />
+                                  </div>
+                                  <span className={`text-[10.5px] tabular-nums font-semibold ${labelColor} w-7 text-right`}>{pct}%</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {q.explanation && (
+                        <p className="mt-3 text-[11.5px] text-gray-500 italic leading-relaxed border-t border-gray-100 pt-2.5"><span className="not-italic font-bold text-gray-400 text-[10px] tracking-[.14em] uppercase mr-1.5">Why</span>{q.explanation}</p>
                       )}
                     </div>
                   );
                 })}
-              </div>
-            </div>
-          )}
-          {/* Struggling students by name */}
-          {c.students.filter(s => s.struggling).length > 0 && (
-            <div>
-              <div className="text-[10px] font-bold tracking-[.16em] uppercase text-gray-400 mb-2.5">Students struggling with this concept</div>
-              <div className="flex flex-wrap gap-2">
-                {c.students.filter(s => s.struggling).slice(0, 12).map((s) => (
-                  <span key={s.studentId} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-rose-200 text-[12.5px] text-gray-800">
-                    <span className="font-semibold">{s.name}</span>
-                    <span className="text-rose-600 tabular-nums">{Math.round(s.mastery * 100)}%</span>
-                  </span>
-                ))}
               </div>
             </div>
           )}
@@ -2622,30 +2654,30 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
   // the interval each tick. Use the ref instead inside fetchInsights.
   useEffect(() => { fetchInsights(); const i = setInterval(fetchInsights, 10000); return () => clearInterval(i); }, [courseId]);
 
-  // Auto-fire the demo seed when the Insights URL is visited with
-  // ?demo=true. Idempotent server-side (looks up existing students by
-  // email) so safe to re-trigger. Guarded by a ref so the polling effect
-  // doesn't keep calling it. Cleans the query param after firing so a
-  // refresh doesn't double-seed.
+  // Silent auto-seed: when concept-insights returns zero attempts AND
+  // the course has zero real questions, fire the demo seed once so the
+  // dashboard never shows up empty. Server-side seed is idempotent
+  // (looks up existing demo students by email) — re-firing is safe but
+  // we guard with a ref so polling doesn't trigger repeatedly. Real
+  // courses with actual student activity skip this branch entirely.
   const seededRef = useRef(false);
   useEffect(() => {
     if (seededRef.current) return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('demo') !== 'true') return;
+    if (!conceptInsights) return; // wait until at least one fetch resolved
+    if ((conceptInsights.totalAttempts || 0) > 0) return; // real data exists
     seededRef.current = true;
     (async () => {
       try {
         await fetch(`${API}/course/${courseId}/seed-demo-concepts`, {
           method: 'POST', headers: { Authorization: `Bearer ${token}` },
         });
-        // Strip ?demo=true so a reload doesn't seed again.
-        const cleanUrl = window.location.pathname + window.location.hash;
-        window.history.replaceState({}, '', cleanUrl);
         fetchInsights();
         fetchConceptInsights();
+        fetchStudyInsights();
       } catch {}
     })();
-  }, [courseId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conceptInsights?.totalAttempts]);
 
   // Concept-level insights — the differentiator. Polled at the same cadence
   // as the chat-question insights so the dashboard stays live during a

@@ -2130,33 +2130,36 @@ app.get('/course/:courseId/concept-insights', requireAuth, requireCourseOwner, a
     }
   }
 
-  // Look up student display names so the UI can list them by name, not uuid.
-  let nameById = new Map();
-  if (struggleStudentIds.size > 0) {
-    const ids = [...struggleStudentIds];
-    const { data: students } = await supabase.from('students')
-      .select('id, name, email').in('id', ids);
-    for (const s of students || []) nameById.set(s.id, { name: s.name || (s.email ? s.email.split('@')[0] : 'Student'), email: s.email || null });
-  }
-
-  // Shape the response. Concepts ranked by mastery ASC so the worst stuff
-  // is on top — "teach more of these."
+  // Shape the response. Anonymized — professors see what students got
+  // right/wrong and aggregate patterns; never individual identities.
+  // Concepts ranked by mastery ASC so the worst stuff is on top.
   const conceptsArr = [...concepts.values()].map(b => {
     const mastery = b.attempts > 0 ? b.correct / b.attempts : 0;
-    const studentsArr = [...b.studentTotals.entries()].map(([sid, s]) => {
+    // Count students at each mastery tier within this concept.
+    let strugglingStudents = 0, mixedStudents = 0, masteredStudents = 0;
+    for (const [, s] of b.studentTotals.entries()) {
       const stMastery = s.attempted > 0 ? s.correct / s.attempted : 0;
-      return {
-        studentId: sid,
-        name: nameById.get(sid)?.name || 'Student',
-        attempted: s.attempted,
-        correct: s.correct,
-        mastery: stMastery,
-        struggling: stMastery < 0.6,
-      };
-    }).sort((a, b) => a.mastery - b.mastery);
+      if (stMastery < 0.5) strugglingStudents += 1;
+      else if (stMastery < 0.8) mixedStudents += 1;
+      else masteredStudents += 1;
+    }
     const questionsArr = [...b.questions.values()].map(q => {
       const qMastery = q.attempts > 0 ? q.correct / q.attempts : 0;
-      // Most-picked wrong option for the drilldown "common wrong answer".
+      // Full answer distribution — % who picked each option. Drives the
+      // mini-bar chart in the drilldown UI.
+      const totalAttemptsForQ = q.attempts;
+      const distribution = (Array.isArray(q.options) ? q.options : []).map((opt, oi) => {
+        const correctCount = oi === q.correctIndex ? q.correct : 0;
+        const wrongCount = q.wrongCounts[oi] || 0;
+        const total = correctCount + wrongCount;
+        return {
+          optionIndex: oi,
+          optionText: opt,
+          count: total,
+          pct: totalAttemptsForQ > 0 ? total / totalAttemptsForQ : 0,
+          isCorrect: oi === q.correctIndex,
+        };
+      });
       const wrongEntries = Object.entries(q.wrongCounts).map(([oi, c]) => ({ optionIndex: parseInt(oi, 10), count: c }));
       wrongEntries.sort((a, b) => b.count - a.count);
       return {
@@ -2169,6 +2172,7 @@ app.get('/course/:courseId/concept-insights', requireAuth, requireCourseOwner, a
         mastery: qMastery,
         topWrongOption: wrongEntries[0] || null,
         wrongDistribution: wrongEntries,
+        distribution,
       };
     }).sort((a, b) => a.mastery - b.mastery);
     return {
@@ -2176,12 +2180,11 @@ app.get('/course/:courseId/concept-insights', requireAuth, requireCourseOwner, a
       attempts: b.attempts,
       correct: b.correct,
       mastery,
-      studentCount: studentsArr.length,
-      strugglingStudents: studentsArr.filter(s => s.struggling).length,
+      studentCount: b.studentTotals.size,
+      strugglingStudents,
+      mixedStudents,
+      masteredStudents,
       questions: questionsArr,
-      students: studentsArr,
-      // Suggested teaching action — short, actionable string the prof
-      // can scan in 1 second to know what to do with this concept.
       action: mastery >= 0.85
         ? 'On track — no reinforcement needed'
         : mastery >= 0.65
