@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f0f0f" />
+  <title>Scholr for Professors — An AI tutor grounded in your own course materials</title>
+  <meta name="description" content="Scholr gives your students 24/7 help that answers from the materials you upload — your slides, notes, and readings — and shows you exactly where your class is getting stuck." />
+  <link rel="canonical" href="https://scholr.study/for-professors" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://scholr.study/for-professors" />
+  <meta property="og:title" content="Scholr for Professors — An AI tutor grounded in your course" />
+  <meta property="og:description" content="24/7 student help that answers from the materials you upload, plus analytics on where your class is confused." />
+  <meta property="og:image" content="https://scholr.study/og-image.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+/* Scholr — dark theme to match scholr.study (#0F0F0F base) */
+:root {
+  --bg: #0f0f0f;
+  --surface: #161616;
+  --surface-2: #1d1d1d;
+  --text: #fafafa;
+  --muted: #a1a1aa;
+  --line: #272727;
+  --accent: #fafafa;     /* monochrome — set a hex here if you want a brand color */
+  --accent-2: #d4d4d8;
+  --max: 1080px;
+  --r: 14px;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-size: 18px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: "Inter", system-ui, sans-serif;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  margin: 0 0 0.5em;
+}
+h1 { font-size: clamp(2.2rem, 5vw, 3.6rem); }
+h2 { font-size: clamp(1.6rem, 3.2vw, 2.4rem); }
+h3 { font-size: 1.2rem; font-weight: 600; }
+
+p { margin: 0 0 1rem; }
+a { color: var(--accent-2); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Signature: key words in the brand accent */
+.mark {
+  color: var(--accent-2);
+  font-weight: 700;
+}
+
+.wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+
+.eyebrow {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--accent-2); margin: 0 0 1rem;
+}
+
+/* Nav */
+.nav {
+  position: sticky; top: 0; z-index: 20;
+  background: rgba(15,15,15,0.8);
+  backdrop-filter: saturate(180%) blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+.brand { font-weight: 700; font-size: 1.3rem; color: var(--text); letter-spacing: -0.03em; }
+.brand:hover { text-decoration: none; }
+.brand .dot { color: var(--accent-2); }
+.nav-links { display: flex; gap: 28px; align-items: center; }
+.nav-links a { color: var(--muted); font-size: 0.95rem; font-weight: 500; }
+.nav-links a:hover { color: var(--text); text-decoration: none; }
+.nav-cta {
+  background: var(--text); color: var(--bg) !important; padding: 9px 16px; border-radius: 999px;
+  font-size: 0.9rem; font-weight: 600;
+}
+.nav-cta:hover { background: #fff; text-decoration: none; }
+
+/* Hero */
+.hero { padding: 80px 0 56px; }
+.hero h1 { max-width: 18ch; }
+.hero .lede { font-size: clamp(1.05rem, 2vw, 1.3rem); color: var(--muted); max-width: 46ch; margin-bottom: 2rem; }
+
+.btn-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.btn { display: inline-block; padding: 14px 26px; border-radius: 999px; font-weight: 600; font-size: 1rem; }
+.btn-primary { background: var(--text); color: var(--bg); }
+.btn-primary:hover { background: #fff; text-decoration: none; }
+.btn-ghost { border: 1.5px solid var(--line); color: var(--text); }
+.btn-ghost:hover { background: var(--surface); border-color: var(--muted); text-decoration: none; }
+
+/* Sections */
+section { padding: 56px 0; }
+.section-line { border-top: 1px solid var(--line); }
+.lead { font-size: 1.15rem; color: var(--muted); max-width: 60ch; }
+
+/* Cards */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-top: 2.5rem; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 28px; }
+.card h3 { margin-top: 0; color: var(--text); }
+.card p { color: var(--muted); margin-bottom: 0; font-size: 0.98rem; }
+.card .num { font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; color: var(--accent-2); display: block; margin-bottom: 12px; }
+
+/* Steps */
+.steps { counter-reset: step; margin-top: 2.5rem; display: grid; gap: 4px; }
+.step { display: grid; grid-template-columns: 56px 1fr; gap: 20px; padding: 26px 0; border-top: 1px solid var(--line); align-items: start; }
+.step:last-child { border-bottom: 1px solid var(--line); }
+.step .n { counter-increment: step; font-family: "IBM Plex Mono", monospace; font-size: 1.4rem; color: var(--accent-2); }
+.step .n::before { content: counter(step, decimal-leading-zero); }
+.step h3 { margin: 2px 0 6px; }
+.step p { color: var(--muted); margin: 0; }
+
+/* FAQ */
+.faq { margin-top: 2rem; }
+.faq details { border-top: 1px solid var(--line); padding: 20px 0; }
+.faq details:last-child { border-bottom: 1px solid var(--line); }
+.faq summary { font-weight: 600; cursor: pointer; list-style: none; font-size: 1.08rem; color: var(--text); }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; float: right; color: var(--accent-2); font-weight: 400; }
+.faq details[open] summary::after { content: "–"; }
+.faq p { margin-top: 12px; color: var(--muted); }
+
+/* CTA band */
+.cta-band { background: var(--surface-2); border: 1px solid var(--line); color: var(--text); border-radius: var(--r); padding: 56px 40px; text-align: center; margin: 0 0 8px; }
+.cta-band h2 { color: var(--text); }
+.cta-band p { color: var(--muted); max-width: 48ch; margin: 0 auto 1.8rem; }
+.cta-band .btn-primary { background: var(--accent); color: #0b0b14; }
+.cta-band .btn-primary:hover { background: var(--accent-2); }
+
+/* Footer */
+footer { border-top: 1px solid var(--line); padding: 48px 0; color: var(--muted); font-size: 0.92rem; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 28px; justify-content: space-between; }
+footer a { color: var(--muted); }
+footer a:hover { color: var(--text); }
+.foot-links { display: flex; gap: 24px; flex-wrap: wrap; }
+
+/* a11y / motion */
+:focus-visible { outline: 3px solid var(--accent-2); outline-offset: 2px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media (max-width: 720px) {
+  .nav-links { gap: 18px; }
+  .nav-links a:not(.nav-cta) { display: none; }
+  .hero { padding: 56px 0 40px; }
+  .cta-band { padding: 40px 24px; }
+}
+
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap">
+      <a href="/" class="brand">scholr<span class="dot">.</span></a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/for-professors">For professors</a>
+        <a href="/for-students">For students</a>
+        <a href="/how-it-works">How it works</a>
+        <a href="/about">About</a>
+        <a href="/#contact" class="nav-cta">Request a pilot</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <p class="eyebrow">For professors &amp; departments</p>
+        <h1>Office hours that never close — answering from <span class="mark">your</span> course, not the open internet.</h1>
+        <p class="lede">Upload your slides, notes, and readings. Scholr answers your students' questions using those materials, and shows you where the class is getting stuck.</p>
+        <div class="btn-row">
+          <a href="/#contact" class="btn btn-primary">Request a pilot</a>
+          <a href="/how-it-works" class="btn btn-ghost">See how it works</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-line">
+      <div class="wrap">
+        <p class="eyebrow">The problem</p>
+        <h2>General-purpose chatbots don't know what you taught.</h2>
+        <p class="lead">When students reach for an off-the-shelf AI, it answers from the whole internet — different notation, different conventions, sometimes flatly contradicting your lecture. You lose the thread of what your class actually learned, and students can't tell what's reliable. Scholr is built to stay inside the four walls of your course.</p>
+      </div>
+    </section>
+
+    <section class="section-line">
+      <div class="wrap">
+        <p class="eyebrow">What you get</p>
+        <h2>Built for the way you actually teach.</h2>
+        <div class="grid">
+          <article class="card">
+            <span class="num">/ grounding</span>
+            <h3>Answers from your materials</h3>
+            <p>Scholr draws its responses from the documents you upload, so explanations match your notation, your framing, and your syllabus.</p>
+          </article>
+          <article class="card">
+            <span class="num">/ insight</span>
+            <h3>See where the class is stuck</h3>
+            <p>A confusion dashboard surfaces the topics and questions students return to most — so you know what to revisit before the exam.</p>
+          </article>
+          <article class="card">
+            <span class="num">/ control</span>
+            <h3>You own the content</h3>
+            <p>You decide what goes in. Each course is its own private space — students in one class can't reach another's materials.</p>
+          </article>
+          <article class="card">
+            <span class="num">/ effort</span>
+            <h3>Set up in minutes</h3>
+            <p>Create a course, upload your files, share a join code. No LMS migration, no IT project to kick off.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-line">
+      <div class="wrap">
+        <p class="eyebrow">Common questions</p>
+        <h2>What faculty ask first.</h2>
+        <div class="faq">
+          <details>
+            <summary>Does it just make things up?</summary>
+            <p>Scholr is designed to answer from the materials you upload rather than from open web text. When a question falls outside your uploaded content, it's built to say so instead of guessing — though like any AI tool, you should review it for your subject before relying on it broadly.</p>
+          </details>
+          <details>
+            <summary>Will it do students' work for them?</summary>
+            <p>The goal is understanding, not answer keys. You can pilot it as a study aid alongside your existing assignments and see how your students use it before deciding how it fits your course.</p>
+          </details>
+          <details>
+            <summary>What do I have to upload?</summary>
+            <p>Whatever you'd normally hand a student: lecture slides, notes, problem sets, readings you have the rights to share with your class. More material means more useful answers.</p>
+          </details>
+          <details>
+            <summary>How do I try it?</summary>
+            <p>We're running pilots with individual professors and departments. <a href="/#contact">Request a pilot</a> and we'll set up your first course together.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="cta-band">
+          <h2>Bring Scholr to your course this term.</h2>
+          <p>Start with one class. Upload your materials, give your students a place to ask, and see where they're struggling.</p>
+          <a href="/#contact" class="btn btn-primary">Request a pilot</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <div>© <span id="yr">2026</span> Scholr</div>
+      <nav class="foot-links" aria-label="Footer">
+        <a href="/for-professors">For professors</a>
+        <a href="/for-students">For students</a>
+        <a href="/how-it-works">How it works</a>
+        <a href="/about">About</a>
+      </nav>
+    </div>
+  </footer>
+  <script>document.getElementById('yr').textContent=new Date().getFullYear();</script>
+</body>
+</html>
