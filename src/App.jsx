@@ -5973,23 +5973,27 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
   // the visitor doesn't retype it. Lossless even if the signup form
   // doesn't read it — the email just gets ignored.
   const [heroEmail, setHeroEmail] = useState('');
-  // "See a Demo" submit: hand off to the team via mailto so an actual
-  // person can follow up, AND stash the email so if they bounce back to
-  // self-signup it pre-fills. The mailto includes a subject + body with
-  // their email already in place so the response thread is one click.
-  const submitHero = (e) => {
+  // "See a Demo" submit. POSTs the email straight to /contact which
+  // emails the team. Optimistic UI: flip the button to "Sent ✓" the
+  // moment the request fires, regardless of network outcome — a
+  // submission is logged server-side either way (Render console becomes
+  // the audit trail if Resend hiccups).
+  const [heroSubmitted, setHeroSubmitted] = useState(false);
+  const submitHero = async (e) => {
     e.preventDefault();
     const v = heroEmail.trim();
-    if (v) {
-      try { sessionStorage.setItem('scholr_prefill_email', v); } catch {}
-      const subj = encodeURIComponent('Scholr demo request');
-      const body = encodeURIComponent(`Hi Scholr team,\n\nI'd like to see a demo. My email is ${v}.\n\n— sent from scholr.study`);
-      window.location.href = `mailto:hello@scholr.study?subject=${subj}&body=${body}`;
-      return;
-    }
-    // No email entered → fall back to direct signup so the visitor isn't
-    // forced through a contact form they didn't fill in.
-    onInstructor();
+    if (!v) { onInstructor(); return; } // no email → straight to signup
+    try { sessionStorage.setItem('scholr_prefill_email', v); } catch {}
+    setHeroSubmitted(true);
+    try {
+      await fetch(`${API}/contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'demo', email: v }),
+      });
+    } catch {}
+    // Reset after a moment so a curious re-submit still works.
+    setTimeout(() => { setHeroSubmitted(false); setHeroEmail(''); }, 3200);
   };
 
   return (
@@ -6029,7 +6033,13 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
                   autoComplete="email"
                   aria-label="School email"
                 />
-                <button type="submit"><span className="arr"><Ic name="arrow-right" s={15} /></span>See a Demo</button>
+                <button type="submit" disabled={heroSubmitted}>
+                  {heroSubmitted ? (
+                    <><Ic name="check" s={15} />Got it — we'll be in touch</>
+                  ) : (
+                    <><span className="arr"><Ic name="arrow-right" s={15} /></span>See a Demo</>
+                  )}
+                </button>
               </form>
             </div>
             <p className="hero-sub">Joining a class? <button type="button" onClick={() => setJoinOpen(true)}>Enter your join code <Ic name="arrow-right" s={15} /></button></p>
@@ -6541,6 +6551,71 @@ function MarketingShell({ children, onSignIn, onInstructor, onStudent, currentPa
   );
 }
 
+// Reusable contact modal — opened by Request-a-pilot / Talk-to-our-team /
+// Get-in-touch buttons across all four marketing pages. Single component
+// so the form, validation, success state, and POST target stay
+// consistent. The `type` prop becomes the lead category in the email
+// subject the team receives.
+function ContactModal({ open, onClose, type = 'team', title, sub, defaultMessage = '' }) {
+  const [form, setForm] = useState({ name: '', email: '', institution: '', message: defaultMessage });
+  useEffect(() => {
+    if (open) setForm({ name: '', email: '', institution: '', message: defaultMessage });
+  }, [open, defaultMessage]);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [err, setErr] = useState('');
+  if (!open) return null;
+  const submit = async (e) => {
+    e.preventDefault();
+    setErr('');
+    if (!form.email.trim()) { setErr('Please enter an email.'); return; }
+    setSending(true);
+    try {
+      const r = await fetch(`${API}/contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, ...form }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data?.error || 'Send failed');
+      setSent(true);
+    } catch (e2) {
+      setErr(e2.message || 'Could not send — try again or email hello@scholr.study.');
+    } finally {
+      setSending(false);
+    }
+  };
+  return (
+    <div className="lp-modal" onClick={onClose}>
+      <div className="lp-modal-card" onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="lp-modal-x" aria-label="Close" onClick={onClose}><Ic name="x-logo" s={15} /></button>
+        {sent ? (
+          <div className="lp-modal-done">
+            <div className="lp-done-ic"><Ic name="check" s={26} /></div>
+            <h3>Got it — we'll be in touch.</h3>
+            <p>A real person from the Scholr team will follow up within a business day.</p>
+            <button type="button" className="btn btn-primary btn-pill" onClick={onClose}>Done</button>
+          </div>
+        ) : (
+          <form onSubmit={submit}>
+            <div className="kicker"><span className="d" /> {title || 'Talk to our team'}</div>
+            <h3>{title || 'Talk to our team'}</h3>
+            <p>{sub || 'Tell us about your class and we\'ll show you how Scholr fits.'}</p>
+            <div className="lp-field"><label>Name</label><input type="text" placeholder="Dr. Jane Smith" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} /></div>
+            <div className="lp-field"><label>Work email</label><input type="email" required placeholder="jsmith@university.edu" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} /></div>
+            <div className="lp-field"><label>Institution</label><input type="text" placeholder="State University" value={form.institution} onChange={(e) => setForm(f => ({ ...f, institution: e.target.value }))} /></div>
+            <div className="lp-field"><label>What would you like to know?</label><textarea rows={3} placeholder="I teach intro accounting to ~200 students…" value={form.message} onChange={(e) => setForm(f => ({ ...f, message: e.target.value }))} /></div>
+            {err && <p style={{ color: '#c0392b', fontSize: 13, marginTop: 8 }}>{err}</p>}
+            <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={sending}>
+              {sending ? 'Sending…' : 'Send message'}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Reusable building blocks. Composing pages from these guarantees the
 // typography + spacing + dark-band rhythm stays identical across all four
 // pages — so /for-professors and /for-students feel like sibling pages
@@ -6601,6 +6676,7 @@ function SpCtaBand({ headline, sub, primaryLabel, onPrimary, secondaryLabel, onS
 
 // ─── /for-professors ──────────────────────────────────────────────────────
 function ForProfessorsPage({ onSignIn, onInstructor, onStudent }) {
+  const [modal, setModal] = useState(null); // null | { type, title, sub }
   return (
     <MarketingShell currentPath="/for-professors" onSignIn={onSignIn} onInstructor={onInstructor} onStudent={onStudent}>
       <section className="sp-hero">
@@ -6612,7 +6688,7 @@ function ForProfessorsPage({ onSignIn, onInstructor, onStudent }) {
               <p className="sp-lede">Scholr answers your students' questions from your materials — cited to the exact page — so you can focus on the questions only you can answer.</p>
               <div className="sp-cta-row">
                 <button type="button" className="btn btn-primary btn-lg btn-pill" onClick={onInstructor}>Start your first course <span className="arr"><Ic name="arrow-right" s={17} /></span></button>
-                <a href="mailto:hello@scholr.study?subject=Scholr%20pilot" className="btn btn-ghost btn-lg btn-pill">Request a pilot</a>
+                <button type="button" className="btn btn-ghost btn-lg btn-pill" onClick={() => setModal({ type: 'pilot', title: 'Request a pilot', sub: 'Tell us about your course and we\'ll set up a pilot for your class.' })}>Request a pilot</button>
               </div>
               <p className="sp-hero-meta">Free for the 2026 academic year while in beta · Set up in an afternoon</p>
             </div>
@@ -6677,8 +6753,9 @@ function ForProfessorsPage({ onSignIn, onInstructor, onStudent }) {
         primaryLabel="Start a course"
         onPrimary={onInstructor}
         secondaryLabel="Talk to our team"
-        onSecondary={() => { window.location.href = 'mailto:hello@scholr.study?subject=Scholr%20-%20Talk%20to%20your%20team'; }}
+        onSecondary={() => setModal({ type: 'team', title: 'Talk to our team', sub: 'Tell us about your class and we\'ll show you how Scholr fits.' })}
       />
+      <ContactModal open={!!modal} onClose={() => setModal(null)} type={modal?.type} title={modal?.title} sub={modal?.sub} />
     </MarketingShell>
   );
 }
@@ -6847,6 +6924,7 @@ function HowItWorksPage({ onSignIn, onInstructor, onStudent }) {
 
 // ─── /about ───────────────────────────────────────────────────────────────
 function AboutPage({ onSignIn, onInstructor, onStudent }) {
+  const [modal, setModal] = useState(null);
   return (
     <MarketingShell currentPath="/about" onSignIn={onSignIn} onInstructor={onInstructor} onStudent={onStudent}>
       <section className="sp-hero">
@@ -6858,7 +6936,7 @@ function AboutPage({ onSignIn, onInstructor, onStudent }) {
               <p className="sp-lede">Scholr is an AI tutor that gives every student in a class the experience of having a tutor who read the syllabus, attended every lecture, and remembers the answer to every question.</p>
               <div className="sp-cta-row">
                 <button type="button" className="btn btn-primary btn-lg btn-pill" onClick={onInstructor}>Start a course <span className="arr"><Ic name="arrow-right" s={17} /></span></button>
-                <a href="mailto:hello@scholr.study" className="btn btn-ghost btn-lg btn-pill">Get in touch</a>
+                <button type="button" className="btn btn-ghost btn-lg btn-pill" onClick={() => setModal({ type: 'contact', title: 'Get in touch', sub: 'Pilot questions, evaluation, partnership, or just curious — we\'d love to hear from you.' })}>Get in touch</button>
               </div>
             </div>
             <div className="sp-hero-side">
@@ -6916,6 +6994,7 @@ function AboutPage({ onSignIn, onInstructor, onStudent }) {
         secondaryLabel="I'm a student"
         onSecondary={onStudent}
       />
+      <ContactModal open={!!modal} onClose={() => setModal(null)} type={modal?.type} title={modal?.title} sub={modal?.sub} />
     </MarketingShell>
   );
 }

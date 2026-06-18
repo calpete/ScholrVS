@@ -12,6 +12,7 @@ import fs from 'fs';
 import os from 'os';
 import { randomUUID } from 'crypto';
 import { createRequire } from 'module';
+import { Resend } from 'resend';
 
 // pdfjs-dist is the only PDF text extractor that reliably works in pure
 // Node ESM. The legacy build is the Node-safe variant; the regular build
@@ -77,6 +78,17 @@ const MODEL_EMBED = 'text-embedding-004';    // 768-dim embeddings for retrieval
 const ai = new GoogleGenAI({ vertexai: true, project: PROJECT, location: LOCATION });
 const openai = new OpenAI(); // reads OPENAI_API_KEY from env
 console.log(`✅ AI ready — gen (quiz/test/cards): ${MODEL} (Gemini) · chat: ${MODEL_CHAT} (OpenAI) · embed: ${MODEL_EMBED}`);
+
+// Resend powers the marketing-page contact endpoint (/contact). Optional —
+// if the env var isn't set, the endpoint logs submissions to the server
+// console as a fallback so a missed config never silently swallows leads.
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const CONTACT_TO  = process.env.CONTACT_TO_EMAIL  || 'calpeterson242@gmail.com';
+// Resend's test domain — works out of the box without verifying scholr.study.
+// Once the domain is verified in Resend's dashboard, swap this for
+// 'leads@scholr.study' (or similar) to send from a branded address.
+const CONTACT_FROM = process.env.CONTACT_FROM_EMAIL || 'Scholr Leads <onboarding@resend.dev>';
+console.log(`${resend ? '✅' : '⚠️ '} Contact form → ${CONTACT_TO}${resend ? '' : ' (Resend not configured — submissions will only log)'}`);
 
 const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY;
 const supabase = createClient(process.env.SUPABASE_URL, SUPABASE_KEY);
@@ -1420,6 +1432,68 @@ app.get('/join/:code', async (req, res) => {
 });
 
 app.get('/health', (req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
+
+// ── Marketing contact form ────────────────────────────────────────────────
+// All four landing-page CTAs that ask for an email — "See a Demo",
+// "Request a pilot", "Talk to our team", "Get in touch" — POST here.
+// Rate-limited to keep bots from spamming the inbox. Stores nothing
+// server-side — Resend forwards directly to CONTACT_TO_EMAIL.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+app.post('/contact', rateLimit(10), async (req, res) => {
+  const { type, email, name, institution, message } = req.body || {};
+  if (!email || typeof email !== 'string' || !EMAIL_RE.test(email)) {
+    return res.status(400).json({ error: 'A valid email is required.' });
+  }
+  // Soft caps to prevent giant payloads landing in the inbox.
+  const trim = (s, n) => (typeof s === 'string' ? s.slice(0, n).trim() : '');
+  const submission = {
+    type:        trim(type, 60)        || 'demo',
+    email:       trim(email, 200),
+    name:        trim(name, 120),
+    institution: trim(institution, 200),
+    message:     trim(message, 4000),
+    userAgent:   trim(req.get('user-agent'), 200),
+    ip:          trim(req.ip || '', 64),
+    ts:          new Date().toISOString(),
+  };
+  // Console log so submissions aren't lost even when Resend is down or
+  // misconfigured. Render's logs become the audit trail.
+  console.log(`📧 Contact form (${submission.type}): ${submission.email}${submission.name ? ` · ${submission.name}` : ''}${submission.institution ? ` · ${submission.institution}` : ''}`);
+  if (!resend) {
+    // No API key set — succeed so the visitor sees a nice confirmation,
+    // and rely on the console log for visibility.
+    return res.json({ ok: true, delivery: 'logged' });
+  }
+  try {
+    const subject = `[Scholr] ${submission.type === 'pilot' ? 'Pilot request' : submission.type === 'team' ? 'Talk-to-team' : submission.type === 'contact' ? 'Contact form' : 'Demo request'} — ${submission.email}`;
+    const lines = [
+      `New ${submission.type} request from scholr.study`,
+      '',
+      `Email:        ${submission.email}`,
+      submission.name        ? `Name:         ${submission.name}`        : null,
+      submission.institution ? `Institution:  ${submission.institution}` : null,
+      submission.message     ? `\nMessage:\n${submission.message}`       : null,
+      '',
+      '— —',
+      `Type:         ${submission.type}`,
+      `Submitted:    ${submission.ts}`,
+      `User-Agent:   ${submission.userAgent}`,
+    ].filter(Boolean).join('\n');
+    await resend.emails.send({
+      from: CONTACT_FROM,
+      to: CONTACT_TO,
+      reply_to: submission.email,
+      subject,
+      text: lines,
+    });
+    return res.json({ ok: true, delivery: 'sent' });
+  } catch (err) {
+    console.error('Contact form delivery failed:', err?.message || err);
+    // Still return 200 so the visitor doesn't see an error after
+    // submitting — the lead is in the server log either way.
+    return res.json({ ok: true, delivery: 'logged-after-error' });
+  }
+});
 
 // ── Professor Auth ────────────────────────────────────────────────────────────
 app.post('/professor/signup', rateLimit(10), async (req, res) => {
