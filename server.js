@@ -2050,6 +2050,12 @@ app.delete('/course/:courseId/document/:name', requireAuth, async (req, res) => 
 });
 
 app.get('/course/:courseId/insights', requireAuth, requireCourseOwner, async (req, res) => {
+  // ⚠️ DEMO MODE — return synthetic 50-student top-line stats (question
+  // counts, hours-saved, pulse-strip activity, 4 focused topics). Skips
+  // recent/flagged question text per the user's note ("no need for
+  // recent questions"). Delete the return below to switch back to real
+  // course-insights aggregation.
+  return res.json(buildFakeCourseInsights());
   res.json(await getCourseInsights(req.params.courseId));
 });
 
@@ -2196,6 +2202,63 @@ function buildFakeStudyInsights() {
   return {
     totalDecks: studyConcepts.reduce((s, c) => s + c.deckCount, 0),
     studyConcepts,
+  };
+}
+
+// Fake top-line dashboard data for the demo — what shows above the
+// Concept Mastery section. Tuned to make 50 students feel real: question
+// counts in the hundreds, hours-saved math derived from the question
+// total (each question ≈ 5min of office-hours / TA time saved), 14 days
+// of pulse activity ramping up to an exam-week spike, and ONLY 4 topics
+// in the ledger so the message stays focused on the concepts the prof
+// should re-teach.
+function buildFakeCourseInsights() {
+  // ── 14-day pulse strip. Build day-by-day with a believable ramp:
+  //    small at the start of the term, building to ~30/day mid-term,
+  //    big spike in the days before an exam, slight quiet day after.
+  const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
+  const PULSE_PATTERN = [4, 7, 9, 12, 14, 11, 18, 22, 27, 34, 28, 38, 56, 31];
+  const dailyActivity = PULSE_PATTERN.map((count, i) => {
+    const d = new Date(TODAY);
+    d.setDate(d.getDate() - (PULSE_PATTERN.length - 1 - i));
+    return { date: d.toISOString().slice(0, 10), count };
+  });
+  const totalQuestions = PULSE_PATTERN.reduce((s, n) => s + n, 0);
+  const weekQuestions  = PULSE_PATTERN.slice(-7).reduce((s, n) => s + n, 0);
+
+  // ── Time saved — each chat question = ~5 minutes of office hours / TA
+  //    time the professor or staff didn't have to spend. Real metric a
+  //    prof can quote on the demo.
+  const timeSavedMins = totalQuestions * 5;
+  const timeSavedHours = Math.floor(timeSavedMins / 60);
+  const timeSavedMinutes = timeSavedMins % 60;
+
+  // ── Peak study time — derived for verisimilitude. "Sun 9pm" is a
+  //    classic college pattern (Sunday night cramming) — believable.
+  const peakHourLabel = 'Sun 9pm';
+
+  // ── Topic Ledger — 4 focused topics, each clearly tied to a concept
+  //    in the Concept Mastery section so the demo flow is "they're
+  //    ASKING about Variance Analysis AND missing it in quizzes."
+  const topTopics = [
+    { topic: 'Variance Analysis',    count: 64 },
+    { topic: 'Net Present Value',    count: 47 },
+    { topic: 'Operating Leverage',   count: 38 },
+    { topic: 'Contribution Margin',  count: 24 },
+  ];
+
+  return {
+    totalQuestions,
+    weekQuestions,
+    timeSavedHours,
+    timeSavedMinutes,
+    timeSavedMins,
+    topTopics,
+    peakHourLabel,
+    dailyActivity,
+    flagged: [],   // user said "no need for recent questions" — leave empty
+    recent:  [],
+    lastQuestion: null,
   };
 }
 
