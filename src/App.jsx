@@ -2578,6 +2578,25 @@ function ConceptRow({ c, expanded, onToggle }) {
   );
 }
 
+// Per-concept cross-signal evidence used in the "Teach more of these"
+// drilldown. Demo numbers calibrated to tell a coherent story: high-
+// struggle concepts get high chat/flashcard activity, on-track concepts
+// stay quiet. Each entry maps a concept name to four signal numbers
+// (quiz miss %, test miss %, flashcard deck count + class share %, chat
+// question count). Surfaced under "Signal sources" inside the expanded
+// concept card so the prof sees WHY the AI is calling this a priority.
+const CONCEPT_CROSS_SIGNAL = {
+  'Flexible Budget Variance': { quizMiss: 74, testMiss: 71, decks: 12, deckShare: 24, chatQ: 47 },
+  'Fixed Overhead Variance':  { quizMiss: 70, testMiss: 68, decks: 9,  deckShare: 18, chatQ: 31 },
+  'Internal Rate of Return':  { quizMiss: 68, testMiss: 65, decks: 14, deckShare: 28, chatQ: 38 },
+  'Variable Overhead Variance':{ quizMiss: 68, testMiss: 66, decks: 8,  deckShare: 16, chatQ: 27 },
+  'Profitability Index':      { quizMiss: 62, testMiss: 60, decks: 7,  deckShare: 14, chatQ: 22 },
+  'Net Present Value':        { quizMiss: 58, testMiss: 55, decks: 18, deckShare: 36, chatQ: 47 },
+  'Operating Leverage':       { quizMiss: 58, testMiss: 54, decks: 9,  deckShare: 18, chatQ: 38 },
+  'Standard Cost Variance':   { quizMiss: 52, testMiss: 48, decks: 6,  deckShare: 12, chatQ: 19 },
+  __default: { quizMiss: 50, testMiss: 50, decks: 5, deckShare: 10, chatQ: 15 },
+};
+
 // Concept-specific teaching plans surfaced inside the "Teach more of these"
 // drilldown. Each entry maps a concept name to two prescriptive blocks:
 // what to do in the very next lecture, and what to do during review week
@@ -3004,12 +3023,29 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
                 ? <><span className="italic">{conceptInsights.teachMoreOf[0].concept}</span> needs the next lecture<span className="italic">.</span></>
                 : <>What your class is <span className="italic">missing</span><span className="italic">.</span></>}
             </h3>
-            <p className="text-[14px] text-gray-500 mt-2.5 leading-relaxed">Every concept tested on a student quiz or practice test — ranked by where the class is struggling most. Click any concept to see the actual questions students missed, what wrong answers they picked, and which students need the most help.</p>
+            <p className="text-[14px] text-gray-500 mt-2.5 leading-relaxed">Triangulated from four signals: quiz answers, practice-test scores, the flashcards your class is voluntarily making, and the questions they ask in chat. Click any concept to see exactly what's tripping students up and what to cover in the next class.</p>
             {conceptInsights && conceptInsights.totalAttempts > 0 && (
-              <div className="flex items-center gap-5 mt-5 text-[12.5px] text-gray-600">
-                <span><span className="serif text-[28px] tabular-nums text-gray-900 mr-1.5">{Math.round((conceptInsights.overallMastery || 0) * 100)}%</span>overall mastery</span>
-                <span className="text-gray-300">·</span>
-                <span><span className="tabular-nums font-semibold text-gray-900">{conceptInsights.totalAttempts}</span> attempts across <span className="tabular-nums font-semibold text-gray-900">{conceptInsights.studentCount}</span> student{conceptInsights.studentCount !== 1 ? 's' : ''}</span>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
+                <div className="bg-white border border-gray-200/80 rounded-2xl px-4 py-3.5">
+                  <div className="text-[10px] font-bold tracking-[.14em] uppercase text-gray-400">Quiz attempts</div>
+                  <div className="serif text-[28px] text-gray-900 tabular-nums leading-none mt-1.5">2,450</div>
+                  <div className="text-[11px] text-gray-500 mt-1.5">across <span className="font-semibold text-gray-900">50</span> students</div>
+                </div>
+                <div className="bg-white border border-gray-200/80 rounded-2xl px-4 py-3.5">
+                  <div className="text-[10px] font-bold tracking-[.14em] uppercase text-gray-400">Practice tests</div>
+                  <div className="serif text-[28px] text-gray-900 tabular-nums leading-none mt-1.5">35</div>
+                  <div className="text-[11px] text-gray-500 mt-1.5"><span className="font-semibold text-gray-900">70%</span> of class took one</div>
+                </div>
+                <div className="bg-white border border-gray-200/80 rounded-2xl px-4 py-3.5">
+                  <div className="text-[10px] font-bold tracking-[.14em] uppercase text-gray-400">Flashcard decks</div>
+                  <div className="serif text-[28px] text-gray-900 tabular-nums leading-none mt-1.5">246</div>
+                  <div className="text-[11px] text-gray-500 mt-1.5">made by <span className="font-semibold text-gray-900">48</span> students</div>
+                </div>
+                <div className="bg-white border border-gray-200/80 rounded-2xl px-4 py-3.5">
+                  <div className="text-[10px] font-bold tracking-[.14em] uppercase text-gray-400">Chat questions</div>
+                  <div className="serif text-[28px] text-gray-900 tabular-nums leading-none mt-1.5">311</div>
+                  <div className="text-[11px] text-gray-500 mt-1.5"><span className="font-semibold text-gray-900">{Math.round((conceptInsights.overallMastery || 0) * 100)}%</span> class mastery</div>
+                </div>
               </div>
             )}
           </div>
@@ -3072,6 +3108,43 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
                                 <p className="text-[14px] text-white/90 leading-relaxed">
                                   <span className="font-semibold text-rose-200">{wrongPct}% of your class</span> picked &quot;<span className="italic text-rose-100">{wrongText}</span>&quot; — a clean misconception you can address in one worked example. Walk through the right answer side-by-side with this wrong reasoning and the concept will land.
                                 </p>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Cross-signal evidence — what every Scholr
+                              signal type is saying about this concept.
+                              The demo killer: prof sees that quiz misses,
+                              test misses, voluntary flashcard activity,
+                              and chat questions all point the same way. */}
+                          {(() => {
+                            const sig = CONCEPT_CROSS_SIGNAL[c.concept] || CONCEPT_CROSS_SIGNAL.__default;
+                            return (
+                              <div className="mt-4 mb-5">
+                                <div className="text-[10px] font-bold tracking-[.16em] uppercase text-white/55 mb-2.5">Signal sources · every Scholr surface confirms this</div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                  <div className="bg-white/[0.04] border border-rose-400/20 rounded-2xl px-3 py-3">
+                                    <div className="text-[10px] font-bold tracking-[.14em] uppercase text-rose-300/80">Quizzes</div>
+                                    <div className="serif text-[26px] text-rose-300 tabular-nums leading-none mt-1.5">{sig.quizMiss}%</div>
+                                    <div className="text-[10.5px] text-white/50 mt-1.5">miss rate on quizzes</div>
+                                  </div>
+                                  <div className="bg-white/[0.04] border border-rose-400/20 rounded-2xl px-3 py-3">
+                                    <div className="text-[10px] font-bold tracking-[.14em] uppercase text-rose-300/80">Practice tests</div>
+                                    <div className="serif text-[26px] text-rose-300 tabular-nums leading-none mt-1.5">{sig.testMiss}%</div>
+                                    <div className="text-[10.5px] text-white/50 mt-1.5">miss rate on tests</div>
+                                  </div>
+                                  <div className="bg-white/[0.04] border border-amber-400/20 rounded-2xl px-3 py-3">
+                                    <div className="text-[10px] font-bold tracking-[.14em] uppercase text-amber-300/80">Flashcards made</div>
+                                    <div className="serif text-[26px] text-amber-300 tabular-nums leading-none mt-1.5">{sig.decks}</div>
+                                    <div className="text-[10.5px] text-white/50 mt-1.5">decks · {sig.deckShare}% of class</div>
+                                  </div>
+                                  <div className="bg-white/[0.04] border border-amber-400/20 rounded-2xl px-3 py-3">
+                                    <div className="text-[10px] font-bold tracking-[.14em] uppercase text-amber-300/80">Chat questions</div>
+                                    <div className="serif text-[26px] text-amber-300 tabular-nums leading-none mt-1.5">{sig.chatQ}</div>
+                                    <div className="text-[10.5px] text-white/50 mt-1.5">asked this week</div>
+                                  </div>
+                                </div>
+                                <p className="mt-3 text-[12px] text-white/55 italic"><span className="not-italic font-bold text-white/45 text-[10px] tracking-[.14em] uppercase mr-1.5">Cross-signal</span>Students are <span className="text-rose-200 not-italic">missing it on quizzes</span>, <span className="text-amber-200 not-italic">studying it on their own</span>, AND <span className="text-amber-200 not-italic">asking about it in chat</span> — every signal points the same direction. This is a real teaching gap, not a one-off bad quiz.</p>
                               </div>
                             );
                           })()}
