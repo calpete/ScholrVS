@@ -2047,14 +2047,29 @@ function CourseManager({ token, course, onBack, authHeaders, onLogout }) {
                   </p>
                 </div>
                 <div className="flex items-end gap-8 md:gap-12">
-                  <div className="flex flex-col">
-                    <span className={`text-[10px] tracking-[.20em] uppercase ${chrome.text40} font-bold mb-1.5`}>{activeTab === 'materials' ? 'Files' : 'This week'}</span>
-                    <span className={`serif text-[44px] md:text-[56px] ${chrome.text} leading-none tabular-nums`}>{activeTab === 'materials' ? mods.length : '—'}<span className={`italic ${chrome.text65}`}>.</span></span>
-                  </div>
-                  <div className="hidden md:flex flex-col">
-                    <span className={`text-[10px] tracking-[.20em] uppercase ${chrome.text40} font-bold mb-1.5`}>Status</span>
-                    <span className={`serif text-[40px] ${chrome.emerald} leading-none italic`}>Live<span className={`not-italic ${chrome.text65}`}>.</span></span>
-                  </div>
+                  {activeTab === 'materials' ? (
+                    <>
+                      <div className="flex flex-col">
+                        <span className={`text-[10px] tracking-[.20em] uppercase ${chrome.text40} font-bold mb-1.5`}>Files</span>
+                        <span className={`serif text-[44px] md:text-[56px] ${chrome.text} leading-none tabular-nums`}>{mods.length}<span className={`italic ${chrome.text65}`}>.</span></span>
+                      </div>
+                      <div className="hidden md:flex flex-col">
+                        <span className={`text-[10px] tracking-[.20em] uppercase ${chrome.text40} font-bold mb-1.5`}>Status</span>
+                        <span className={`serif text-[40px] ${chrome.emerald} leading-none italic`}>Live<span className={`not-italic ${chrome.text65}`}>.</span></span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex flex-col">
+                        <span className={`text-[10px] tracking-[.20em] uppercase ${chrome.text40} font-bold mb-1.5`}>Questions answered</span>
+                        <span className={`serif text-[44px] md:text-[56px] ${chrome.text} leading-none tabular-nums`}>370<span className={`italic ${chrome.text65}`}>.</span></span>
+                      </div>
+                      <div className="hidden md:flex flex-col">
+                        <span className={`text-[10px] tracking-[.20em] uppercase ${chrome.text40} font-bold mb-1.5`}>Hours freed up</span>
+                        <span className={`serif text-[44px] md:text-[56px] ${chrome.text} leading-none tabular-nums`}>30h 50m<span className={`italic ${chrome.text65}`}>.</span></span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -2951,59 +2966,6 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
           </div>
         </section>
 
-        {/* WHAT STUDENTS ARE STUDYING — flashcard activity rolled up by
-            concept. Cross-signals beautifully against Concept Mastery: a
-            concept that's BOTH heavily studied AND missed = clear "the
-            class knows they need help here" priority. */}
-        {studyInsights?.studyConcepts?.length > 0 && (() => {
-          // Build a quick map of concept → mastery so we can highlight
-          // concepts students are studying that they're ALSO missing.
-          const masteryByConcept = new Map();
-          for (const c of conceptInsights?.concepts || []) masteryByConcept.set(c.concept, c.mastery);
-          const max = Math.max(...studyInsights.studyConcepts.map(s => s.deckCount), 1);
-          return (
-            <section className="px-6 md:px-12 pt-10 pb-12 border-b border-gray-200/70 bg-[#FBFBF9]">
-              <div className="max-w-3xl mb-6">
-                <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Self-study signal</div>
-                <h3 className="serif text-[28px] md:text-[34px] text-gray-900 leading-tight tracking-tight">What students are <span className="italic">studying</span> on their own<span className="italic">.</span></h3>
-                <p className="text-[14px] text-gray-500 mt-2.5 leading-relaxed">Concepts your class is voluntarily making flashcards about. When this list overlaps with concepts they're missing on quizzes, it's the strongest signal that students KNOW they need help here — re-teaching it will land.</p>
-                <p className="text-[12.5px] text-gray-500 mt-2"><span className="tabular-nums font-semibold text-gray-900">{studyInsights.totalDecks}</span> deck{studyInsights.totalDecks !== 1 ? 's' : ''} made across {studyInsights.studyConcepts.length} concept{studyInsights.studyConcepts.length !== 1 ? 's' : ''}.</p>
-              </div>
-              <div className="bg-white border border-gray-200/80 rounded-3xl px-5 md:px-8 py-3 md:py-5 shadow-[0_2px_24px_-12px_rgba(15,15,15,0.08)]">
-                <div className="divide-y divide-gray-100">
-                  {studyInsights.studyConcepts.map((s, i) => {
-                    const mastery = masteryByConcept.get(s.concept);
-                    const crossSignal = mastery !== undefined && mastery < 0.65;
-                    const widthPct = (s.deckCount / max) * 100;
-                    return (
-                      <div key={s.concept} className="grid grid-cols-[42px_1fr_140px_72px] md:grid-cols-[56px_1fr_180px_96px] gap-4 md:gap-6 items-baseline py-4 md:py-5">
-                        <span className="serif text-[26px] md:text-[30px] text-gray-300 leading-none tabular-nums tracking-tight">{String(i + 1).padStart(2, '0')}</span>
-                        <div className="min-w-0">
-                          <p className="serif italic text-[18px] md:text-[20px] text-gray-900 leading-snug truncate">{s.concept}</p>
-                          {crossSignal ? (
-                            <p className="text-[11.5px] uppercase tracking-[.12em] text-rose-700 font-semibold mt-1.5">↘ Studying it · {Math.round(mastery * 100)}% mastery — re-teach</p>
-                          ) : (
-                            <p className="text-[11px] uppercase tracking-[.12em] text-gray-400 font-semibold mt-1.5">{s.studentCount} student{s.studentCount !== 1 ? 's' : ''} · {s.cardCount} cards</p>
-                          )}
-                        </div>
-                        <div className="hidden md:block">
-                          <div className="h-[2px] bg-gray-100 rounded-full overflow-hidden">
-                            <div className={`h-full ${crossSignal ? 'bg-rose-500' : 'bg-[#2A4D8F]/70'} rounded-full transition-all duration-500`} style={{ width: `${widthPct}%` }} />
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="serif text-[24px] md:text-[28px] text-gray-900 tabular-nums leading-none">{s.deckCount}</span>
-                          <p className="text-[10px] tracking-[.18em] uppercase text-gray-400 font-semibold mt-1.5">deck{s.deckCount !== 1 ? 's' : ''}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </section>
-          );
-        })()}
-
         {/* RECENT QUESTIONS — actual student questions from the last 7 days */}
         {stream.length > 0 && (
           <section className="px-6 md:px-12 pt-10 pb-12 border-b border-gray-200/70">
@@ -3020,14 +2982,6 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
           </section>
         )}
 
-        {/* STATS STRIP — kept lean: just the two numbers professors actually quote */}
-        <section className="px-6 md:px-12 pt-12 pb-14 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
-          <BigStat label="Questions answered" value={d.totalQuestions.toLocaleString()}
-            descriptor={`${d.weekQuestions} this week — the AI was on call for every one.`}
-            accent={d.weekQuestions > 0 ? { text: `↑ ${d.weekQuestions} this week`, color: '#2A4D8F' } : null} />
-          <BigStat label="Hours freed up" value={timeSaved}
-            descriptor={`Roughly ${Math.max(1, Math.round((d.timeSavedHours * 60 + d.timeSavedMinutes) / 20))} office-hour slots you didn't have to staff.`} />
-        </section>
       </div>
       <ConfirmDialog
         open={confirmingClear}
