@@ -2407,7 +2407,7 @@ function ConceptRow({ c, expanded, onToggle }) {
             : c.mastery >= 0.40 ? { bar: 'bg-orange-500',   pill: 'bg-orange-50 text-orange-700 border-orange-100', label: 'Reinforce' }
                                 : { bar: 'bg-rose-500',     pill: 'bg-rose-50 text-rose-700 border-rose-100',      label: 'Major gap' };
   return (
-    <div className={`border-b border-gray-100 last:border-0 transition-colors ${expanded ? 'bg-[#FBFBF9]' : 'hover:bg-[#FAFAF8]'}`}>
+    <div data-concept-row={c.concept} className={`border-b border-gray-100 last:border-0 transition-colors ${expanded ? 'bg-[#FBFBF9]' : 'hover:bg-[#FAFAF8]'}`}>
       <button type="button" onClick={onToggle} className="w-full text-left grid grid-cols-[1fr_140px_120px_40px] md:grid-cols-[1fr_180px_140px_56px] gap-3 md:gap-6 items-center py-4 md:py-5 px-4 md:px-6">
         <div className="min-w-0">
           <p className="serif italic text-[19px] md:text-[21px] text-gray-900 leading-snug truncate">{c.concept}</p>
@@ -2873,7 +2873,16 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
               <p className="serif text-[20px] md:text-[22px] text-white leading-snug max-w-2xl mb-5 italic">If your class only had time for three concepts this week, these are the ones.</p>
               <div className="flex flex-col gap-2.5">
                 {conceptInsights.teachMoreOf.map((c, i) => (
-                  <button key={c.concept} type="button" onClick={() => { setOpenConcept(openConcept === c.concept ? null : c.concept); }} className="group flex items-center gap-4 text-left px-4 py-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-colors">
+                  <button key={c.concept} type="button" onClick={() => {
+                    // Open the matching concept row in the ledger below AND
+                    // scroll it into view so the prof sees the drilldown
+                    // panel without having to hunt for the right row.
+                    setOpenConcept(c.concept);
+                    requestAnimationFrame(() => {
+                      const el = document.querySelector(`[data-concept-row="${CSS.escape(c.concept)}"]`);
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    });
+                  }} className="group flex items-center gap-4 text-left px-4 py-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-colors">
                     <span className="serif italic text-[20px] tabular-nums text-white/40 w-7 flex-shrink-0">{String(i + 1).padStart(2, '0')}</span>
                     <span className="flex-1 min-w-0">
                       <p className="text-[15.5px] font-semibold text-white truncate">{c.concept}</p>

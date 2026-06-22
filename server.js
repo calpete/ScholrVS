@@ -2163,7 +2163,13 @@ function buildFakeConceptInsights() {
   const totalAttempts = conceptsArr.reduce((s, c) => s + c.attempts, 0);
   const totalCorrect = conceptsArr.reduce((s, c) => s + c.correct, 0);
   const overallMastery = totalAttempts > 0 ? totalCorrect / totalAttempts : 0;
-  const teachMoreOf = conceptsArr.filter(c => c.mastery < 0.65 && c.attempts >= 2).slice(0, 6);
+  // Headline lists trimmed for demo focus:
+  //   - teachMoreOf: 3 priority concepts (matches the "three concepts
+  //     this week" copy in the dark callout heading).
+  //   - concepts:   top 10 worst-mastered only, so the ledger is
+  //     scannable in one glance instead of a long scroll of 24 rows.
+  const teachMoreOf = conceptsArr.filter(c => c.mastery < 0.65 && c.attempts >= 2).slice(0, 3);
+  const conceptsTrimmed = conceptsArr.slice(0, 10);
   return {
     overallMastery,
     totalAttempts,
@@ -2171,7 +2177,7 @@ function buildFakeConceptInsights() {
     quizCount: DEMO_QUIZZES.length,
     testCount: 1,
     studentCount: STUDENT_COUNT,
-    concepts: conceptsArr,
+    concepts: conceptsTrimmed,
     teachMoreOf,
   };
 }
@@ -2198,33 +2204,25 @@ function buildFakeStudyInsights() {
   const studyConcepts = [...studyByConcept.values()]
     .map(b => ({ concept: b.concept, deckCount: b.deckCount, cardCount: b.cardCount, studentCount: Math.min(50, b.studentSet.size) }))
     .sort((a, b) => b.deckCount - a.deckCount)
-    .slice(0, 12);
+    .slice(0, 5); // top 5 concepts students are studying — focused, scannable
   return {
     totalDecks: studyConcepts.reduce((s, c) => s + c.deckCount, 0),
     studyConcepts,
   };
 }
 
-// Fake top-line dashboard data for the demo — what shows above the
-// Concept Mastery section. Tuned to make 50 students feel real: question
-// counts in the hundreds, hours-saved math derived from the question
-// total (each question ≈ 5min of office-hours / TA time saved), 14 days
-// of pulse activity ramping up to an exam-week spike, and ONLY 4 topics
-// in the ledger so the message stays focused on the concepts the prof
-// should re-teach.
 function buildFakeCourseInsights() {
-  // ── 14-day pulse strip. Build day-by-day with a believable ramp:
-  //    small at the start of the term, building to ~30/day mid-term,
-  //    big spike in the days before an exam, slight quiet day after.
-  const TODAY = new Date(); TODAY.setHours(0, 0, 0, 0);
-  const PULSE_PATTERN = [4, 7, 9, 12, 14, 11, 18, 22, 27, 34, 28, 38, 56, 31];
-  const dailyActivity = PULSE_PATTERN.map((count, i) => {
-    const d = new Date(TODAY);
-    d.setDate(d.getDate() - (PULSE_PATTERN.length - 1 - i));
-    return { date: d.toISOString().slice(0, 10), count };
-  });
-  const totalQuestions = PULSE_PATTERN.reduce((s, n) => s + n, 0);
-  const weekQuestions  = PULSE_PATTERN.slice(-7).reduce((s, n) => s + n, 0);
+  // ── 7-day pulse strip — shape matches what InsightPulseStrip expects:
+  //    { day: 'Sun', questions: N }. 7 days exactly; component falls
+  //    back to flat zeros if length is wrong, which is the bug we saw.
+  //    Pattern: builds across the week, big spike Thursday (pre-exam),
+  //    quiet Saturday.
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const PULSE_QUESTIONS = [18, 24, 31, 27, 56, 38, 22];
+  const dailyActivity = DAYS.map((day, i) => ({ day, questions: PULSE_QUESTIONS[i] }));
+  const weekQuestions  = PULSE_QUESTIONS.reduce((s, n) => s + n, 0);
+  // Total includes earlier weeks too — bigger number for the headline.
+  const totalQuestions = weekQuestions + 154;
 
   // ── Time saved — each chat question = ~5 minutes of office hours / TA
   //    time the professor or staff didn't have to spend. Real metric a
