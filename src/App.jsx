@@ -2483,28 +2483,34 @@ function ConceptRow({ c, expanded, onToggle }) {
                         <span className="text-gray-300">·</span>
                         <span className={qpct < 50 ? 'text-rose-600 font-semibold' : qpct < 80 ? 'text-amber-700' : 'text-emerald-700'}>{qpct}% mastery</span>
                       </div>
-                      {/* Per-option answer distribution — correct option in
-                          emerald, wrong picks in rose, unpicked in gray. */}
+                      {/* Per-option answer distribution. Letter pill on
+                          the left, option text in the middle, bar + bold
+                          percentage on the right. Correct = emerald,
+                          wrong picks = rose, unpicked = gray. */}
                       {Array.isArray(q.distribution) && q.distribution.length > 0 && (
-                        <div className="mt-3 space-y-1.5">
+                        <div className="mt-4 space-y-2">
                           {q.distribution.map((d) => {
                             const pct = Math.round(d.pct * 100);
                             const barColor = d.isCorrect ? 'bg-emerald-500' : d.count > 0 ? 'bg-rose-400' : 'bg-gray-200';
+                            const pillBg   = d.isCorrect ? 'bg-emerald-100 text-emerald-700' : d.count > 0 ? 'bg-rose-100 text-rose-700' : 'bg-gray-100 text-gray-400';
                             const labelColor = d.isCorrect ? 'text-emerald-700' : d.count > 0 ? 'text-rose-700' : 'text-gray-400';
+                            const textColor  = d.isCorrect ? 'text-emerald-900 font-medium' : d.count > 0 ? 'text-rose-900' : 'text-gray-400';
                             const optLetter = String.fromCharCode(65 + d.optionIndex);
                             const optText = String(d.optionText || '').replace(/^[A-D]\)\s?/, '');
                             return (
-                              <div key={d.optionIndex} className="grid grid-cols-[18px_1fr_44px] gap-2 items-center">
-                                <span className={`text-[11px] font-bold tabular-nums ${labelColor}`}>{optLetter}{d.isCorrect && <span className="ml-0.5">✓</span>}</span>
-                                <div className="min-w-0 flex items-center gap-2">
-                                  <span className={`text-[12.5px] truncate ${d.isCorrect ? 'text-emerald-900 font-medium' : d.count > 0 ? 'text-rose-900' : 'text-gray-400'}`}>{optText}</span>
+                              <div key={d.optionIndex} className="grid grid-cols-[28px_1fr_120px_48px] md:grid-cols-[32px_1fr_220px_56px] gap-3 md:gap-4 items-center">
+                                {/* Letter pill */}
+                                <div className={`inline-flex items-center justify-center h-6 md:h-7 rounded-md ${pillBg}`}>
+                                  <span className="text-[11px] md:text-[12px] font-bold tabular-nums">{optLetter}{d.isCorrect && <span className="ml-0.5 text-[10px]">✓</span>}</span>
                                 </div>
-                                <div className="flex items-center gap-1.5">
-                                  <div className="flex-1 h-[6px] bg-gray-100 rounded-full overflow-hidden min-w-[34px]">
-                                    <div className={`h-full ${barColor} rounded-full transition-all duration-500`} style={{ width: `${Math.max(d.count > 0 ? 6 : 0, pct)}%` }} />
-                                  </div>
-                                  <span className={`text-[10.5px] tabular-nums font-semibold ${labelColor} w-7 text-right`}>{pct}%</span>
+                                {/* Option text */}
+                                <span className={`text-[13px] md:text-[14px] truncate ${textColor}`}>{optText}</span>
+                                {/* Bar — taller, more visible weight */}
+                                <div className="h-[8px] md:h-[10px] bg-gray-100 rounded-full overflow-hidden">
+                                  <div className={`h-full ${barColor} rounded-full transition-all duration-500`} style={{ width: `${Math.max(d.count > 0 ? 3 : 0, pct)}%` }} />
                                 </div>
+                                {/* Percentage — bigger, bolder, right-aligned */}
+                                <span className={`text-[13px] md:text-[14px] tabular-nums font-bold ${labelColor} text-right`}>{pct}%</span>
                               </div>
                             );
                           })}
