@@ -2594,6 +2594,13 @@ const CONCEPT_CROSS_SIGNAL = {
   'Net Present Value':        { quizMiss: 58, testMiss: 55, decks: 18, deckShare: 36, chatQ: 47 },
   'Operating Leverage':       { quizMiss: 58, testMiss: 54, decks: 9,  deckShare: 18, chatQ: 38 },
   'Standard Cost Variance':   { quizMiss: 52, testMiss: 48, decks: 6,  deckShare: 12, chatQ: 19 },
+  // High-mastery proof-point concepts — calibrated to look like "on track"
+  // across every signal (low quiz miss rates, fewer panic-decks, fewer
+  // confusion-driven chat questions).
+  'Variable Costs':           { quizMiss: 6,  testMiss: 8,  decks: 5,  deckShare: 10, chatQ: 7  },
+  'Fixed Costs':              { quizMiss: 8,  testMiss: 10, decks: 6,  deckShare: 12, chatQ: 9  },
+  'Break-even Point':         { quizMiss: 10, testMiss: 12, decks: 8,  deckShare: 16, chatQ: 14 },
+  'Contribution Margin':      { quizMiss: 12, testMiss: 14, decks: 10, deckShare: 20, chatQ: 18 },
   __default: { quizMiss: 50, testMiss: 50, decks: 5, deckShare: 10, chatQ: 15 },
 };
 
@@ -3144,7 +3151,11 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
                                     <div className="text-[10.5px] text-white/50 mt-1.5">asked this week</div>
                                   </div>
                                 </div>
-                                <p className="mt-3 text-[12px] text-white/55 italic"><span className="not-italic font-bold text-white/45 text-[10px] tracking-[.14em] uppercase mr-1.5">Cross-signal</span>Students are <span className="text-rose-200 not-italic">missing it on quizzes</span>, <span className="text-amber-200 not-italic">studying it on their own</span>, AND <span className="text-amber-200 not-italic">asking about it in chat</span> — every signal points the same direction. This is a real teaching gap, not a one-off bad quiz.</p>
+                                {c.mastery >= 0.80 ? (
+                                  <p className="mt-3 text-[12px] text-white/55 italic"><span className="not-italic font-bold text-white/45 text-[10px] tracking-[.14em] uppercase mr-1.5">Cross-signal</span>Strong across all four signals — <span className="text-emerald-200 not-italic">quiz scores</span>, <span className="text-emerald-200 not-italic">practice tests</span>, AND the <span className="text-emerald-200 not-italic">low chat volume</span> all confirm the class has this. No re-teach needed — keep the lecture time for the gaps elsewhere.</p>
+                                ) : (
+                                  <p className="mt-3 text-[12px] text-white/55 italic"><span className="not-italic font-bold text-white/45 text-[10px] tracking-[.14em] uppercase mr-1.5">Cross-signal</span>Students are <span className="text-rose-200 not-italic">missing it on quizzes</span>, <span className="text-amber-200 not-italic">studying it on their own</span>, AND <span className="text-amber-200 not-italic">asking about it in chat</span> — every signal points the same direction. This is a real teaching gap, not a one-off bad quiz.</p>
+                                )}
                               </div>
                             );
                           })()}
@@ -3181,34 +3192,6 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
                             );
                           })()}
 
-                          {/* Teaching plan — the actionable centerpiece. Two
-                              prescriptive cards: what to do in the next
-                              class and what to assign for review week. */}
-                          {(() => {
-                            const plan = CONCEPT_TEACHING_PLAN[c.concept] || CONCEPT_TEACHING_PLAN.__default;
-                            return (
-                              <div>
-                                <div className="text-[10px] font-bold tracking-[.16em] uppercase text-white/55 mb-2.5">Teaching plan</div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                                  <div className="bg-white/[0.04] border border-emerald-400/20 rounded-2xl p-4">
-                                    <div className="flex items-center gap-2 text-[10px] font-bold tracking-[.16em] uppercase text-emerald-300 mb-2">
-                                      <span className="block w-5 h-[1.5px] bg-current opacity-70 rounded-sm" />Next class
-                                    </div>
-                                    <p className="text-[14px] text-white/90 leading-relaxed">{plan.nextClass}</p>
-                                  </div>
-                                  <div className="bg-white/[0.04] border border-amber-400/20 rounded-2xl p-4">
-                                    <div className="flex items-center gap-2 text-[10px] font-bold tracking-[.16em] uppercase text-amber-300 mb-2">
-                                      <span className="block w-5 h-[1.5px] bg-current opacity-70 rounded-sm" />Review week
-                                    </div>
-                                    <p className="text-[14px] text-white/90 leading-relaxed">{plan.reviewWeek}</p>
-                                  </div>
-                                </div>
-                                {plan.drillFocus && (
-                                  <p className="mt-3 text-[12px] text-white/55 italic"><span className="not-italic font-bold text-white/45 text-[10px] tracking-[.14em] uppercase mr-1.5">Drill focus</span>{plan.drillFocus}</p>
-                                )}
-                              </div>
-                            );
-                          })()}
                         </div>
                       )}
                     </div>

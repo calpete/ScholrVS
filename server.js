@@ -2163,11 +2163,15 @@ function buildFakeConceptInsights() {
   const totalAttempts = conceptsArr.reduce((s, c) => s + c.attempts, 0);
   const totalCorrect = conceptsArr.reduce((s, c) => s + c.correct, 0);
   const overallMastery = totalAttempts > 0 ? totalCorrect / totalAttempts : 0;
-  // Dark "Teach more of these" callout is the primary surface in the
-  // redesign — expanded to 8 concepts so the prof sees their whole
-  // teaching priority list in one block, each one expandable inline
-  // with the analytical breakdown.
-  const teachMoreOf = conceptsArr.filter(c => c.mastery < 0.65 && c.attempts >= 2).slice(0, 8);
+  // Mixed-tone list of 8 concepts so the dashboard isn't pure doom:
+  // the bottom 5 (worst-mastered, real teaching priorities) plus the
+  // top 3 (best-mastered, positive proof points the class is nailing).
+  // The visual contrast — rose Major Gap pills next to emerald On Track
+  // pills — tells the prof "here's what to fix AND what's working" in
+  // one block.
+  const worstFive = conceptsArr.filter(c => c.attempts >= 2).slice(0, 5);
+  const bestThree = conceptsArr.filter(c => c.attempts >= 2).slice(-3).reverse();
+  const teachMoreOf = [...worstFive, ...bestThree];
   const conceptsTrimmed = conceptsArr.slice(0, 10);
   return {
     overallMastery,
