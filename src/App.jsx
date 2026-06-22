@@ -2324,12 +2324,42 @@ function InsightPulseStrip({ dailyActivity }) {
   );
 }
 
+// Per-topic AI-style descriptions surfaced when a Topic Ledger row is
+// clicked. Hardcoded for the demo topics — gives the prof a paragraph
+// of "what's going on" insight derived (in spirit) from the chat
+// questions the class actually asked, plus a concrete next-class
+// recommendation. Falls back to a generic template for any topic
+// not in the map.
+const TOPIC_LEDGER_INSIGHT = {
+  'Variance Analysis': {
+    pattern: 'Most chat traffic on this topic is foundational — students keep asking what "favorable" vs "unfavorable" actually means, and whether the flexible budget variance is the same as the static budget variance. The deeper confusion is that students don\'t yet have the mental model of a flexible budget as something that re-baselines at actual activity. They treat the static and flexible budgets as interchangeable.',
+    cover: 'Spend the first 10 minutes of next class grounding both budget types side-by-side with a single numeric example: same actual results, two different budgets. Then move to materials and labor variances. Without that foundation, the more advanced variance topics will keep tripping the same students.',
+  },
+  'Net Present Value': {
+    pattern: 'Two distinct clusters of confusion show up in the chat. Roughly 60% of NPV questions are about where the DISCOUNT RATE comes from — students are treating it as a given without understanding it represents the cost of capital or required return. The other 40% is about the decision rule itself; multiple students asked variations of "why do we reject a project with negative NPV?" — meaning the conceptual link between "NPV < 0" and "project earns less than the required return" hasn\'t landed.',
+    cover: 'A worked example showing what the discount rate REPRESENTS (e.g., a firm\'s WACC) plus a side-by-side compare to IRR (where NPV equals zero) would clear up both clusters at once. The discount rate concept is the lynchpin — once it clicks, the decision rule becomes obvious.',
+  },
+  'Operating Leverage': {
+    pattern: 'Almost every chat question on Operating Leverage is some variation of "I don\'t understand it." Students are computing DOL (Contribution Margin / Net Operating Income) mechanically but they aren\'t grasping what the number MEANS. The missing bridge is from the formula to the prediction: "a high DOL means small sales changes amplify into big operating-income changes."',
+    cover: 'Show two contribution-margin income statements side-by-side at the same sales level — one high-fixed-cost firm, one low-fixed-cost firm. Then increase sales 10% and let the class see how the high-DOL firm\'s operating income jumps disproportionately. The visual will stick when the formula derivation doesn\'t.',
+  },
+  'Contribution Margin': {
+    pattern: 'Roughly 40% of the chat questions here are confusion between contribution margin and gross margin — students aren\'t sure which costs go into which. The remaining 60% is split between basic computation questions and multi-product-mix problems. The CM/gross-margin confusion is a vocabulary problem, but the multi-product issue is conceptual: students are averaging when they should be weighting.',
+    cover: 'Open with a clean vocabulary slide distinguishing the two margins: CM uses VARIABLE costs only; gross margin uses COGS, which includes fixed manufacturing. Then drill one multi-product CVP example where the product mix is explicitly NOT 50/50 — that forces the weighted-average thinking.',
+  },
+  // Generic fallback for topics not in the map.
+  __default: {
+    pattern: 'Student chat activity on this topic suggests a mix of foundational and applied confusion. The class is asking enough questions that one clarifying lecture would move the needle, but the questions aren\'t clustered around a single misconception.',
+    cover: 'Do one worked example tied to the most-asked phrasing pattern. Watch for which sub-area triggers follow-up questions and prioritize that next.',
+  },
+};
+
 // The Topic Ledger — replaces the abstract Constellation viz with an
-// editorial ranked list that's actually readable. Each row: a big serif
-// rank number, the topic name in italic, a thin proportional volume bar,
-// and the count in tabular figures. Renders an empty state when no
-// questions exist yet (no fake demo data).
+// editorial ranked list that's actually readable. Each row is now
+// clickable: opens an AI-style breakdown of WHAT students are mixed up
+// about on that topic plus a concrete next-class recommendation.
 function TopicLedger({ topics, totalQuestions }) {
+  const [openTopic, setOpenTopic] = useState(null);
   if (!topics || topics.length === 0) {
     return (
       <div className="py-16 text-center">
@@ -2352,22 +2382,39 @@ function TopicLedger({ topics, totalQuestions }) {
         {ranked.map((t, i) => {
           const share = totalAsked > 0 ? (t.count / totalAsked) : 0;
           const widthPct = (t.count / max) * 100;
+          const isOpen = openTopic === t.topic;
+          const insight = TOPIC_LEDGER_INSIGHT[t.topic] || TOPIC_LEDGER_INSIGHT.__default;
           return (
-            <div key={t.topic} className="group grid grid-cols-[42px_1fr_56px] md:grid-cols-[56px_1fr_88px] gap-4 md:gap-6 items-baseline py-5">
-              <span className="serif text-[26px] md:text-[30px] text-gray-300 group-hover:text-gray-500 leading-none tabular-nums tracking-tight transition-colors">{String(i + 1).padStart(2, '0')}</span>
-              <div className="min-w-0">
-                <p className="serif italic text-[18px] md:text-[20px] text-gray-900 leading-snug truncate">{t.topic}</p>
-                <div className="mt-3 h-[2px] bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#2A4D8F]/80 rounded-full transition-all duration-500" style={{ width: `${widthPct}%` }} />
+            <div key={t.topic}>
+              <button type="button" onClick={() => setOpenTopic(isOpen ? null : t.topic)} className={`group w-full text-left grid grid-cols-[42px_1fr_56px_28px] md:grid-cols-[56px_1fr_88px_36px] gap-4 md:gap-6 items-baseline py-5 transition-colors ${isOpen ? 'bg-[#FBFBF9]' : 'hover:bg-[#FAFAF8]'}`}>
+                <span className="serif text-[26px] md:text-[30px] text-gray-300 group-hover:text-gray-500 leading-none tabular-nums tracking-tight transition-colors">{String(i + 1).padStart(2, '0')}</span>
+                <div className="min-w-0">
+                  <p className="serif italic text-[18px] md:text-[20px] text-gray-900 leading-snug truncate">{t.topic}</p>
+                  <div className="mt-3 h-[2px] bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-[#2A4D8F]/80 rounded-full transition-all duration-500" style={{ width: `${widthPct}%` }} />
+                  </div>
+                  {share > 0.01 && (
+                    <p className="text-[10.5px] tracking-[.14em] uppercase text-gray-400 font-semibold mt-2">{Math.round(share * 100)}% of this week</p>
+                  )}
                 </div>
-                {share > 0.01 && (
-                  <p className="text-[10.5px] tracking-[.14em] uppercase text-gray-400 font-semibold mt-2">{Math.round(share * 100)}% of this week</p>
-                )}
-              </div>
-              <div className="text-right">
-                <span className="serif text-[24px] md:text-[28px] text-gray-900 tabular-nums leading-none">{t.count}</span>
-                <p className="text-[10px] tracking-[.18em] uppercase text-gray-400 font-semibold mt-1.5">{t.count === 1 ? 'Ask' : 'Asks'}</p>
-              </div>
+                <div className="text-right">
+                  <span className="serif text-[24px] md:text-[28px] text-gray-900 tabular-nums leading-none">{t.count}</span>
+                  <p className="text-[10px] tracking-[.18em] uppercase text-gray-400 font-semibold mt-1.5">{t.count === 1 ? 'Ask' : 'Asks'}</p>
+                </div>
+                <ChevronRight size={16} className={`text-gray-300 group-hover:text-gray-600 transition-all self-center ${isOpen ? 'rotate-90' : ''}`} />
+              </button>
+              {isOpen && (
+                <div className="bg-[#FBFBF9] border-t border-gray-100 px-5 md:px-12 py-6 md:py-7 fade-up">
+                  <div className="flex items-center gap-3 text-[10px] font-bold tracking-[.18em] uppercase text-gray-400 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />What students are mixed up about</div>
+                  <p className="text-[15px] text-gray-800 leading-relaxed mb-5">{insight.pattern}</p>
+                  <div className="bg-white border border-[#2A4D8F]/15 rounded-2xl p-4 md:p-5">
+                    <div className="flex items-center gap-2 text-[10px] font-bold tracking-[.16em] uppercase text-[#2A4D8F] mb-2">
+                      <span className="block w-5 h-[1.5px] bg-current opacity-70 rounded-sm" />What to cover next class
+                    </div>
+                    <p className="text-[14.5px] text-gray-800 leading-relaxed">{insight.cover}</p>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
