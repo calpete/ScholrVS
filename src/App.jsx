@@ -2915,61 +2915,129 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
 
           {/* Teach more of — quick-glance priority list at the top */}
           {conceptInsights?.teachMoreOf?.length > 0 && (
-            <div className="mb-7 bg-[#15161B] text-white rounded-3xl px-6 md:px-8 py-6 md:py-7">
+            <div className="bg-[#15161B] text-white rounded-3xl px-6 md:px-8 py-6 md:py-7">
               <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-white/60 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Teach more of these</div>
-              <p className="serif text-[20px] md:text-[22px] text-white leading-snug max-w-2xl mb-5 italic">If your class only had time for three concepts this week, these are the ones.</p>
+              <p className="serif text-[20px] md:text-[24px] text-white leading-snug max-w-2xl mb-6 italic">The concepts your class is wrestling with most this week. Tap any one for the full breakdown.</p>
               <div className="flex flex-col gap-2.5">
-                {conceptInsights.teachMoreOf.map((c, i) => (
-                  <button key={c.concept} type="button" onClick={() => {
-                    // Open the matching concept row in the ledger below AND
-                    // scroll it into view so the prof sees the drilldown
-                    // panel without having to hunt for the right row.
-                    setOpenConcept(c.concept);
-                    requestAnimationFrame(() => {
-                      const el = document.querySelector(`[data-concept-row="${CSS.escape(c.concept)}"]`);
-                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    });
-                  }} className="group flex items-center gap-4 text-left px-4 py-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-colors">
-                    <span className="serif italic text-[20px] tabular-nums text-white/40 w-7 flex-shrink-0">{String(i + 1).padStart(2, '0')}</span>
-                    <span className="flex-1 min-w-0">
-                      <p className="text-[15.5px] font-semibold text-white truncate">{c.concept}</p>
-                      <p className="text-[12px] text-white/55 mt-0.5">{c.action}</p>
-                    </span>
-                    <span className="tabular-nums text-[15px] text-rose-300 font-semibold">{Math.round(c.mastery * 100)}%</span>
-                    <ChevronRight size={16} className="text-white/40 group-hover:text-white/80 transition-colors" />
-                  </button>
-                ))}
+                {conceptInsights.teachMoreOf.map((c, i) => {
+                  const isOpen = openConcept === c.concept;
+                  const pct = Math.round(c.mastery * 100);
+                  // Tone styling for the mastery badge — clearer signal hierarchy.
+                  const tonePill = pct < 30 ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                                : pct < 50 ? 'bg-orange-500/15 text-orange-300 border-orange-500/30'
+                                            : 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+                  return (
+                    <div key={c.concept} className={`rounded-2xl border transition-colors ${isOpen ? 'bg-white/[0.06] border-white/15' : 'bg-white/[0.04] border-white/10 hover:bg-white/[0.08]'}`}>
+                      <button type="button" onClick={() => setOpenConcept(isOpen ? null : c.concept)} className="group w-full flex items-center gap-4 text-left px-4 py-3.5">
+                        <span className="serif italic text-[20px] tabular-nums text-white/40 w-7 flex-shrink-0">{String(i + 1).padStart(2, '0')}</span>
+                        <span className="flex-1 min-w-0">
+                          <p className="text-[16px] font-semibold text-white truncate">{c.concept}</p>
+                          <p className="text-[12.5px] text-white/55 mt-0.5">{c.action}</p>
+                        </span>
+                        <span className={`hidden md:inline-flex items-center px-2.5 py-1 rounded-full border text-[10.5px] font-bold tracking-[.12em] uppercase ${tonePill}`}>{pct < 30 ? 'Major gap' : pct < 50 ? 'Reinforce' : 'Mixed'}</span>
+                        <span className="tabular-nums text-[16px] text-rose-300 font-bold w-12 text-right">{pct}%</span>
+                        <ChevronRight size={16} className={`text-white/40 group-hover:text-white/70 transition-all flex-shrink-0 ${isOpen ? 'rotate-90' : ''}`} />
+                      </button>
+                      {isOpen && (
+                        <div className="px-4 md:px-6 pb-6 pt-2 fade-up border-t border-white/10 mt-1">
+                          {/* Mastery tier breakdown — anonymized class counts */}
+                          <div className="grid grid-cols-3 gap-2 mt-4 mb-5">
+                            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-3 py-2.5">
+                              <div className="text-[10px] font-bold tracking-[.14em] uppercase text-emerald-300/80">Mastered</div>
+                              <div className="serif text-[24px] text-emerald-300 tabular-nums leading-none mt-1">{c.masteredStudents || 0}</div>
+                              <div className="text-[10.5px] text-emerald-300/60 mt-1">≥ 80%</div>
+                            </div>
+                            <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl px-3 py-2.5">
+                              <div className="text-[10px] font-bold tracking-[.14em] uppercase text-amber-300/80">Mixed</div>
+                              <div className="serif text-[24px] text-amber-300 tabular-nums leading-none mt-1">{c.mixedStudents || 0}</div>
+                              <div className="text-[10.5px] text-amber-300/60 mt-1">50–79%</div>
+                            </div>
+                            <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl px-3 py-2.5">
+                              <div className="text-[10px] font-bold tracking-[.14em] uppercase text-rose-300/80">Struggling</div>
+                              <div className="serif text-[24px] text-rose-300 tabular-nums leading-none mt-1">{c.strugglingStudents || 0}</div>
+                              <div className="text-[10.5px] text-rose-300/60 mt-1">&lt; 50%</div>
+                            </div>
+                          </div>
+
+                          {/* What to teach — derived from the top wrong answer pattern */}
+                          {c.questions?.[0]?.topWrongOption && (() => {
+                            const topQ = c.questions[0];
+                            const wrongIdx = topQ.topWrongOption.optionIndex;
+                            const wrongText = String(topQ.options?.[wrongIdx] || '').replace(/^[A-D]\)\s?/, '');
+                            const wrongPct = Math.round((topQ.topWrongOption.count / topQ.attempts) * 100);
+                            return (
+                              <div className="bg-rose-500/10 border border-rose-500/25 rounded-2xl p-4 mb-5">
+                                <div className="text-[10px] font-bold tracking-[.16em] uppercase text-rose-300 mb-2">What to teach</div>
+                                <p className="text-[14px] text-white/90 leading-relaxed">
+                                  <span className="font-semibold text-rose-200">{wrongPct}% of your class</span> picked &quot;<span className="italic text-rose-100">{wrongText}</span>&quot; — a clean misconception you can address in one worked example. Walk through the right answer side-by-side with this wrong reasoning and the concept will land.
+                                </p>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Per-question breakdown with answer distribution */}
+                          {c.questions?.length > 0 && (
+                            <div>
+                              <div className="text-[10px] font-bold tracking-[.16em] uppercase text-white/55 mb-2.5">Questions in this concept · how the class answered</div>
+                              <div className="space-y-2.5">
+                                {c.questions.slice(0, 4).map((q, qi) => {
+                                  const qpct = Math.round(q.mastery * 100);
+                                  return (
+                                    <div key={qi} className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+                                      <p className="text-[14.5px] text-white leading-snug font-medium">{q.text}</p>
+                                      <div className="flex items-center gap-2 mt-2 text-[11.5px] text-white/55">
+                                        <span><span className="tabular-nums font-semibold text-white/80">{q.correct}</span>/<span className="tabular-nums">{q.attempts}</span> correct</span>
+                                        <span className="text-white/25">·</span>
+                                        <span className={qpct < 50 ? 'text-rose-300 font-semibold' : qpct < 80 ? 'text-amber-300' : 'text-emerald-300'}>{qpct}% mastery</span>
+                                      </div>
+                                      {Array.isArray(q.distribution) && q.distribution.length > 0 && (
+                                        <div className="mt-3 space-y-2">
+                                          {q.distribution.map((d) => {
+                                            const dpct = Math.round(d.pct * 100);
+                                            const barColor = d.isCorrect ? 'bg-emerald-400' : d.count > 0 ? 'bg-rose-400' : 'bg-white/10';
+                                            const pillBg   = d.isCorrect ? 'bg-emerald-500/20 text-emerald-300' : d.count > 0 ? 'bg-rose-500/20 text-rose-300' : 'bg-white/5 text-white/35';
+                                            const labelColor = d.isCorrect ? 'text-emerald-300' : d.count > 0 ? 'text-rose-300' : 'text-white/35';
+                                            const textColor  = d.isCorrect ? 'text-emerald-200 font-medium' : d.count > 0 ? 'text-rose-100' : 'text-white/35';
+                                            const optLetter = String.fromCharCode(65 + d.optionIndex);
+                                            const optText = String(d.optionText || '').replace(/^[A-D]\)\s?/, '');
+                                            return (
+                                              <div key={d.optionIndex} className="grid grid-cols-[28px_1fr_120px_48px] md:grid-cols-[32px_1fr_220px_56px] gap-3 md:gap-4 items-center">
+                                                <div className={`inline-flex items-center justify-center h-6 md:h-7 rounded-md ${pillBg}`}>
+                                                  <span className="text-[11px] md:text-[12px] font-bold tabular-nums">{optLetter}{d.isCorrect && <span className="ml-0.5 text-[10px]">✓</span>}</span>
+                                                </div>
+                                                <span className={`text-[13px] md:text-[14px] truncate ${textColor}`}>{optText}</span>
+                                                <div className="h-[8px] md:h-[10px] bg-white/10 rounded-full overflow-hidden">
+                                                  <div className={`h-full ${barColor} rounded-full transition-all duration-500`} style={{ width: `${Math.max(d.count > 0 ? 3 : 0, dpct)}%` }} />
+                                                </div>
+                                                <span className={`text-[13px] md:text-[14px] tabular-nums font-bold ${labelColor} text-right`}>{dpct}%</span>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                      {q.explanation && (
+                                        <p className="mt-3 text-[11.5px] text-white/55 italic leading-relaxed border-t border-white/10 pt-2.5"><span className="not-italic font-bold text-white/50 text-[10px] tracking-[.14em] uppercase mr-1.5">Why</span>{q.explanation}</p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* Full concept ledger */}
-          <div className="bg-white border border-gray-200/80 rounded-3xl overflow-hidden shadow-[0_2px_24px_-12px_rgba(15,15,15,0.08)]">
-            {conceptLoading ? (
-              <div className="py-12 text-center text-gray-400 text-[13px]">Loading concept data…</div>
-            ) : !conceptInsights?.concepts?.length ? (
-              <div className="py-14 text-center px-6">
-                <div className="inline-flex items-center gap-2 text-[10px] font-bold tracking-[.22em] uppercase text-gray-300 mb-4">
-                  <span className="block w-6 h-[1.5px] bg-current opacity-60 rounded-sm" />
-                  <span>Awaiting student quizzes &amp; tests</span>
-                  <span className="block w-6 h-[1.5px] bg-current opacity-60 rounded-sm" />
-                </div>
-                <p className="serif text-[20px] text-gray-700 leading-snug">Once your students take a quiz, this fills in<span className="italic">.</span></p>
-                <p className="text-[13px] text-gray-400 mt-2.5 max-w-md mx-auto leading-relaxed">Each question they answer feeds into the concept they touched. You'll see which ideas are landing and which need a re-explanation.</p>
-              </div>
-            ) : (
-              <div>
-                {conceptInsights.concepts.map((c) => (
-                  <ConceptRow
-                    key={c.concept}
-                    c={c}
-                    expanded={openConcept === c.concept}
-                    onToggle={() => setOpenConcept(openConcept === c.concept ? null : c.concept)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Empty / loading states for the rare cases — only render when there
+              is no teach-more-of data yet (production state, not demo). */}
+          {(!conceptInsights || (conceptInsights.teachMoreOf?.length === 0 && conceptLoading)) && (
+            <div className="bg-white border border-gray-200/80 rounded-3xl py-12 text-center text-gray-400 text-[13px]">Loading concept data…</div>
+          )}
         </section>
 
         {/* RECENT QUESTIONS — actual student questions from the last 7 days */}

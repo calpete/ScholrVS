@@ -2163,12 +2163,11 @@ function buildFakeConceptInsights() {
   const totalAttempts = conceptsArr.reduce((s, c) => s + c.attempts, 0);
   const totalCorrect = conceptsArr.reduce((s, c) => s + c.correct, 0);
   const overallMastery = totalAttempts > 0 ? totalCorrect / totalAttempts : 0;
-  // Headline lists trimmed for demo focus:
-  //   - teachMoreOf: 3 priority concepts (matches the "three concepts
-  //     this week" copy in the dark callout heading).
-  //   - concepts:   top 10 worst-mastered only, so the ledger is
-  //     scannable in one glance instead of a long scroll of 24 rows.
-  const teachMoreOf = conceptsArr.filter(c => c.mastery < 0.65 && c.attempts >= 2).slice(0, 3);
+  // Dark "Teach more of these" callout is the primary surface in the
+  // redesign — expanded to 8 concepts so the prof sees their whole
+  // teaching priority list in one block, each one expandable inline
+  // with the analytical breakdown.
+  const teachMoreOf = conceptsArr.filter(c => c.mastery < 0.65 && c.attempts >= 2).slice(0, 8);
   const conceptsTrimmed = conceptsArr.slice(0, 10);
   return {
     overallMastery,
