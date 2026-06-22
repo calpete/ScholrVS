@@ -2531,6 +2531,60 @@ function ConceptRow({ c, expanded, onToggle }) {
   );
 }
 
+// Concept-specific teaching plans surfaced inside the "Teach more of these"
+// drilldown. Each entry maps a concept name to two prescriptive blocks:
+// what to do in the very next lecture, and what to do during review week
+// before the exam. Hardcoded for the demo seed concepts; falls back to a
+// generic template when an unknown concept appears.
+const CONCEPT_TEACHING_PLAN = {
+  'Flexible Budget Variance': {
+    nextClass: 'Work through one side-by-side calculation: same actual results, with the static budget and the flexible budget (rebuilt at actual volume) side by side. The visual contrast is the cleanest fix for the misconception — most students confuse the two by default.',
+    reviewWeek: 'Assign 4 practice problems where students must CONSTRUCT the flexible budget themselves from a static budget plus actual volume, then compute the variance. Most exam questions test exactly this flow.',
+    drillFocus: 'Flexible budget construction from actual activity level',
+  },
+  'Fixed Overhead Variance': {
+    nextClass: 'Spend 10 minutes contrasting BUDGET variance (actual vs budgeted) with VOLUME variance (budgeted vs applied). Use a simple numeric example — they keep blending the two into one number.',
+    reviewWeek: 'Cover the standard 4-part variance decomposition with 3 practice problems. Add one curveball where applied overhead exceeds actual — students get tripped up on the sign.',
+    drillFocus: 'Budget variance vs volume variance separation',
+  },
+  'Internal Rate of Return': {
+    nextClass: 'Draw the NPV-vs-discount-rate curve. Point at where it crosses zero — that crossing IS the IRR. Repeat the image twice, then immediately do a worked example. This visual dissolves the most common confusion.',
+    reviewWeek: 'Practice set: 3 single-project IRR calculations plus 1 comparison problem where IRR ranks projects DIFFERENTLY than NPV. The scale-difference question is classic exam fodder.',
+    drillFocus: 'NPV-vs-IRR comparison + scale-difference ranking',
+  },
+  'Variable Overhead Variance': {
+    nextClass: 'Walk through the spending variance vs efficiency variance distinction with one worked example. Use the same actual hours but vary the actual rate first, then vary the actual hours. They\'ll see how each variance isolates a different cause.',
+    reviewWeek: 'Assign 3 variance-decomposition problems with both spending AND efficiency variances. Include one favorable + one unfavorable combination so they practice the sign logic.',
+    drillFocus: 'Spending vs efficiency variance separation',
+  },
+  'Profitability Index': {
+    nextClass: 'Frame PI as "NPV per dollar invested" — not as "another NPV variant." Use a capital-rationing example where two projects have the same NPV but very different PIs. The intuition lands hardest with constrained-capital framing.',
+    reviewWeek: 'Practice set: 4 PI calculations with at least one capital-rationing ranking problem. Students should leave able to recognize when PI is the right tool vs when NPV alone is fine.',
+    drillFocus: 'PI as ranking tool under capital constraint',
+  },
+  'Net Present Value': {
+    nextClass: 'Do one full worked NPV problem on the board, step by step, calling out each cash flow\'s PV factor. Emphasize that NPV ≥ 0 is the accept rule — many students still think NPV means "net profit."',
+    reviewWeek: 'Drill set: 5 NPV problems across uneven cash flows, salvage values, and tax effects. Include one trick problem where discount rate is implicit (e.g., bond yield). The discount-rate ambiguity is exam fodder.',
+    drillFocus: 'Cash flow timing + discount rate selection',
+  },
+  'Operating Leverage': {
+    nextClass: 'Show two numeric income statements side-by-side: one high-fixed-cost firm and one low-fixed-cost firm at identical sales. Then sales rises 10% — the high-DOL firm\'s operating income jumps disproportionately. A side-by-side number table will do more than another formula derivation.',
+    reviewWeek: 'Practice problems: compute DOL from a CM income statement, then PREDICT the % change in OI given a % change in sales. The forward-projection use case is what they need to nail.',
+    drillFocus: 'DOL → forward operating-income projection',
+  },
+  'Standard Cost Variance': {
+    nextClass: 'Reinforce the favorable / unfavorable rule with the actual-minus-standard mental model: positive variance means actual exceeded standard. For COSTS, exceeding standard is bad. For REVENUE, exceeding standard is good. Repeat this twice before the next problem.',
+    reviewWeek: 'Mixed-variance problem set: 3 materials, 2 labor, 2 overhead. Each one asks not just for the number but for "favorable or unfavorable, and why." That phrasing forces the conceptual check.',
+    drillFocus: 'Favorable/unfavorable interpretation under cost vs revenue framing',
+  },
+  // Generic fallback for any concept not in the map above.
+  __default: {
+    nextClass: 'Do a worked example tied to the most common wrong answer pattern. Walking through the right reasoning side-by-side with the popular mistake is the fastest correction.',
+    reviewWeek: 'Assign 3-5 targeted practice problems on this concept. Include one problem that explicitly contrasts it with the adjacent concept students are confusing it with.',
+    drillFocus: 'Targeted practice on this concept',
+  },
+};
+
 function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
   const courseId = course.id;
   const joinCode = course.join_code || course.code;
@@ -2975,55 +3029,66 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
                             );
                           })()}
 
-                          {/* Per-question breakdown with answer distribution */}
-                          {c.questions?.length > 0 && (
-                            <div>
-                              <div className="text-[10px] font-bold tracking-[.16em] uppercase text-white/55 mb-2.5">Questions in this concept · how the class answered</div>
-                              <div className="space-y-2.5">
-                                {c.questions.slice(0, 4).map((q, qi) => {
-                                  const qpct = Math.round(q.mastery * 100);
-                                  return (
-                                    <div key={qi} className="bg-white/[0.03] border border-white/10 rounded-2xl p-4">
-                                      <p className="text-[14.5px] text-white leading-snug font-medium">{q.text}</p>
-                                      <div className="flex items-center gap-2 mt-2 text-[11.5px] text-white/55">
-                                        <span><span className="tabular-nums font-semibold text-white/80">{q.correct}</span>/<span className="tabular-nums">{q.attempts}</span> correct</span>
-                                        <span className="text-white/25">·</span>
-                                        <span className={qpct < 50 ? 'text-rose-300 font-semibold' : qpct < 80 ? 'text-amber-300' : 'text-emerald-300'}>{qpct}% mastery</span>
-                                      </div>
-                                      {Array.isArray(q.distribution) && q.distribution.length > 0 && (
-                                        <div className="mt-3 space-y-2">
-                                          {q.distribution.map((d) => {
-                                            const dpct = Math.round(d.pct * 100);
-                                            const barColor = d.isCorrect ? 'bg-emerald-400' : d.count > 0 ? 'bg-rose-400' : 'bg-white/10';
-                                            const pillBg   = d.isCorrect ? 'bg-emerald-500/20 text-emerald-300' : d.count > 0 ? 'bg-rose-500/20 text-rose-300' : 'bg-white/5 text-white/35';
-                                            const labelColor = d.isCorrect ? 'text-emerald-300' : d.count > 0 ? 'text-rose-300' : 'text-white/35';
-                                            const textColor  = d.isCorrect ? 'text-emerald-200 font-medium' : d.count > 0 ? 'text-rose-100' : 'text-white/35';
-                                            const optLetter = String.fromCharCode(65 + d.optionIndex);
-                                            const optText = String(d.optionText || '').replace(/^[A-D]\)\s?/, '');
-                                            return (
-                                              <div key={d.optionIndex} className="grid grid-cols-[28px_1fr_120px_48px] md:grid-cols-[32px_1fr_220px_56px] gap-3 md:gap-4 items-center">
-                                                <div className={`inline-flex items-center justify-center h-6 md:h-7 rounded-md ${pillBg}`}>
-                                                  <span className="text-[11px] md:text-[12px] font-bold tabular-nums">{optLetter}{d.isCorrect && <span className="ml-0.5 text-[10px]">✓</span>}</span>
-                                                </div>
-                                                <span className={`text-[13px] md:text-[14px] truncate ${textColor}`}>{optText}</span>
-                                                <div className="h-[8px] md:h-[10px] bg-white/10 rounded-full overflow-hidden">
-                                                  <div className={`h-full ${barColor} rounded-full transition-all duration-500`} style={{ width: `${Math.max(d.count > 0 ? 3 : 0, dpct)}%` }} />
-                                                </div>
-                                                <span className={`text-[13px] md:text-[14px] tabular-nums font-bold ${labelColor} text-right`}>{dpct}%</span>
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      )}
-                                      {q.explanation && (
-                                        <p className="mt-3 text-[11.5px] text-white/55 italic leading-relaxed border-t border-white/10 pt-2.5"><span className="not-italic font-bold text-white/50 text-[10px] tracking-[.14em] uppercase mr-1.5">Why</span>{q.explanation}</p>
-                                      )}
-                                    </div>
-                                  );
-                                })}
+                          {/* By-the-numbers strip — three quick analytical
+                              percentages so the prof sees the WHOLE story
+                              without parsing prose. */}
+                          {(() => {
+                            const total = c.studentCount || 0;
+                            const wrongPct = total > 0 ? Math.round(((c.strugglingStudents + c.mixedStudents) / total) * 100) : 0;
+                            const incorrectRate = Math.round((1 - c.mastery) * 100);
+                            const topWrong = c.questions?.[0]?.topWrongOption;
+                            const topWrongPct = (topWrong && c.questions[0].attempts > 0)
+                              ? Math.round((topWrong.count / c.questions[0].attempts) * 100)
+                              : null;
+                            return (
+                              <div className="grid grid-cols-3 gap-2 mb-5">
+                                <div className="bg-white/[0.04] border border-white/10 rounded-2xl px-3 py-3">
+                                  <div className="text-[10px] font-bold tracking-[.14em] uppercase text-white/45">Class-wide miss rate</div>
+                                  <div className="serif text-[28px] text-rose-300 tabular-nums leading-none mt-1.5">{incorrectRate}%</div>
+                                  <div className="text-[10.5px] text-white/45 mt-1.5">of attempts wrong</div>
+                                </div>
+                                <div className="bg-white/[0.04] border border-white/10 rounded-2xl px-3 py-3">
+                                  <div className="text-[10px] font-bold tracking-[.14em] uppercase text-white/45">Need help</div>
+                                  <div className="serif text-[28px] text-amber-300 tabular-nums leading-none mt-1.5">{wrongPct}%</div>
+                                  <div className="text-[10.5px] text-white/45 mt-1.5">of the class below 80% mastery</div>
+                                </div>
+                                <div className="bg-white/[0.04] border border-white/10 rounded-2xl px-3 py-3">
+                                  <div className="text-[10px] font-bold tracking-[.14em] uppercase text-white/45">Top misconception</div>
+                                  <div className="serif text-[28px] text-rose-300 tabular-nums leading-none mt-1.5">{topWrongPct != null ? `${topWrongPct}%` : '—'}</div>
+                                  <div className="text-[10.5px] text-white/45 mt-1.5">picked the same wrong answer</div>
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            );
+                          })()}
+
+                          {/* Teaching plan — the actionable centerpiece. Two
+                              prescriptive cards: what to do in the next
+                              class and what to assign for review week. */}
+                          {(() => {
+                            const plan = CONCEPT_TEACHING_PLAN[c.concept] || CONCEPT_TEACHING_PLAN.__default;
+                            return (
+                              <div>
+                                <div className="text-[10px] font-bold tracking-[.16em] uppercase text-white/55 mb-2.5">Teaching plan</div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                                  <div className="bg-white/[0.04] border border-emerald-400/20 rounded-2xl p-4">
+                                    <div className="flex items-center gap-2 text-[10px] font-bold tracking-[.16em] uppercase text-emerald-300 mb-2">
+                                      <span className="block w-5 h-[1.5px] bg-current opacity-70 rounded-sm" />Next class
+                                    </div>
+                                    <p className="text-[14px] text-white/90 leading-relaxed">{plan.nextClass}</p>
+                                  </div>
+                                  <div className="bg-white/[0.04] border border-amber-400/20 rounded-2xl p-4">
+                                    <div className="flex items-center gap-2 text-[10px] font-bold tracking-[.16em] uppercase text-amber-300 mb-2">
+                                      <span className="block w-5 h-[1.5px] bg-current opacity-70 rounded-sm" />Review week
+                                    </div>
+                                    <p className="text-[14px] text-white/90 leading-relaxed">{plan.reviewWeek}</p>
+                                  </div>
+                                </div>
+                                {plan.drillFocus && (
+                                  <p className="mt-3 text-[12px] text-white/55 italic"><span className="not-italic font-bold text-white/45 text-[10px] tracking-[.14em] uppercase mr-1.5">Drill focus</span>{plan.drillFocus}</p>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
                     </div>
