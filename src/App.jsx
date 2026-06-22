@@ -2807,6 +2807,32 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
       </div>
 
       <div>
+        {/* WHAT TO REVIEW — moved to the top of the page so the prof sees
+            the AI's analytical priority list before any raw metrics.
+            Demo mode prepopulates an analytical summary tied to the
+            concept-mastery data shown below. */}
+        <section className="bg-[#15161B] text-white px-6 md:px-12 pt-12 pb-14 border-b border-gray-200/70">
+          <div className="max-w-3xl">
+            <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-white/40 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />What to review</div>
+            <h3 className="serif text-[34px] md:text-[42px] text-white leading-[1.05] tracking-tight">Your teaching priority this week<span className="italic">.</span></h3>
+            <p className="text-[13px] text-white/50 mt-3 italic">Generated just now · from 311 questions, 200 quiz attempts, and 35 practice tests</p>
+            <div className="mt-7">
+              <div className="text-[16px] leading-[1.75] text-white/90 space-y-4">
+                <p><span className="text-white font-semibold">Variance Analysis is the clear teaching priority.</span> Your class asked about it <span className="text-rose-300 font-semibold">64 times this week</span> — more than any other concept — yet quiz mastery on <span className="italic">Flexible Budget Variance</span> sits at just <span className="text-rose-300 font-semibold">26%</span>. The cross-signal is unambiguous: students know they're weak here, and they're still missing it. <span className="text-white">One worked-example lecture would move ~32 students from struggling to mixed.</span></p>
+                <p><span className="text-white font-semibold">Capital Budgeting is the second front.</span> IRR (<span className="text-rose-300 font-semibold">32%</span> mastery) and NPV (<span className="text-rose-300 font-semibold">42%</span>) are both heavily searched. Students are conflating the two — the most common wrong answer on the IRR question is choosing "NPV is maximized" instead of "NPV equals zero." A 10-minute distinction at the top of Tuesday's lecture would clear it up.</p>
+                <p><span className="text-white font-semibold">Watch Operating Leverage.</span> 42% mastery and 38 chat questions this week — students are studying it (six decks made), but the relationship between contribution margin and operating income isn't landing. A side-by-side numeric example will do more than another formula derivation.</p>
+                <p className="text-[14px] text-white/55 italic pt-2">Foundational topics — Break-even Point, Contribution Margin, Fixed/Variable Costs — are landing well. No re-teach needed.</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-8 pt-7 border-t border-white/10">
+                <button onClick={shareWithTA} className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-white text-gray-900 hover:bg-white/90 text-[12px] font-medium tracking-wide transition-colors">
+                  <Send size={11} />Share with TA
+                </button>
+                {sharedToast && <span className="text-[11.5px] text-emerald-300 italic ml-1">Opening your mail app…</span>}
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* PULSE STRIP */}
         <section className="px-6 md:px-12 pt-7 pb-6 border-b border-gray-200/70">
           <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
@@ -2977,34 +3003,6 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
             </section>
           );
         })()}
-
-        {/* MORNING DEBRIEF — full-width editorial column on ink-black */}
-        <section className="bg-[#15161B] text-white px-6 md:px-12 pt-12 pb-14 border-b border-gray-200/70">
-          <div className="max-w-3xl">
-            <div className="flex items-center gap-3 text-[11px] font-bold tracking-[.18em] uppercase text-white/40 mb-3"><span className="block w-7 h-[1.5px] bg-current opacity-60 rounded-sm" />Morning debrief</div>
-            <h3 className="serif text-[34px] md:text-[42px] text-white leading-[1.05] tracking-tight">Where to spend Monday<span className="italic">.</span></h3>
-            <p className="text-[13px] text-white/50 mt-3 italic">{summaryGeneratedAt ? `Generated ${formatRelativeDate(summaryGeneratedAt)}` : 'Composed each morning from the last 24 hours.'}</p>
-            <div className="mt-7">
-              {summaryLoading && !summary ? (
-                <p className="text-[15px] text-white/60">Composing this morning's debrief…</p>
-              ) : summary ? (
-                <div className="text-[16px] leading-[1.7] text-white/90 whitespace-pre-line">{summary}</div>
-              ) : (
-                <div className="text-[16px] leading-[1.7] text-white/70 space-y-4">
-                  <p>The morning debrief composes from real student activity. Once your class starts asking the AI questions, this column will summarize the patterns — what's clicking, what isn't, and where one extra lecture moves the most students forward.</p>
-                  <p className="text-[14px] text-white/50 italic">Share your join code from the Materials page to get students into the chat. The first debrief lands once the AI has answered a handful of questions.</p>
-                </div>
-              )}
-              <div className="flex flex-wrap items-center gap-2 mt-8 pt-7 border-t border-white/10">
-                <button onClick={fetchSummary} disabled={summaryLoading} className="px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/15 text-white text-[12px] font-medium tracking-wide transition-colors disabled:opacity-40">{summaryLoading ? 'Refreshing…' : 'Refresh debrief'}</button>
-                <button onClick={shareWithTA} className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-white text-gray-900 hover:bg-white/90 text-[12px] font-medium tracking-wide transition-colors">
-                  <Send size={11} />Share with TA
-                </button>
-                {sharedToast && <span className="text-[11.5px] text-emerald-300 italic ml-1">Opening your mail app…</span>}
-              </div>
-            </div>
-          </div>
-        </section>
 
         {/* RECENT QUESTIONS — actual student questions from the last 7 days */}
         {stream.length > 0 && (
