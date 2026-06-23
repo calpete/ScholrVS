@@ -5739,8 +5739,6 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                       {m.role === 'assistant' && !m.streaming && m.content && !isError && !quizMatch && !m.confirm && !m.pickCount && (
                         <div className="flex items-center gap-0.5 mt-1 overflow-hidden max-h-8 opacity-100 md:max-h-0 md:opacity-0 md:group-hover:max-h-8 md:group-hover:opacity-100 transition-all duration-200">
                           <button onClick={() => { navigator.clipboard.writeText(m.content.replace(/\nSOURCES:.*$/m, '').trim()); setCopiedId(msgId); setTimeout(() => setCopiedId(null), 2000); }} className={`p-1.5 rounded-lg transition-colors ${copiedId === msgId ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}>{copiedId === msgId ? <Check size={12} /> : <Copy size={12} />}</button>
-                          <button onClick={() => setFeedback(prev => ({ ...prev, [msgId]: prev[msgId] === 'up' ? null : 'up' }))} className={`p-1.5 rounded-lg transition-colors ${feedback[msgId] === 'up' ? 'text-emerald-500' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}><ThumbsUp size={12} /></button>
-                          <button onClick={() => setFeedback(prev => ({ ...prev, [msgId]: prev[msgId] === 'down' ? null : 'down' }))} className={`p-1.5 rounded-lg transition-colors ${feedback[msgId] === 'down' ? 'text-red-400' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-50'}`}><ThumbsDown size={12} /></button>
                           <button onClick={() => { setShareLinkCopied(false); setShareMsg({ id: msgId, content: m.content.replace(/\nSOURCES:.*$/m, '').trim() }); }} className="p-1.5 rounded-lg transition-colors text-gray-300 hover:text-gray-500 hover:bg-gray-50" title="Share"><Share2 size={12} /></button>
                           <span className="text-[10px] text-gray-200 ml-1.5">{formatTime(m.ts)}</span>
                         </div>
@@ -5810,10 +5808,8 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                       <div className="text-[13px] leading-relaxed text-gray-800 whitespace-pre-wrap" style={{ display: '-webkit-box', WebkitLineClamp: 6, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{shareMsg.content}</div>
                       <div className="flex items-center justify-end mt-3 pt-3 border-t border-gray-100">
                         <div className="flex items-center gap-1.5">
-                          <div className="w-4 h-4 rounded-full bg-gray-900 flex items-center justify-center">
-                            <span className="text-white text-[8px] font-bold">S</span>
-                          </div>
-                          <span className="text-[11px] font-medium text-gray-700 tracking-tight" style={{ fontFamily: 'Newsreader, serif' }}>Scholr</span>
+                          <LandingLogo s={16} />
+                          <span className="text-[12px] font-bold text-gray-900 tracking-tight" style={{ fontFamily: 'Hanken Grotesk, system-ui, sans-serif', letterSpacing: '-0.02em' }}>Scholr</span>
                         </div>
                       </div>
                     </div>
