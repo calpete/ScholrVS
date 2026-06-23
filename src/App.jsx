@@ -3366,6 +3366,16 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
   const bottomRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const inputRef = useRef(null);
+  // Resize the chat textarea whenever the `input` state changes externally
+  // (after a send clears it, or after a slash command swaps it). Without
+  // this, the textarea stays tall after a send because the auto-resize
+  // logic only fires inside onChange.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el || el.tagName !== 'TEXTAREA') return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 216)}px`;
+  });
   // Two separate file inputs so the composer paperclip and the My Notes
   // overlay don't share behavior. notesUploadRef goes through the persistent
   // /student/notes upload; chatAttachRef stays local + one-shot.
@@ -4797,12 +4807,22 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       <div className="bg-white border border-gray-200 rounded-[26px] px-4 pt-4 pb-2.5 focus-within:border-gray-300 shadow-sm transition-colors">
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           {slashCmd && <span className="cmd-chip">/{slashCmd}</span>}
-          <input
+          <textarea
             ref={inputRef}
             id="chat-input"
             name="chat-input"
+            rows={1}
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={e => {
+              setInput(e.target.value);
+              // Auto-resize: reset to a single row so scrollHeight reads
+              // the natural content height, then expand to fit — capped
+              // at ~9 lines (216px) so a long paste doesn't push the
+              // composer off-screen, after which it scrolls internally.
+              const el = e.target;
+              el.style.height = 'auto';
+              el.style.height = `${Math.min(el.scrollHeight, 216)}px`;
+            }}
             onPaste={onPaste}
             onKeyDown={e => {
               if (showSlashPopover) {
@@ -4813,9 +4833,11 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
                 if (e.key === 'Tab')       { e.preventDefault(); pickSlashCommand(filteredCmds[slashIdx]); return; }
               }
               if (e.key === 'Backspace' && input === '' && slashCmd) { e.preventDefault(); setSlashCmd(null); return; }
+              // Enter sends; Shift+Enter inserts a newline (textarea default).
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!isTyping) onSend(); }
             }}
-            className="flex-1 bg-transparent text-gray-800 text-base outline-none placeholder-gray-400 px-1"
+            className="flex-1 bg-transparent text-gray-800 text-base outline-none placeholder-gray-400 px-1 resize-none overflow-y-auto leading-[1.5]"
+            style={{ minHeight: '24px', maxHeight: '216px' }}
             placeholder={slashCmd ? '…what about?' : (isEmpty ? emptyPlaceholders[phIdx % emptyPlaceholders.length] : pinnedPlaceholders[phIdx % pinnedPlaceholders.length])}
             autoComplete="off"
           />
