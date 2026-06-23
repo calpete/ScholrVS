@@ -3317,6 +3317,47 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
   const history = req.body?.history || [];
 
   if (!message) return res.status(400).json({ error: 'No message provided' });
+
+  // ── Content moderation ───────────────────────────────────────────────
+  // Run student input through OpenAI's free moderation API before any
+  // retrieval / generation. Free, fast (~100-200ms), and catches hate,
+  // sexual content, harassment, violence, self-harm. Profanity itself
+  // isn't blocked — that lets "this question is killing me" through
+  // while still catching slurs and abusive content.
+  //
+  // If the moderation API errors (network blip, rate limit), we soft-
+  // fail open — i.e. let the message through — so a brief outage doesn't
+  // break the chat. Errors are logged for review.
+  try {
+    const mod = await openai.moderations.create({ input: message });
+    const result = mod?.results?.[0];
+    if (result?.flagged) {
+      // Find which categories tripped so we can log it (and tailor the
+      // message in future if we want category-specific responses).
+      const flaggedCats = Object.entries(result.categories || {})
+        .filter(([, v]) => v).map(([k]) => k);
+      console.warn(`🚫 Moderation flagged user=${req.user.id} categories=${flaggedCats.join(',')} preview=${message.slice(0, 60)}`);
+      // Stream a polite SSE error so the client renders it just like any
+      // other AI response — no UI special-casing required.
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      const rejection = 'Let\'s keep questions focused on the course material. Try rephrasing your question and ask again.';
+      // Stream as a single chunk so the bubble renders the rejection
+      // like a normal answer. Mirrors the success-path token stream.
+      res.write(`data: ${JSON.stringify({ type: 'status', step: 'writing', inputTokens: 0 })}\n\n`);
+      for (const ch of rejection) {
+        res.write(`data: ${JSON.stringify({ type: 'token', token: ch })}\n\n`);
+      }
+      res.write(`data: ${JSON.stringify({ type: 'sources', sources: [] })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'done', truncated: false })}\n\n`);
+      res.end();
+      return;
+    }
+  } catch (modErr) {
+    console.warn(`Moderation check failed (soft-failing open): ${modErr?.message || modErr}`);
+  }
+
   const docs = getCourseDocuments(courseId);
   if (Object.keys(docs).length === 0) return res.status(400).json({ error: 'No documents uploaded yet' });
 
