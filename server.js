@@ -3319,43 +3319,79 @@ app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourse
   if (!message) return res.status(400).json({ error: 'No message provided' });
 
   // ── Content moderation ───────────────────────────────────────────────
-  // Run student input through OpenAI's free moderation API before any
-  // retrieval / generation. Free, fast (~100-200ms), and catches hate,
-  // sexual content, harassment, violence, self-harm. Profanity itself
-  // isn't blocked — that lets "this question is killing me" through
-  // while still catching slurs and abusive content.
+  // Two-layer filter so casual venting like "fuck you" and direct
+  // threats like "I'm gonna kill my teacher" actually get caught:
   //
-  // If the moderation API errors (network blip, rate limit), we soft-
-  // fail open — i.e. let the message through — so a brief outage doesn't
-  // break the chat. Errors are logged for review.
-  try {
-    const mod = await openai.moderations.create({ input: message });
-    const result = mod?.results?.[0];
-    if (result?.flagged) {
-      // Find which categories tripped so we can log it (and tailor the
-      // message in future if we want category-specific responses).
-      const flaggedCats = Object.entries(result.categories || {})
-        .filter(([, v]) => v).map(([k]) => k);
-      console.warn(`🚫 Moderation flagged user=${req.user.id} categories=${flaggedCats.join(',')} preview=${message.slice(0, 60)}`);
-      // Stream a polite SSE error so the client renders it just like any
-      // other AI response — no UI special-casing required.
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      const rejection = 'Let\'s keep questions focused on the course material. Try rephrasing your question and ask again.';
-      // Stream as a single chunk so the bubble renders the rejection
-      // like a normal answer. Mirrors the success-path token stream.
-      res.write(`data: ${JSON.stringify({ type: 'status', step: 'writing', inputTokens: 0 })}\n\n`);
-      for (const ch of rejection) {
-        res.write(`data: ${JSON.stringify({ type: 'token', token: ch })}\n\n`);
+  // 1. Hardcoded keyword pre-filter — profanity, slurs, and direct
+  //    violence patterns. Fires instantly with zero network cost.
+  // 2. OpenAI moderation API with LOWER thresholds on category_scores.
+  //    The default `flagged: true` is way too conservative — most
+  //    real-world bad input scores 0.3-0.6, which the API leaves
+  //    unflagged. We check the raw scores ourselves and trip at 0.3.
+  const lowerMsg = message.toLowerCase();
+  // Profanity + variants (keep this conservative — common course-vent
+  // words like "damn" and "hell" are allowed through; only direct
+  // hostility / slurs / explicit content gets caught here).
+  const PROFANITY_RE = /\b(f[\W_]*u[\W_]*c[\W_]*k|sh[\W_]*i[\W_]*t|b[\W_]*i[\W_]*t[\W_]*c[\W_]*h|c[\W_]*u[\W_]*n[\W_]*t|d[\W_]*i[\W_]*c[\W_]*k|p[\W_]*u[\W_]*s[\W_]*s[\W_]*y|a[\W_]*s[\W_]*s[\W_]*h[\W_]*o[\W_]*l[\W_]*e|m[\W_]*o[\W_]*t[\W_]*h[\W_]*e[\W_]*r[\W_]*f[\W_]*u[\W_]*c[\W_]*k|n[\W_]*i[\W_]*g[\W_]*g|f[\W_]*a[\W_]*g|r[\W_]*e[\W_]*t[\W_]*a[\W_]*r[\W_]*d)/i;
+  // Direct violence / threat patterns. "Kill" by itself is fine in a
+  // course context ("this exam is killing me") — only patterns with a
+  // target person ("kill my", "kill the", "shoot my") trip the filter.
+  const VIOLENCE_RE = /\b(kill\s+(my|the|that|you|him|her|them)|shoot\s+(my|the|that|you|him|her|them)|stab|murder|i'?ll\s+kill|i'?m\s+gonna\s+(kill|hurt|shoot)|beat\s+(up|the\s+shit))/i;
+  // Self-harm patterns — handled gently in the response if we ever
+  // want to add a hotline pointer; for now we redirect to the prof.
+  const SELFHARM_RE = /\b(kill\s+myself|end\s+my\s+life|suicide|cut\s+myself)/i;
+  let blockReason = null;
+  if (PROFANITY_RE.test(message))  blockReason = 'profanity';
+  else if (VIOLENCE_RE.test(message)) blockReason = 'violence';
+  else if (SELFHARM_RE.test(message)) blockReason = 'self-harm';
+
+  // Fall through to OpenAI moderation if the hardcoded filter didn't
+  // catch it — broader coverage (hate speech, harassment patterns,
+  // sexual content variants). Lower threshold on scores so the API's
+  // conservative defaults don't let abuse through.
+  if (!blockReason) {
+    try {
+      const mod = await openai.moderations.create({ input: message });
+      const result = mod?.results?.[0];
+      const scores = result?.category_scores || {};
+      // Lower threshold than the API default. Anything above 0.3 in
+      // hate / harassment / violence / sexual gets blocked.
+      const tripped = [];
+      if ((scores.hate || 0) > 0.3)                tripped.push('hate');
+      if ((scores['hate/threatening'] || 0) > 0.2) tripped.push('hate/threatening');
+      if ((scores.harassment || 0) > 0.3)          tripped.push('harassment');
+      if ((scores['harassment/threatening'] || 0) > 0.2) tripped.push('harassment/threatening');
+      if ((scores.violence || 0) > 0.3)            tripped.push('violence');
+      if ((scores['violence/graphic'] || 0) > 0.2) tripped.push('violence/graphic');
+      if ((scores.sexual || 0) > 0.4)              tripped.push('sexual');
+      if ((scores['sexual/minors'] || 0) > 0.1)    tripped.push('sexual/minors');
+      if ((scores['self-harm'] || 0) > 0.3)        tripped.push('self-harm');
+      if (result?.flagged || tripped.length > 0) {
+        blockReason = `openai:${tripped.join(',') || 'flagged'}`;
       }
-      res.write(`data: ${JSON.stringify({ type: 'sources', sources: [] })}\n\n`);
-      res.write(`data: ${JSON.stringify({ type: 'done', truncated: false })}\n\n`);
-      res.end();
-      return;
+    } catch (modErr) {
+      console.warn(`Moderation API failed (soft-failing open after hardcoded check): ${modErr?.message || modErr}`);
     }
-  } catch (modErr) {
-    console.warn(`Moderation check failed (soft-failing open): ${modErr?.message || modErr}`);
+  }
+
+  if (blockReason) {
+    console.warn(`🚫 Moderation BLOCK user=${req.user.id} reason=${blockReason} preview=${message.slice(0, 80)}`);
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    // Tailor the response gently if it looks like self-harm; otherwise
+    // a neutral "stay on course" rejection.
+    const rejection = blockReason === 'self-harm'
+      ? 'It sounds like you\'re going through a really hard time. I\'m not the right kind of help for this — please reach out to your campus counseling center, a trusted person, or a crisis line (call or text 988 in the US). I\'m here when you want to come back to coursework.'
+      : 'Let\'s keep this focused on the course material. Try rephrasing your question and ask again.';
+    res.write(`data: ${JSON.stringify({ type: 'status', step: 'writing', inputTokens: 0 })}\n\n`);
+    for (const ch of rejection) {
+      res.write(`data: ${JSON.stringify({ type: 'token', token: ch })}\n\n`);
+    }
+    res.write(`data: ${JSON.stringify({ type: 'sources', sources: [] })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'done', truncated: false })}\n\n`);
+    res.end();
+    return;
   }
 
   const docs = getCourseDocuments(courseId);
