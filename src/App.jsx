@@ -6132,6 +6132,10 @@ const LANDING_ICONS = {
   'upload': '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
   'clock': '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
   'message-square': '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  'book-open': '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+  'list-checks': '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M14 5h7"/><path d="M14 12h7"/><path d="M14 19h7"/>',
+  'graduation-cap': '<path d="m22 10-10-5L2 10l10 5z"/><path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/>',
+  'layers': '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m6.08 9.5-3.48 1.58a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83l-3.49-1.59"/><path d="m6.08 14.5-3.48 1.58a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83l-3.49-1.59"/>',
   'scan-text': '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h8"/><path d="M7 12h10"/><path d="M7 16h6"/>',
   'x-logo': '<path d="M4 4l16 16M20 4 4 20" stroke-width="2.2"/>',
   'linkedin': '<path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/>',
@@ -6337,6 +6341,21 @@ html { scroll-behavior: smooth; }
 .scholr-landing .src-chip svg{width:14px;height:14px;color:var(--m-faint);}
 .scholr-landing .main-input{margin:auto 22px 22px;display:flex;align-items:center;gap:10px;padding:11px 12px 11px 16px;border:1px solid var(--m-line);border-radius:var(--radius-pill);background:#fff;}
 .scholr-landing .main-input span{color:var(--m-faint);}
+
+/* New "Make me a quiz" input — flat pill with a soft + button on the right */
+.scholr-landing .quiz-input{flex-direction:row;align-items:center;justify-content:space-between;padding:14px 14px 14px 22px;border-radius:18px;border:1px solid var(--m-line);background:#fff;box-shadow:0 1px 2px rgba(21,22,27,.04);}
+.scholr-landing .quiz-input .qi-text{font-size:15px;color:var(--m-faint);font-weight:500;}
+.scholr-landing .quiz-input .qi-plus{width:30px;height:30px;border-radius:999px;background:var(--m-hover);color:var(--m-muted);display:grid;place-items:center;}
+.scholr-landing .quiz-input .qi-plus svg{color:inherit;}
+
+/* Counted nav rows in the sidebar */
+.scholr-landing .nav-list{gap:1px;}
+.scholr-landing .nav-row{display:flex !important;align-items:center;justify-content:space-between;color:var(--m-ink);padding:8px 10px;}
+.scholr-landing .nav-row .nav-left{display:inline-flex;align-items:center;gap:11px;font-size:14px;font-weight:500;color:var(--m-ink);}
+.scholr-landing .nav-row .nav-left svg{width:15px;height:15px;color:var(--m-muted);stroke-width:1.8;}
+.scholr-landing .nav-row .cnt{font-size:12px;font-weight:600;color:var(--m-muted);background:var(--m-hover);padding:2px 8px;border-radius:999px;min-width:22px;text-align:center;}
+.scholr-landing .nav-row:hover{background:var(--m-hover);}
+.scholr-landing .side-label{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--m-faint);padding:0 6px;}
 .scholr-landing section.band{padding:84px 0;}
 .scholr-landing .sec-head{max-width:700px;margin:0 auto 60px;text-align:center;}
 .scholr-landing .sec-head .eyebrow{justify-content:center;margin-bottom:20px;}
@@ -6648,11 +6667,27 @@ html { scroll-behavior: smooth; }
 .scholr-landing .feat:nth-child(2n+1) .ic-box{border-radius:50%;}
 
 /* Tilt + overlap product mock window */
-.scholr-landing .showband{padding-bottom:130px;overflow:visible;}
+.scholr-landing .showband{padding-bottom:130px;overflow:visible;perspective:1400px;}
 .scholr-landing .showband + .mq-band{margin-top:-58px;position:relative;z-index:3;}
-.scholr-landing .win-rise{transform:translateY(40px) scale(.975) rotate(-.55deg);}
-.scholr-landing .win-rise.in{transform:rotate(-.55deg);}
-.scholr-landing .window{box-shadow:0 50px 110px -40px rgba(21,22,27,.42),0 12px 32px -18px rgba(21,22,27,.2);}
+.scholr-landing .win-rise{transform:translateY(120px) scale(.82) rotate(-1.6deg);transform-style:preserve-3d;}
+.scholr-landing .win-rise.in{transform:translateY(0) scale(1) rotate(-.4deg);}
+.scholr-landing .window{box-shadow:0 50px 110px -40px rgba(21,22,27,.42),0 12px 32px -18px rgba(21,22,27,.2);transform-origin:50% 100%;}
+
+/* Cool scroll-driven entry — continuous animation tied to scroll
+   position on Chrome/Edge 115+. Older browsers fall back to the
+   IntersectionObserver-driven .win-rise.in transition above. */
+@supports (animation-timeline: view()) {
+  .scholr-landing .showband .win-rise{
+    animation:scholr-mock-scroll linear both;
+    animation-timeline:view();
+    animation-range:entry 0% cover 35%;
+    opacity:1 !important;
+  }
+  @keyframes scholr-mock-scroll{
+    from{transform:translateY(180px) scale(.78) rotateX(8deg) rotate(-2deg);opacity:.45;}
+    to{transform:translateY(0) scale(1) rotateX(0deg) rotate(-.4deg);opacity:1;}
+  }
+}
 
 /* Varied hover behaviors — no more uniform translateY on every card */
 .scholr-landing .principle{transition:transform .25s cubic-bezier(.2,.7,.2,1),box-shadow .25s ease,border-color .25s ease;}
@@ -7012,14 +7047,18 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
                 <aside className="app-side">
                   <div>
                     <div style={{ fontWeight: 700, fontSize: '17px', letterSpacing: '-.01em' }}>Accounting</div>
-                    <div style={{ fontSize: '12.5px', color: 'var(--m-faint)', marginTop: '2px' }}>6 docs · 41 notes</div>
+                    <div style={{ fontSize: '12.5px', color: 'var(--m-faint)', marginTop: '2px' }}>BUS-A 306</div>
                   </div>
-                  <div className="chat-list" style={{ gap: '2px' }}>
-                    <div className="chat-item" style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--m-ink)' }}><Ic name="plus" s={16} /> New chat</div>
-                    <div className="chat-item" style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--m-ink)' }}><Ic name="folder" s={16} /> My Notes</div>
+                  <div className="chat-list nav-list">
+                    <div className="chat-item nav-row"><span className="nav-left"><Ic name="plus" s={15} /> New chat</span></div>
+                    <div className="chat-item nav-row"><span className="nav-left"><Ic name="book-open" s={15} /> Course Materials</span><span className="cnt">2</span></div>
+                    <div className="chat-item nav-row"><span className="nav-left"><Ic name="folder" s={15} /> My Notes</span></div>
+                    <div className="chat-item nav-row"><span className="nav-left"><Ic name="list-checks" s={15} /> Quizzes</span><span className="cnt">7</span></div>
+                    <div className="chat-item nav-row"><span className="nav-left"><Ic name="graduation-cap" s={15} /> Tests</span><span className="cnt">1</span></div>
+                    <div className="chat-item nav-row"><span className="nav-left"><Ic name="layers" s={15} /> Flashcards</span><span className="cnt">5</span></div>
                   </div>
                   <div>
-                    <div className="side-label" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}><Ic name="chevron-down" s={13} /> Recents</div>
+                    <div className="side-label" style={{ marginBottom: '6px' }}>Recents</div>
                     <div className="chat-list">
                       {LANDING_RECENTS.map((label) => (
                         <div key={label} className={`chat-item${label === cur.chat ? ' active' : ''}`}>{label}</div>
@@ -7058,9 +7097,9 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
                       )}
                     </div>
                   </div>
-                  <div className="main-input" style={{ borderRadius: '16px', padding: '14px 14px 14px 18px', flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
-                    <span style={{ fontSize: '15px' }}>Ask about your course…</span>
-                    <span style={{ width: '30px', height: '30px', borderRadius: '999px', background: 'var(--m-hover)', color: 'var(--m-muted)', display: 'grid', placeItems: 'center' }}><Ic name="plus" s={17} /></span>
+                  <div className="main-input quiz-input">
+                    <span className="qi-text">Make me a quiz</span>
+                    <span className="qi-plus"><Ic name="plus" s={16} /></span>
                   </div>
                   <div style={{ textAlign: 'center', fontSize: '12.5px', color: 'var(--m-faint)', padding: '0 0 16px' }}>Grounded in your course materials · Vertex AI</div>
                 </section>
