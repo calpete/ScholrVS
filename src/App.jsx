@@ -4878,7 +4878,8 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
 
   return (
     <div
-      className="flex h-[100dvh] w-screen overflow-hidden fixed inset-0 bg-[#F6F6F4] page-enter"
+      className="flex h-[100dvh] w-screen overflow-hidden fixed inset-0 page-enter"
+      style={{ background: 'radial-gradient(80% 70% at 100% 0%,rgba(255,255,255,1) 0%,rgba(255,255,255,0) 55%),radial-gradient(70% 60% at 0% 50%,rgba(255,255,255,.85) 0%,rgba(255,255,255,0) 60%),radial-gradient(60% 55% at 50% 100%,rgba(255,255,255,.7) 0%,rgba(255,255,255,0) 60%),linear-gradient(165deg,#F0F2F6 0%,#E7EAEF 55%,#E2E5EB 100%)' }}
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
@@ -4904,7 +4905,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
       {mobileChatsOpen && <div onClick={closeMobile} className="md:hidden fixed inset-0 bg-black/40 z-30" />}
 
       {/* ── Left sidebar / mobile drawer ── */}
-      <aside style={isDesktop ? { width: sidebarW } : undefined} className={`fixed md:relative inset-y-0 left-0 z-40 w-72 bg-[#F6F6F4] border-r border-gray-200 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileChatsOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
+      <aside style={isDesktop ? { width: sidebarW, background: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(20px) saturate(170%)', WebkitBackdropFilter: 'blur(20px) saturate(170%)' } : { background: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(20px) saturate(170%)', WebkitBackdropFilter: 'blur(20px) saturate(170%)' }} className={`fixed md:relative inset-y-0 left-0 z-40 w-72 border-r border-white/60 flex flex-col flex-shrink-0 transform transition-transform md:transform-none ${mobileChatsOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} pt-[env(safe-area-inset-top)]`}>
         <ResizeHandle onMouseDown={startSidebarDrag} />
         <div className="px-4 py-4 border-b border-gray-200">
           <div className="flex md:hidden items-center justify-end mb-1.5">
@@ -5525,7 +5526,7 @@ function StudentView({ course, documents: initialDocuments, suggestedQuestions: 
             </div>
           </div>
         )}
-        <header className="bg-[#F6F6F4] border-b border-gray-200/70 flex items-center justify-between px-4 md:px-8 py-2 md:h-12 flex-shrink-0 gap-3">
+        <header className="backdrop-blur-xl bg-white/40 border-b border-white/60 flex items-center justify-between px-4 md:px-8 py-2 md:h-12 flex-shrink-0 gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <button onClick={() => setMobileChatsOpen(true)} aria-label="Open chats" className="md:hidden p-1 -ml-1 text-gray-600">
               <Menu size={20} />
