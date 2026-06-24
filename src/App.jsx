@@ -6201,15 +6201,21 @@ const LANDING_CSS = `
 html { scroll-behavior: smooth; }
 .scholr-landing {
   --font-display:"Newsreader",Georgia,serif; --font-body:"Hanken Grotesk",system-ui,sans-serif;
-  --bg:#FBFBF9; --bg-2:#F3F2EF; --bg-3:#EFEEEA; --surface:#FFFFFF;
+  --bg:#F3F4F6; --bg-2:#ECEEF2; --bg-3:#E5E7EC; --surface:#FFFFFF;
   --ink:#15161B; --ink-2:#2A2C33; --muted:#6B6E76; --muted-2:#9A9CA3;
-  --line:#E7E4DD; --line-2:#EEEBE4; --accent:#15161B; --accent-soft:rgba(21,22,27,.06);
+  --line:#E1E3E8; --line-2:#E9EBEF; --accent:#15161B; --accent-soft:rgba(21,22,27,.06);
   --radius:16px; --radius-sm:11px; --radius-lg:22px; --radius-pill:999px; --btn-radius:13px;
   --shadow-sm:0 1px 2px rgba(21,22,27,.04),0 1px 3px rgba(21,22,27,.05);
   --shadow-card:0 1px 2px rgba(21,22,27,.04),0 14px 34px -18px rgba(21,22,27,.16);
   --shadow-float:0 40px 90px -38px rgba(21,22,27,.34),0 8px 26px -16px rgba(21,22,27,.18);
   --maxw:1280px;
-  font-family:var(--font-body); background:var(--bg); color:var(--ink); line-height:1.55; font-size:17px;
+  font-family:var(--font-body); color:var(--ink); line-height:1.55; font-size:17px;
+  background:
+    radial-gradient(70% 80% at 110% -10%,rgba(255,255,255,.95) 0%,rgba(255,255,255,0) 60%),
+    radial-gradient(60% 70% at -10% 60%,rgba(255,255,255,.85) 0%,rgba(255,255,255,0) 65%),
+    radial-gradient(50% 60% at 60% 110%,rgba(255,255,255,.55) 0%,rgba(255,255,255,0) 65%),
+    linear-gradient(180deg,#EEF0F4 0%,#E5E7EC 100%);
+  background-attachment:fixed;
   /* Reserve 36px at the top so the now-fixed promo banner doesn't sit
      on top of the page content on initial load. Nav has its own
      transparent backdrop below the banner. */
@@ -6252,7 +6258,7 @@ html { scroll-behavior: smooth; }
    top padding (see .scholr-landing wrapper) so initial content
    does not slide under the banner. Same trick for the nav at top 36. */
 .scholr-landing .top-banner{position:fixed;top:0;left:0;right:0;z-index:70;background:#15161B;color:#FBFBF9;height:36px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;letter-spacing:.01em;padding:0 16px;}
-.scholr-landing .top-banner .new-tag{color:#FF8A4C;font-weight:700;margin-right:8px;text-transform:uppercase;letter-spacing:.08em;font-size:12px;}
+.scholr-landing .top-banner .new-tag{color:#FBFBF9;font-weight:700;margin-right:8px;text-transform:uppercase;letter-spacing:.08em;font-size:12px;opacity:.85;}
 .scholr-landing .top-banner .sep{opacity:.4;margin:0 10px;}
 .scholr-landing .top-banner a{color:inherit;display:inline-flex;align-items:center;gap:6px;font-weight:600;}
 .scholr-landing .top-banner a .arr{display:inline-flex;transition:transform .2s ease;}
@@ -6274,9 +6280,10 @@ html { scroll-behavior: smooth; }
    The wrap already caps at 1120px; the hero's inner column caps tighter
    so the headline reads as a confident two-line statement rather than
    a giant centered banner. */
-.scholr-landing .hero{text-align:center;padding:0;position:relative;min-height:calc(100vh - 112px);display:flex;align-items:center;}
-.scholr-landing .hero .wrap{width:100%;padding-top:24px;padding-bottom:64px;}
+.scholr-landing .hero{text-align:center;padding:0;position:relative;min-height:calc(100vh - 112px);display:flex;align-items:center;overflow:hidden;}
+.scholr-landing .hero .wrap{width:100%;padding-top:24px;padding-bottom:64px;position:relative;z-index:2;}
 .scholr-landing .hero .hero-col{max-width:820px;margin:0 auto;}
+.scholr-landing .hero-waves{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;}
 .scholr-landing .hero .chip{margin-bottom:24px;}
 .scholr-landing .hero h1{font-family:var(--font-display);font-weight:500;font-size:clamp(40px,5.2vw,68px);line-height:1.04;letter-spacing:-.026em;color:var(--ink);}
 .scholr-landing .hero h1 .l2{display:block;font-style:italic;font-weight:500;}
@@ -6296,7 +6303,7 @@ html { scroll-behavior: smooth; }
 .scholr-landing .hero-pill button[type=submit] .arr{display:inline-flex;}
 .scholr-landing .hero-sub{margin-top:22px;font-size:14.5px;color:var(--muted-2);text-align:center;}
 .scholr-landing .hero-meta{margin-top:26px;display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted-2);font-weight:500;letter-spacing:.01em;}
-.scholr-landing .hero-meta-dot{width:6px;height:6px;border-radius:99px;background:#E07A3C;flex:none;box-shadow:0 0 0 4px rgba(224,122,60,.18);}
+.scholr-landing .hero-meta-dot{width:6px;height:6px;border-radius:99px;background:var(--ink);flex:none;box-shadow:0 0 0 4px rgba(21,22,27,.08);}
 .scholr-landing .hero-scroll{position:absolute;bottom:36px;left:50%;transform:translateX(-50%);display:inline-flex;flex-direction:column;align-items:center;gap:6px;font-family:var(--font-body);font-size:11.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-2);text-decoration:none;cursor:pointer;opacity:.7;transition:opacity .2s ease,transform .2s ease;}
 .scholr-landing .hero-scroll:hover{opacity:1;transform:translate(-50%,2px);}
 .scholr-landing .hero-scroll-arr{display:grid;place-items:center;width:24px;height:24px;border-radius:99px;border:1px solid var(--line);color:var(--ink);animation:lp-bounce 2.2s ease-in-out infinite;}
@@ -6582,7 +6589,7 @@ html { scroll-behavior: smooth; }
   inset:0;
   z-index:1;
   pointer-events:none;
-  opacity:.07;
+  opacity:.04;
   mix-blend-mode:multiply;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .9 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
@@ -6596,11 +6603,21 @@ html { scroll-behavior: smooth; }
 .scholr-landing .brand-signoff{position:relative;z-index:2;}
 .scholr-landing .lp-modal{z-index:100;}
 
-/* Connect banner + nav visually — solid cream nav background means
-   there's no grain bleeding through the seam between the two fixed
-   bars, so they read as one continuous strip when pinned. */
-.scholr-landing header.nav{background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none;}
-.scholr-landing header.nav.scrolled{box-shadow:0 1px 0 var(--line);}
+/* Glass nav — translucent white with backdrop blur sits on top of the
+   gradient background so the abstract waves show through. Banner stays
+   solid dark above for contrast. */
+.scholr-landing header.nav{background:rgba(255,255,255,.55);-webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);border-bottom:1px solid rgba(255,255,255,.4);}
+.scholr-landing header.nav.scrolled{background:rgba(255,255,255,.7);box-shadow:0 1px 0 rgba(21,22,27,.05);}
+
+/* Glass treatment for nav buttons + dropdown triggers */
+.scholr-landing .nav-right .btn-ghost{background:rgba(255,255,255,.55);border-color:rgba(255,255,255,.6);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);color:var(--ink);}
+.scholr-landing .nav-right .btn-ghost:hover{background:rgba(255,255,255,.85);border-color:rgba(21,22,27,.15);}
+.scholr-landing .nav-right .btn-primary{box-shadow:0 1px 2px rgba(21,22,27,.4),inset 0 1px 0 rgba(255,255,255,.08);}
+.scholr-landing .nav-dd-trigger{background:rgba(255,255,255,.0);}
+.scholr-landing .nav-dd-trigger:hover,
+.scholr-landing .nav-dd.open .nav-dd-trigger{background:rgba(255,255,255,.6);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
+.scholr-landing .brand{padding:4px 10px 4px 4px;border-radius:14px;transition:background .2s ease;}
+.scholr-landing .brand:hover{background:rgba(255,255,255,.45);}
 
 /* Hand-drawn squiggle under a hero phrase — peach (reused from banner) */
 .scholr-landing .squig{position:relative;display:inline-block;}
@@ -6611,10 +6628,10 @@ html { scroll-behavior: smooth; }
   right:-1%;
   bottom:-.12em;
   height:.22em;
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'><path d='M3 7 Q 18 1.5 35 7 T 70 7 T 105 7 T 140 7 T 175 7 T 197 7' stroke='%23E07A3C' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'><path d='M3 7 Q 18 1.5 35 7 T 70 7 T 105 7 T 140 7 T 175 7 T 197 7' stroke='%2315161B' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
   background-repeat:no-repeat;
   background-size:100% 100%;
-  opacity:.9;
+  opacity:.32;
   pointer-events:none;
 }
 
@@ -6655,13 +6672,13 @@ html { scroll-behavior: smooth; }
 .scholr-landing .step:hover .ic-box{transform:rotate(-6deg);border-color:var(--ink);}
 
 /* Peach accent — reused from the existing top-banner "New" color */
-.scholr-landing .hero .chip .dot.live{background:#E07A3C;color:#E07A3C;}
-.scholr-landing .principle .idx b{color:#C2603A;}
-.scholr-landing .step .num b{color:#C2603A;font-style:normal;font-family:var(--font-display);}
+.scholr-landing .hero .chip .dot.live{background:var(--ink);color:var(--ink);}
+.scholr-landing .principle .idx b{color:var(--ink);}
+.scholr-landing .step .num b{color:var(--ink);font-style:normal;font-family:var(--font-display);}
 
 /* Chapter-mark eyebrow variant — used by sections that drop the dot */
 .scholr-landing .chapter{display:inline-flex;align-items:baseline;gap:14px;font-family:var(--font-body);font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:18px;}
-.scholr-landing .chapter b{font-family:var(--font-display);font-weight:500;font-style:italic;font-size:22px;color:#C2603A;letter-spacing:-.01em;line-height:1;}
+.scholr-landing .chapter b{font-family:var(--font-display);font-weight:500;font-style:italic;font-size:22px;color:var(--ink);letter-spacing:-.01em;line-height:1;}
 .scholr-landing .chapter .ln{display:inline-block;width:28px;height:1.5px;background:currentColor;opacity:.5;border-radius:2px;transform:translateY(-4px);}
 
 /* ─── Nav mega-menu dropdowns — Kaizen-style multi-column ──────────── */
@@ -6695,20 +6712,20 @@ html { scroll-behavior: smooth; }
 .scholr-landing .nav-dd-label{font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted-2);padding:4px 12px 10px;}
 .scholr-landing .nav-dd-link{display:flex;gap:13px;align-items:flex-start;padding:11px 12px;border-radius:11px;text-align:left;background:none;border:0;cursor:pointer;font-family:var(--font-body);transition:background .15s ease;color:var(--ink);}
 .scholr-landing .nav-dd-link:hover{background:var(--bg-2);}
-.scholr-landing .nav-dd-ic{width:32px;height:32px;border-radius:9px;background:#FFF1E3;color:#C2603A;display:grid;place-items:center;flex:none;border:1px solid #F4D2B6;}
+.scholr-landing .nav-dd-ic{width:32px;height:32px;border-radius:9px;background:rgba(21,22,27,.05);color:var(--ink);display:grid;place-items:center;flex:none;border:1px solid rgba(21,22,27,.08);}
 .scholr-landing .nav-dd-text{display:flex;flex-direction:column;gap:2px;min-width:0;}
 .scholr-landing .nav-dd-text b{font-size:14.5px;font-weight:600;color:var(--ink);letter-spacing:-.005em;}
 .scholr-landing .nav-dd-text span{font-size:13px;color:var(--muted);line-height:1.4;}
 .scholr-landing .nav-dd-feature{display:flex;flex-direction:column;justify-content:space-between;border-radius:14px;background:linear-gradient(160deg,#1B1C22 0%,#2A2C33 100%);color:#FBFBF9;padding:18px 18px 16px;text-decoration:none;cursor:pointer;overflow:hidden;position:relative;transition:transform .2s ease;}
 .scholr-landing .nav-dd-feature:hover{transform:translateY(-2px);}
-.scholr-landing .nav-dd-feature.alt{background:linear-gradient(160deg,#3B2418 0%,#5B3925 100%);}
+.scholr-landing .nav-dd-feature.alt{background:linear-gradient(160deg,#2A2C33 0%,#3F424A 100%);}
 .scholr-landing .nav-dd-feature-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;font-family:var(--font-display);font-weight:500;font-size:22px;line-height:1.05;letter-spacing:-.018em;}
 .scholr-landing .nav-dd-feature-arr{display:grid;place-items:center;width:30px;height:30px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);color:#fff;flex:none;transition:transform .2s ease,background .2s ease;}
 .scholr-landing .nav-dd-feature:hover .nav-dd-feature-arr{background:rgba(255,255,255,.18);transform:translateX(2px);}
 .scholr-landing .nav-dd-feature-art{display:flex;flex-direction:column;gap:5px;margin-top:18px;}
 .scholr-landing .nav-dd-feature-art .art-line{height:5px;border-radius:99px;background:rgba(255,255,255,.16);}
-.scholr-landing .nav-dd-feature-art .art-cite{margin-top:8px;display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:rgba(224,122,60,.18);border:1px solid rgba(224,122,60,.32);font-size:11px;font-weight:600;color:#FFC79B;align-self:flex-start;}
-.scholr-landing .nav-dd-feature-art .art-cite svg{color:#FFC79B;}
+.scholr-landing .nav-dd-feature-art .art-cite{margin-top:8px;display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);font-size:11px;font-weight:600;color:rgba(255,255,255,.78);align-self:flex-start;}
+.scholr-landing .nav-dd-feature-art .art-cite svg{color:rgba(255,255,255,.78);}
 .scholr-landing .nav-dd-feature-art.alt{margin-top:16px;}
 .scholr-landing .nav-dd-feature-art .art-quote{font-family:var(--font-display);font-style:italic;font-size:14px;line-height:1.4;color:rgba(255,255,255,.78);}
 .scholr-landing .nav-dd-foot{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
@@ -6732,7 +6749,7 @@ a.scholr-landing .nav-dd-foot-tag:hover,
 }
 
 /* Sticker badge — a slightly rotated tag in the corner of a section */
-.scholr-landing .sticker{display:inline-block;padding:7px 14px;background:#FFE6D2;color:#8E3F19;border:1px solid #F2C5A3;border-radius:8px;font-family:var(--font-body);font-size:12.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;transform:rotate(-1.4deg);box-shadow:0 2px 8px -3px rgba(194,96,58,.35);margin-bottom:22px;}
+.scholr-landing .sticker{display:inline-block;padding:7px 14px;background:rgba(255,255,255,.7);color:var(--ink-2);border:1px solid rgba(21,22,27,.08);border-radius:8px;font-family:var(--font-body);font-size:12.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;transform:rotate(-1.4deg);box-shadow:0 2px 8px -3px rgba(21,22,27,.18);margin-bottom:22px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
 `;
 
 // Shared mega-menu dropdowns used by both the main landing and the
@@ -6967,6 +6984,22 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
       <main id="top">
         {/* HERO */}
         <section className="hero">
+          <svg className="hero-waves" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <defs>
+              <linearGradient id="wv-g1" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.9" />
+                <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+              </linearGradient>
+              <linearGradient id="wv-g2" x1="0" y1="1" x2="1" y2="0">
+                <stop offset="0" stopColor="#FFFFFF" stopOpacity="0.7" />
+                <stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d="M-100,180 C300,40 720,260 1140,140 S1540,40 1540,40 L1540,-100 L-100,-100 Z" fill="url(#wv-g1)" />
+            <path d="M-100,820 C260,720 620,880 980,780 S1540,720 1540,720 L1540,1000 L-100,1000 Z" fill="url(#wv-g2)" />
+            <path d="M-200,520 Q360,360 760,540 T1640,460" fill="none" stroke="#FFFFFF" strokeOpacity="0.55" strokeWidth="160" strokeLinecap="round" />
+            <path d="M-200,640 Q300,800 720,640 T1640,720" fill="none" stroke="#FFFFFF" strokeOpacity="0.35" strokeWidth="120" strokeLinecap="round" />
+          </svg>
           <div className="wrap stagger">
             <div className="hero-col">
             <h1>Every answer from<span className="l2">your <span className="squig">course materials</span>.</span></h1>
