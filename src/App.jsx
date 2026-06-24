@@ -6560,6 +6560,93 @@ html { scroll-behavior: smooth; }
 .scholr-landing .lp-code::placeholder{color:var(--muted-2);letter-spacing:.12em;}
 .scholr-landing .lp-join-alt{display:block;width:100%;text-align:center;margin-top:16px;background:none;border:none;font-family:var(--font-body);font-size:14px;color:var(--muted);cursor:pointer;}
 .scholr-landing .lp-join-alt:hover{color:var(--ink);}
+
+/* ─── Texture, accent, hand-drawn — polish to push the page away from
+   the AI-template default. Subtle grain via fixed pseudo, varied border
+   radii, mixed hover behaviors, single peach accent reused from the top
+   banner, and a hand-drawn squiggle under a hero phrase. ────────── */
+.scholr-landing{position:relative;}
+.scholr-landing::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:1;
+  pointer-events:none;
+  opacity:.07;
+  mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .9 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+.scholr-landing .top-banner,
+.scholr-landing header.nav,
+.scholr-landing main,
+.scholr-landing footer.foot,
+.scholr-landing .brand-signoff,
+.scholr-landing .lp-modal{position:relative;z-index:2;}
+
+/* Hand-drawn squiggle under a hero phrase — peach (reused from banner) */
+.scholr-landing .squig{position:relative;display:inline-block;}
+.scholr-landing .squig::after{
+  content:"";
+  position:absolute;
+  left:-1%;
+  right:-1%;
+  bottom:-.12em;
+  height:.22em;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'><path d='M3 7 Q 18 1.5 35 7 T 70 7 T 105 7 T 140 7 T 175 7 T 197 7' stroke='%23E07A3C' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat:no-repeat;
+  background-size:100% 100%;
+  opacity:.9;
+  pointer-events:none;
+}
+
+/* Mixed border radii — break the template feel */
+.scholr-landing .q-chip{border-radius:9px;}
+.scholr-landing .principle{border-radius:6px;}
+.scholr-landing .principle:nth-child(2),
+.scholr-landing .principle:nth-child(3){border-radius:22px;}
+.scholr-landing .feat{border-radius:14px;}
+.scholr-landing .feat.span-3{border-radius:22px;}
+.scholr-landing .feat:nth-child(3),
+.scholr-landing .feat:nth-child(5){border-radius:6px;}
+.scholr-landing .step .ic-box{border-radius:9px;}
+.scholr-landing .feat .ic-box{border-radius:9px;}
+.scholr-landing .principle:nth-child(2n) .ic-box,
+.scholr-landing .feat:nth-child(2n+1) .ic-box{border-radius:50%;}
+
+/* Tilt + overlap product mock window */
+.scholr-landing .showband{padding-bottom:130px;overflow:visible;}
+.scholr-landing .showband + .mq-band{margin-top:-58px;position:relative;z-index:3;}
+.scholr-landing .win-rise{transform:translateY(40px) scale(.975) rotate(-.55deg);}
+.scholr-landing .win-rise.in{transform:rotate(-.55deg);}
+.scholr-landing .window{box-shadow:0 50px 110px -40px rgba(21,22,27,.42),0 12px 32px -18px rgba(21,22,27,.2);}
+
+/* Varied hover behaviors — no more uniform translateY on every card */
+.scholr-landing .principle{transition:transform .25s cubic-bezier(.2,.7,.2,1),box-shadow .25s ease,border-color .25s ease;}
+.scholr-landing .principle:hover{transform:translateY(-3px) rotate(.25deg);box-shadow:var(--shadow-card);border-color:var(--ink-2);}
+.scholr-landing .principle:nth-child(2):hover{transform:translateY(-3px) rotate(-.35deg);}
+.scholr-landing .principle:nth-child(3):hover{transform:translateY(-3px) rotate(-.25deg);}
+.scholr-landing .principle:nth-child(4):hover{transform:translateY(-3px) rotate(.35deg);}
+.scholr-landing .feat:hover{transform:none;border-color:var(--ink);box-shadow:var(--shadow-sm);}
+.scholr-landing .feat.dark:hover{border-color:rgba(255,255,255,.4);}
+.scholr-landing .feat .ic-box{transition:transform .25s ease,border-color .25s ease;}
+.scholr-landing .feat:hover .ic-box{transform:scale(1.08);}
+.scholr-landing .step{transition:background .2s ease;}
+.scholr-landing .step:hover{background:var(--bg);}
+.scholr-landing .step .ic-box{transition:transform .25s cubic-bezier(.2,.7,.2,1),border-color .25s ease;}
+.scholr-landing .step:hover .ic-box{transform:rotate(-6deg);border-color:var(--ink);}
+
+/* Peach accent — reused from the existing top-banner "New" color */
+.scholr-landing .hero .chip .dot.live{background:#E07A3C;color:#E07A3C;}
+.scholr-landing .principle .idx b{color:#C2603A;}
+.scholr-landing .step .num b{color:#C2603A;font-style:normal;font-family:var(--font-display);}
+
+/* Chapter-mark eyebrow variant — used by sections that drop the dot */
+.scholr-landing .chapter{display:inline-flex;align-items:baseline;gap:14px;font-family:var(--font-body);font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:18px;}
+.scholr-landing .chapter b{font-family:var(--font-display);font-weight:500;font-style:italic;font-size:22px;color:#C2603A;letter-spacing:-.01em;line-height:1;}
+.scholr-landing .chapter .ln{display:inline-block;width:28px;height:1.5px;background:currentColor;opacity:.5;border-radius:2px;transform:translateY(-4px);}
+
+/* Sticker badge — a slightly rotated tag in the corner of a section */
+.scholr-landing .sticker{display:inline-block;padding:7px 14px;background:#FFE6D2;color:#8E3F19;border:1px solid #F2C5A3;border-radius:8px;font-family:var(--font-body);font-size:12.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;transform:rotate(-1.4deg);box-shadow:0 2px 8px -3px rgba(194,96,58,.35);margin-bottom:22px;}
 `;
 
 function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnchor }) {
@@ -6715,7 +6802,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
           <div className="wrap stagger">
             <div className="hero-col">
             <span className="chip"><span className="dot live" /> Course-grounded AI tutoring</span>
-            <h1>Every answer from<span className="l2">your course materials.</span></h1>
+            <h1>Every answer from<span className="l2">your <span className="squig">course materials</span>.</span></h1>
             <p className="lede">AI tutoring grounded in what your professor uploaded. Cited, accurate, and trustworthy.</p>
             <div className="hero-actions">
               <form className="hero-pill" onSubmit={submitHero}>
@@ -6831,8 +6918,8 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
         <section className="band" id="why">
           <div className="wrap">
             <div className="sec-head reveal">
-              <span className="eyebrow"><span className="dot" /> Why Scholr</span>
-              <h2>Answers you can <span className="ital">actually trust.</span></h2>
+              <span className="chapter"><b>i.</b> <span>Why Scholr</span></span>
+              <h2>Answers you can actually trust.</h2>
               <p>Scholr is built on a single rule: never say anything it can't trace back to your course. That's what makes it safe to lean on the night before an exam.</p>
             </div>
             <div className="principles stagger">
@@ -6856,8 +6943,8 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
         <section className="band" id="how" style={{ background: 'var(--bg-2)', borderTop: '1px solid var(--line)', borderBottom: '1px solid var(--line)' }}>
           <div className="wrap">
             <div className="sec-head reveal">
-              <span className="eyebrow"><span className="dot" /> How it works</span>
-              <h2>Set up once. <span className="ital">Tutoring all term.</span></h2>
+              <span className="chapter"><b>ii.</b> <span>How it works</span></span>
+              <h2>Set up once. Tutoring all term.</h2>
               <p>A professor uploads their course once. Every student gets a tutor that knows it inside out.</p>
             </div>
             <div className="steps stagger">
@@ -6881,8 +6968,8 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
         <section className="band" id="features">
           <div className="wrap">
             <div className="sec-head reveal">
-              <span className="eyebrow"><span className="dot" /> Features</span>
-              <h2>A senior TA, <span className="ital">on every page.</span></h2>
+              <span className="sticker">Inside the product</span>
+              <h2>A senior TA, on every page.</h2>
               <p>Everything a student wishes they could ask — and everything a professor wishes they could see.</p>
             </div>
             <div className="bento stagger">
@@ -6924,7 +7011,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
         <section className="manifesto reveal">
           <div className="wrap">
             <span className="eyebrow"><span className="dot" /> Trust, by design</span>
-            <h2>If it isn't in your course, Scholr <span className="ital">won't say it</span> — every claim <span className="hl">traces to a page</span>.</h2>
+            <h2>If it isn't in your course, Scholr won't say it — every claim <span className="hl">traces to a page</span>.</h2>
             <p>No open-web guessing. No invented citations. Each answer links straight back to the material your professor uploaded.</p>
             <div className="src-row stagger">
               <span className="src-dark"><span className="d" /> Lecture 6 · slide 14</span>
@@ -6940,7 +7027,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
             <div className="split">
               <div className="aud prof reveal" id="professors">
                 <div className="kicker"><span className="d" /> For professors</div>
-                <h3>Stop answering the same<br /><span className="ital">question fifty times.</span></h3>
+                <h3>Stop answering the same<br />question fifty times.</h3>
                 <p>Upload your course once. Scholr handles the repetitive questions and shows you exactly where your students are stuck.</p>
                 <ul>
                   <li><span className="tick"><Ic name="check" s={13} /></span> Answers stay inside your materials — your voice, your rules</li>
@@ -6951,7 +7038,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
               </div>
               <div className="aud stud reveal" id="students">
                 <div className="kicker"><span className="d" /> For students</div>
-                <h3>The tutor who actually<br /><span className="ital">read the syllabus.</span></h3>
+                <h3>The tutor who actually<br />read the syllabus.</h3>
                 <p>Ask anything about your class and get a straight, cited answer — without feeling dumb for asking, and without waiting for office hours.</p>
                 <ul>
                   <li><span className="tick"><Ic name="check" s={13} /></span> Answers grounded in your real course, not the internet</li>
@@ -6970,7 +7057,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
             <div className="analytics-grid">
               <div className="reveal">
                 <span className="eyebrow"><span className="dot" /> Professor analytics</span>
-                <h2 className="serif" style={{ fontSize: 'clamp(30px,3.6vw,44px)', lineHeight: 1.06, margin: '18px 0 16px' }}>Know what's confusing <span className="ital">before</span> the next lecture.</h2>
+                <h2 className="serif" style={{ fontSize: 'clamp(30px,3.6vw,44px)', lineHeight: 1.06, margin: '18px 0 16px' }}>Know what's confusing before the next lecture.</h2>
                 <p style={{ fontSize: '18px', color: 'var(--muted)', lineHeight: 1.55 }}>Scholr turns thousands of student questions into a clear signal: the concepts your class keeps getting stuck on, ranked. Walk into lecture already knowing what to reteach.</p>
                 <div className="stat-row">
                   <div className="stat"><div className="n">100<span style={{ fontSize: '24px' }}>%</span></div><div className="l">of answers cited<br />to a source</div></div>
@@ -7010,7 +7097,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
           <div className="wrap reveal">
             <div className="cta-box">
               <span className="chip"><span className="dot live" /> Course-grounded AI tutoring</span>
-              <h2>Give your class an AI tutor<br /><span className="ital">that actually knows it.</span></h2>
+              <h2>Give your class an AI tutor<br />that actually knows it.</h2>
               <p>Set up your course in an afternoon. Every answer cited, straight from your materials.</p>
               <div className="cta-actions">
                 <button type="button" className="btn btn-primary btn-lg" onClick={onInstructor}>Start a course free <span className="arr"><Ic name="arrow-right" s={17} /></span></button>
