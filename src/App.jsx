@@ -6600,11 +6600,12 @@ html { scroll-behavior: smooth; }
 .scholr-landing .brand-signoff{position:relative;z-index:2;}
 .scholr-landing .lp-modal{z-index:100;}
 
-/* Glass nav — translucent white with backdrop blur sits on top of the
-   gradient background so the abstract waves show through. Banner stays
-   solid dark above for contrast. */
-.scholr-landing header.nav{background:rgba(255,255,255,.55);-webkit-backdrop-filter:blur(22px) saturate(180%);backdrop-filter:blur(22px) saturate(180%);border-bottom:1px solid rgba(255,255,255,.4);}
-.scholr-landing header.nav.scrolled{background:rgba(255,255,255,.7);box-shadow:0 1px 0 rgba(21,22,27,.05);}
+/* Transparent nav — no bar, no border. Buttons and dropdowns float
+   directly on the gradient background. On scroll, fade in a soft
+   blurred backdrop just so the content underneath doesn't smear the
+   buttons unreadably. */
+.scholr-landing header.nav{background:transparent;-webkit-backdrop-filter:none;backdrop-filter:none;border-bottom:0;}
+.scholr-landing header.nav.scrolled{background:rgba(255,255,255,.4);-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);}
 
 /* Glass treatment for nav buttons + dropdown triggers */
 .scholr-landing .nav-right .btn-ghost{background:rgba(255,255,255,.55);border-color:rgba(255,255,255,.6);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);color:var(--ink);}
