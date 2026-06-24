@@ -1949,7 +1949,8 @@ function CourseManager({ token, course, onBack, authHeaders, onLogout }) {
   };
 
   return (
-    <div className="flex h-[100dvh] w-screen overflow-hidden bg-[#F6F6F4] fixed inset-0 page-enter"
+    <div className="flex h-[100dvh] w-screen overflow-hidden fixed inset-0 page-enter"
+      style={{ background: 'radial-gradient(80% 70% at 100% 0%,rgba(255,255,255,1) 0%,rgba(255,255,255,0) 55%),radial-gradient(70% 60% at 0% 50%,rgba(255,255,255,.85) 0%,rgba(255,255,255,0) 60%),radial-gradient(60% 55% at 50% 100%,rgba(255,255,255,.7) 0%,rgba(255,255,255,0) 60%),linear-gradient(165deg,#F0F2F6 0%,#E7EAEF 55%,#E2E5EB 100%)' }}
       onDragOver={onPageDragOver} onDragLeave={onPageDragLeave} onDrop={onPageDrop}>
       <style>{FONT}</style>
 
@@ -2134,7 +2135,7 @@ function CourseManager({ token, course, onBack, authHeaders, onLogout }) {
                   {/* ── UPLOAD COLUMN — sticky on desktop, vertical card ── */}
                   <div className="lg:col-span-4 lg:sticky lg:top-8 self-start">
                     <button onClick={() => fileRef.current?.click()} disabled={uploading} className="group/drop relative w-full block text-left overflow-hidden disabled:opacity-60">
-                      <div className="relative border-2 border-dashed border-gray-200 group-hover/drop:border-[#2A4D8F]/50 bg-white rounded-[28px] px-7 py-8 transition-all overflow-hidden">
+                      <div className="relative border-2 border-dashed border-gray-200 group-hover/drop:border-[#2A4D8F]/50 rounded-[28px] px-7 py-8 transition-all overflow-hidden" style={{ background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(18px) saturate(160%)', WebkitBackdropFilter: 'blur(18px) saturate(160%)' }}>
                         {/* Indigo hover halo — top-right */}
                         <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-[#2A4D8F] opacity-0 group-hover/drop:opacity-[0.10] blur-3xl transition-opacity duration-500 pointer-events-none" />
                         {/* Faint dot grain */}
@@ -2173,7 +2174,7 @@ function CourseManager({ token, course, onBack, authHeaders, onLogout }) {
                   {/* ── LIBRARY COLUMN ── */}
                   <div className="lg:col-span-8 min-w-0">
                     {mods.length === 0 ? (
-                      <div className="rounded-3xl bg-white border border-gray-200/80 px-8 py-14 text-center">
+                      <div className="rounded-3xl border border-gray-200/80 px-8 py-14 text-center" style={{ background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(18px) saturate(160%)', WebkitBackdropFilter: 'blur(18px) saturate(160%)' }}>
                         <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#F3F2EF] mb-5"><FolderOpen size={22} className="text-gray-400" /></div>
                         <h3 className="serif text-[26px] text-gray-900 leading-none tracking-tight">No files yet<span className="italic">.</span></h3>
                         <p className="text-[14px] text-gray-500 mt-3 max-w-sm mx-auto leading-relaxed">Drop a syllabus or slide deck on the left and it'll appear here, indexed and live for every student in seconds.</p>
@@ -2199,7 +2200,7 @@ function CourseManager({ token, course, onBack, authHeaders, onLogout }) {
                             const palette = ['#2A4D8F', '#3F6B57', '#705F4E', '#54546A', '#7C5C3E', '#6E443A'];
                             const accent = palette[(m.name.charCodeAt(0) + m.name.length) % palette.length];
                             return (
-                              <div key={m.id} className="group relative flex items-center gap-5 pl-6 pr-5 py-5 rounded-2xl bg-white border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_8px_28px_-12px_rgba(15,15,15,0.10)] transition-all overflow-hidden">
+                              <div key={m.id} className="group relative flex items-center gap-5 pl-6 pr-5 py-5 rounded-2xl border border-gray-200/80 hover:border-gray-300 hover:shadow-[0_8px_28px_-12px_rgba(15,15,15,0.10)] transition-all overflow-hidden" style={{ background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(18px) saturate(160%)', WebkitBackdropFilter: 'blur(18px) saturate(160%)' }}>
                                 <span className="absolute left-0 top-4 bottom-4 w-[3px] rounded-full" style={{ background: accent }} />
                                 <div className="relative w-14 h-14 rounded-2xl bg-[#F3F2EF] flex items-center justify-center flex-shrink-0">
                                   {isImage ? <span className="text-gray-700 text-[11px] font-bold tracking-wider">IMG</span> : <FileText size={20} className="text-gray-700" />}
@@ -3013,7 +3014,7 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
             </h3>
             <p className="text-[14px] text-gray-500 mt-2.5 leading-relaxed">Every topic your students touched this week, ranked by question volume. The top of the list is where one extra lecture moves the needle the most.</p>
           </div>
-          <div className="bg-white border border-gray-200/80 rounded-3xl px-5 md:px-8 py-3 md:py-4 shadow-[0_2px_24px_-12px_rgba(15,15,15,0.08)]">
+          <div className="backdrop-blur-xl bg-white/55 border border-white/70 rounded-3xl px-5 md:px-8 py-3 md:py-4 shadow-[0_22px_50px_-22px_rgba(21,22,27,0.18)]">
             <TopicLedger topics={d.topTopics} totalQuestions={d.weekQuestions} />
           </div>
         </section>
@@ -3033,22 +3034,22 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
             <p className="text-[14px] text-gray-500 mt-2.5 leading-relaxed">Triangulated from four signals: quiz answers, practice-test scores, the flashcards your class is voluntarily making, and the questions they ask in chat. Click any concept to see exactly what's tripping students up and what to cover in the next class.</p>
             {conceptInsights && conceptInsights.totalAttempts > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
-                <div className="bg-white border border-gray-200/80 rounded-2xl px-4 py-3.5">
+                <div className="backdrop-blur-xl bg-white/55 border border-white/70 rounded-2xl px-4 py-3.5 shadow-[0_18px_40px_-20px_rgba(21,22,27,0.14)]">
                   <div className="text-[10px] font-bold tracking-[.14em] uppercase text-gray-400">Quiz attempts</div>
                   <div className="serif text-[28px] text-gray-900 tabular-nums leading-none mt-1.5">2,450</div>
                   <div className="text-[11px] text-gray-500 mt-1.5">across <span className="font-semibold text-gray-900">50</span> students</div>
                 </div>
-                <div className="bg-white border border-gray-200/80 rounded-2xl px-4 py-3.5">
+                <div className="backdrop-blur-xl bg-white/55 border border-white/70 rounded-2xl px-4 py-3.5 shadow-[0_18px_40px_-20px_rgba(21,22,27,0.14)]">
                   <div className="text-[10px] font-bold tracking-[.14em] uppercase text-gray-400">Practice tests</div>
                   <div className="serif text-[28px] text-gray-900 tabular-nums leading-none mt-1.5">35</div>
                   <div className="text-[11px] text-gray-500 mt-1.5"><span className="font-semibold text-gray-900">70%</span> of class took one</div>
                 </div>
-                <div className="bg-white border border-gray-200/80 rounded-2xl px-4 py-3.5">
+                <div className="backdrop-blur-xl bg-white/55 border border-white/70 rounded-2xl px-4 py-3.5 shadow-[0_18px_40px_-20px_rgba(21,22,27,0.14)]">
                   <div className="text-[10px] font-bold tracking-[.14em] uppercase text-gray-400">Flashcard decks</div>
                   <div className="serif text-[28px] text-gray-900 tabular-nums leading-none mt-1.5">246</div>
                   <div className="text-[11px] text-gray-500 mt-1.5">made by <span className="font-semibold text-gray-900">48</span> students</div>
                 </div>
-                <div className="bg-white border border-gray-200/80 rounded-2xl px-4 py-3.5">
+                <div className="backdrop-blur-xl bg-white/55 border border-white/70 rounded-2xl px-4 py-3.5 shadow-[0_18px_40px_-20px_rgba(21,22,27,0.14)]">
                   <div className="text-[10px] font-bold tracking-[.14em] uppercase text-gray-400">Chat questions</div>
                   <div className="serif text-[28px] text-gray-900 tabular-nums leading-none mt-1.5">311</div>
                   <div className="text-[11px] text-gray-500 mt-1.5"><span className="font-semibold text-gray-900">{Math.round((conceptInsights.overallMastery || 0) * 100)}%</span> class mastery</div>
@@ -3216,7 +3217,7 @@ function CourseInsights({ course, token, onSwitchToMaterials, onLogout }) {
               <h3 className="serif text-[28px] text-gray-900 leading-tight tracking-tight">What your class actually asked<span className="italic">.</span></h3>
               <p className="text-[14px] text-gray-500 mt-2.5 leading-relaxed">The five most recent questions students sent the AI. Real questions, in their words — the surest way to feel where the class is.</p>
             </div>
-            <div className="bg-white border border-gray-200/80 rounded-3xl px-5 md:px-8 py-2 md:py-3 shadow-[0_2px_24px_-12px_rgba(15,15,15,0.08)]">
+            <div className="backdrop-blur-xl bg-white/55 border border-white/70 rounded-3xl px-5 md:px-8 py-2 md:py-3 shadow-[0_22px_50px_-22px_rgba(21,22,27,0.18)]">
               {stream.map((row, i) => (
                 <StreamRow key={i} q={row.q} topic={row.topic} when={row.when || formatRelativeDate(d.recent?.[i]?.ts)} idx={i} />
               ))}
