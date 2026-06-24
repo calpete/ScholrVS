@@ -6543,13 +6543,15 @@ html { scroll-behavior: smooth; }
 .scholr-landing .src-row{display:flex;gap:11px;justify-content:center;flex-wrap:wrap;margin-top:38px;}
 .scholr-landing .src-dark{display:inline-flex;align-items:center;gap:9px;padding:9px 16px;border-radius:var(--radius-pill);background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);font-size:14px;font-weight:600;color:#fff;}
 .scholr-landing .src-dark .d{width:7px;height:7px;border-radius:999px;background:currentColor;opacity:.7;flex:none;}
-.scholr-landing .reveal{opacity:0;transform:translateY(24px);transition:opacity .75s cubic-bezier(.2,.7,.2,1),transform .75s cubic-bezier(.2,.7,.2,1);}
-.scholr-landing .reveal.in{opacity:1;transform:none;}
-.scholr-landing .stagger>*{opacity:0;transform:translateY(26px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1);}
-.scholr-landing .stagger.in>*{opacity:1;transform:none;}
-.scholr-landing .win-rise{opacity:0;transform:translateY(40px) scale(.975);transition:opacity .9s cubic-bezier(.2,.7,.2,1),transform 1.05s cubic-bezier(.2,.7,.2,1);will-change:transform;}
-.scholr-landing .win-rise.in{opacity:1;transform:none;}
-@media (prefers-reduced-motion:reduce){.scholr-landing .reveal,.scholr-landing .stagger>*,.scholr-landing .win-rise{transition:none !important;opacity:1 !important;transform:none !important;}}
+/* Cinematic reveal — bigger lift, gentler easing, longer duration so
+   sections fade up smoothly as the user scrolls into them */
+.scholr-landing .reveal{opacity:0;transform:translateY(48px) scale(.985);filter:blur(4px);transition:opacity 1.05s cubic-bezier(.16,.7,.18,1),transform 1.05s cubic-bezier(.16,.7,.18,1),filter .9s ease-out;will-change:transform,opacity,filter;}
+.scholr-landing .reveal.in{opacity:1;transform:none;filter:blur(0);}
+.scholr-landing .stagger>*{opacity:0;transform:translateY(40px) scale(.985);filter:blur(3px);transition:opacity .95s cubic-bezier(.16,.7,.18,1),transform .95s cubic-bezier(.16,.7,.18,1),filter .8s ease-out;will-change:transform,opacity,filter;}
+.scholr-landing .stagger.in>*{opacity:1;transform:none;filter:blur(0);}
+.scholr-landing .win-rise{opacity:0;transform:translateY(60px) scale(.965);filter:blur(2px);transition:opacity 1.1s cubic-bezier(.16,.7,.18,1),transform 1.2s cubic-bezier(.16,.7,.18,1),filter .9s ease-out;will-change:transform,opacity,filter;}
+.scholr-landing .win-rise.in{opacity:1;transform:none;filter:blur(0);}
+@media (prefers-reduced-motion:reduce){.scholr-landing .reveal,.scholr-landing .stagger>*,.scholr-landing .win-rise{transition:none !important;opacity:1 !important;transform:none !important;filter:none !important;}}
 @media (max-width:940px){
 .scholr-landing .nav-links{display:none;}
 .scholr-landing .analytics-grid{grid-template-columns:1fr;gap:40px;}
@@ -7177,6 +7179,49 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
           </div>
         </section>
 
+        {/* PROFESSOR ANALYTICS — sits right after the student demo so the
+            page reads as "student view → teacher view" before diving into
+            principles, features, etc. */}
+        <section className="band">
+          <div className="wrap">
+            <div className="analytics-grid">
+              <div className="reveal">
+                <span className="eyebrow"><span className="dot" /> Professor analytics</span>
+                <h2 className="serif" style={{ fontSize: 'clamp(30px,3.6vw,44px)', lineHeight: 1.06, margin: '18px 0 16px' }}>Know what's confusing before the next lecture.</h2>
+                <p style={{ fontSize: '18px', color: 'var(--muted)', lineHeight: 1.55 }}>Scholr turns thousands of student questions into a clear signal: the concepts your class keeps getting stuck on, ranked. Walk into lecture already knowing what to reteach.</p>
+                <div className="stat-row">
+                  <div className="stat"><div className="n">100<span style={{ fontSize: '24px' }}>%</span></div><div className="l">of answers cited<br />to a source</div></div>
+                  <div className="stat"><div className="n">0</div><div className="l">answers from<br />the open web</div></div>
+                  <div className="stat"><div className="n">24<span className="ital">/</span>7</div><div className="l">across the<br />whole term</div></div>
+                </div>
+              </div>
+              <div className="dash reveal">
+                <div className="dash-top">
+                  <div className="t">Most-asked · BUS-A 306</div>
+                  <div className="wk">This week</div>
+                </div>
+                <div className="dash-body">
+                  <div className="lead">Top points of confusion</div>
+                  <div className="confuse">
+                    {[
+                      { t: 'Contribution margin', n: '38 asks', w: '100%' },
+                      { t: 'Cost-volume-profit analysis', n: '29 asks', w: '76%' },
+                      { t: 'Overhead allocation', n: '21 asks', w: '55%' },
+                      { t: 'Break-even point', n: '14 asks', w: '37%' },
+                    ].map((r) => (
+                      <div className="row" key={r.t}>
+                        <div className="top"><b>{r.t}</b><span>{r.n}</span></div>
+                        <div className="bar"><i data-w={r.w} /></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="dash-foot"><Ic name="sparkles" s={16} /> Suggested: revisit contribution margin in Lecture 8.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* QUESTION MARQUEE */}
         <section className="mq-band reveal">
           <p className="lead">Real questions students ask Scholr</p>
@@ -7332,46 +7377,6 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
         </section>
 
         {/* ANALYTICS */}
-        <section className="band">
-          <div className="wrap">
-            <div className="analytics-grid">
-              <div className="reveal">
-                <span className="eyebrow"><span className="dot" /> Professor analytics</span>
-                <h2 className="serif" style={{ fontSize: 'clamp(30px,3.6vw,44px)', lineHeight: 1.06, margin: '18px 0 16px' }}>Know what's confusing before the next lecture.</h2>
-                <p style={{ fontSize: '18px', color: 'var(--muted)', lineHeight: 1.55 }}>Scholr turns thousands of student questions into a clear signal: the concepts your class keeps getting stuck on, ranked. Walk into lecture already knowing what to reteach.</p>
-                <div className="stat-row">
-                  <div className="stat"><div className="n">100<span style={{ fontSize: '24px' }}>%</span></div><div className="l">of answers cited<br />to a source</div></div>
-                  <div className="stat"><div className="n">0</div><div className="l">answers from<br />the open web</div></div>
-                  <div className="stat"><div className="n">24<span className="ital">/</span>7</div><div className="l">across the<br />whole term</div></div>
-                </div>
-              </div>
-              <div className="dash reveal">
-                <div className="dash-top">
-                  <div className="t">Most-asked · BUS-A 306</div>
-                  <div className="wk">This week</div>
-                </div>
-                <div className="dash-body">
-                  <div className="lead">Top points of confusion</div>
-                  <div className="confuse">
-                    {[
-                      { t: 'Contribution margin', n: '38 asks', w: '100%' },
-                      { t: 'Cost-volume-profit analysis', n: '29 asks', w: '76%' },
-                      { t: 'Overhead allocation', n: '21 asks', w: '55%' },
-                      { t: 'Break-even point', n: '14 asks', w: '37%' },
-                    ].map((r) => (
-                      <div className="row" key={r.t}>
-                        <div className="top"><b>{r.t}</b><span>{r.n}</span></div>
-                        <div className="bar"><i data-w={r.w} /></div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div className="dash-foot"><Ic name="sparkles" s={16} /> Suggested: revisit contribution margin in Lecture 8.</div>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* FINAL CTA */}
         <section className="cta-band">
           <div className="wrap reveal">
@@ -7505,12 +7510,12 @@ const SUBPAGE_CSS = `
 .scholr-landing .sp-cta-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;}
 .scholr-landing .sp-hero-meta{margin-top:22px;font-size:14.5px;color:var(--muted-2);}
 .scholr-landing .sp-hero-side{display:flex;flex-direction:column;gap:16px;}
-.scholr-landing .sp-stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;box-shadow:var(--shadow-sm);}
+.scholr-landing .sp-stat{background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.7);border-radius:var(--radius);padding:22px 24px;box-shadow:0 1px 2px rgba(21,22,27,.04),0 18px 40px -20px rgba(21,22,27,.14);-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);}
 .scholr-landing .sp-stat .num{font-family:var(--font-display);font-weight:500;font-size:42px;line-height:1;letter-spacing:-.02em;color:var(--ink);}
 .scholr-landing .sp-stat .num em{font-style:italic;font-weight:500;}
 .scholr-landing .sp-stat .lbl{margin-top:8px;font-size:14px;color:var(--muted);line-height:1.5;}
-.scholr-landing .sp-section{padding:88px 0;border-top:1px solid var(--line);}
-.scholr-landing .sp-section.alt{background:var(--bg-2);}
+.scholr-landing .sp-section{padding:88px 0;border-top:1px solid rgba(21,22,27,.06);}
+.scholr-landing .sp-section.alt{background:rgba(255,255,255,.35);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);}
 .scholr-landing .sp-section.dark{background:var(--ink);color:#FBFBF9;border-top:1px solid #2A2C33;}
 .scholr-landing .sp-section.dark .sp-eye{color:rgba(255,255,255,.55);}
 .scholr-landing .sp-section.dark .sp-section-h{color:#FBFBF9;}
@@ -7524,8 +7529,8 @@ const SUBPAGE_CSS = `
 .scholr-landing .sp-section-lede{margin-top:18px;font-size:17.5px;color:var(--muted);max-width:620px;line-height:1.55;}
 .scholr-landing .sp-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:48px;}
 .scholr-landing .sp-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:48px;}
-.scholr-landing .sp-feat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:28px;box-shadow:var(--shadow-sm);transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;}
-.scholr-landing .sp-feat:hover{transform:translateY(-2px);box-shadow:var(--shadow-card);border-color:var(--line-2);}
+.scholr-landing .sp-feat{background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.7);border-radius:var(--radius);padding:28px;box-shadow:0 1px 2px rgba(21,22,27,.04),0 18px 40px -20px rgba(21,22,27,.14);transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);}
+.scholr-landing .sp-feat:hover{transform:translateY(-2px);box-shadow:0 1px 2px rgba(21,22,27,.04),0 26px 50px -22px rgba(21,22,27,.2);border-color:rgba(255,255,255,.9);}
 .scholr-landing .sp-feat .ft-i{width:38px;height:38px;border-radius:11px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;color:var(--ink);margin-bottom:18px;}
 .scholr-landing .sp-feat .ft-i svg{width:18px;height:18px;}
 .scholr-landing .sp-feat .ft-h{font-family:var(--font-display);font-weight:500;font-size:21px;letter-spacing:-.012em;line-height:1.25;color:var(--ink);margin-bottom:10px;}
@@ -7569,6 +7574,7 @@ const SUBPAGE_CSS = `
 // information architecture without having to read the URL bar.
 function MarketingShell({ children, onSignIn, onInstructor, onStudent, currentPath }) {
   const navigate = useNavigate();
+  const shellRef = useRef(null);
   const [navScrolled, setNavScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setNavScrolled(window.scrollY > 8);
@@ -7577,10 +7583,32 @@ function MarketingShell({ children, onSignIn, onInstructor, onStudent, currentPa
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
   useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }); }, [currentPath]);
+  // Cinematic reveal — same observer the landing uses, scoped to the
+  // subpage so .reveal / .stagger / .win-rise elements fade up when
+  // they enter the viewport. Re-runs on path change so the new page's
+  // elements are observed after the children update.
+  useEffect(() => {
+    const root = shellRef.current;
+    if (!root) return;
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (!e.isIntersecting) return;
+        if (e.target.classList.contains('stagger')) {
+          Array.prototype.forEach.call(e.target.children, (ch, i) => { ch.style.transitionDelay = (i * 75) + 'ms'; });
+        }
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+      });
+    }, { threshold: 0.14 });
+    const t = setTimeout(() => {
+      root.querySelectorAll('.reveal, .stagger, .win-rise').forEach((el) => io.observe(el));
+    }, 30);
+    return () => { clearTimeout(t); io.disconnect(); };
+  }, [currentPath]);
   const go = (path) => (e) => { if (e) e.preventDefault(); navigate(path); };
   const isActive = (path) => currentPath === path;
   return (
-    <div className="scholr-landing">
+    <div className="scholr-landing" ref={shellRef}>
       <style>{LANDING_CSS}</style>
       <style>{SUBPAGE_CSS}</style>
       <header className={`nav${navScrolled ? ' scrolled' : ''}`}>
