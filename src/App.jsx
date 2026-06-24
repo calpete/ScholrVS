@@ -6216,10 +6216,6 @@ html { scroll-behavior: smooth; }
     radial-gradient(50% 60% at 60% 110%,rgba(255,255,255,.55) 0%,rgba(255,255,255,0) 65%),
     linear-gradient(180deg,#EEF0F4 0%,#E5E7EC 100%);
   background-attachment:fixed;
-  /* Reserve 36px at the top so the now-fixed promo banner doesn't sit
-     on top of the page content on initial load. Nav has its own
-     transparent backdrop below the banner. */
-  padding-top:36px;
   overflow-x:hidden; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
 }
 .scholr-landing *{box-sizing:border-box;margin:0;padding:0;}
@@ -6263,7 +6259,7 @@ html { scroll-behavior: smooth; }
 .scholr-landing .top-banner a{color:inherit;display:inline-flex;align-items:center;gap:6px;font-weight:600;}
 .scholr-landing .top-banner a .arr{display:inline-flex;transition:transform .2s ease;}
 .scholr-landing .top-banner a:hover .arr{transform:translateX(3px);}
-.scholr-landing header.nav{position:fixed;top:36px;left:0;right:0;z-index:60;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border-bottom:1px solid transparent;transition:border-color .25s ease,background .25s ease;}
+.scholr-landing header.nav{position:fixed;top:0;left:0;right:0;z-index:60;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border-bottom:1px solid transparent;transition:border-color .25s ease,background .25s ease;}
 .scholr-landing header.nav.scrolled{border-bottom-color:var(--line);}
 .scholr-landing .nav-inner{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:76px;column-gap:24px;}
 .scholr-landing .nav-inner .brand{justify-self:start;}
@@ -6280,14 +6276,14 @@ html { scroll-behavior: smooth; }
    The wrap already caps at 1120px; the hero's inner column caps tighter
    so the headline reads as a confident two-line statement rather than
    a giant centered banner. */
-.scholr-landing .hero{text-align:center;padding:0;position:relative;min-height:calc(100vh - 112px);display:flex;align-items:center;overflow:hidden;}
+.scholr-landing .hero{text-align:center;padding:0;position:relative;min-height:calc(100vh - 76px);display:flex;align-items:center;overflow:hidden;}
 .scholr-landing .hero .wrap{width:100%;padding-top:24px;padding-bottom:64px;position:relative;z-index:2;}
 .scholr-landing .hero .hero-col{max-width:820px;margin:0 auto;}
 .scholr-landing .hero-waves{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;}
 .scholr-landing .hero .chip{margin-bottom:24px;}
-.scholr-landing .hero h1{font-family:var(--font-display);font-weight:500;font-size:clamp(40px,5.2vw,68px);line-height:1.04;letter-spacing:-.026em;color:var(--ink);}
+.scholr-landing .hero h1{font-family:var(--font-display);font-weight:500;font-size:clamp(50px,6.4vw,88px);line-height:1.02;letter-spacing:-.028em;color:var(--ink);}
 .scholr-landing .hero h1 .l2{display:block;font-style:italic;font-weight:500;}
-.scholr-landing .hero .lede{font-size:clamp(16.5px,1.35vw,19px);color:var(--muted);max-width:520px;margin:22px auto 0;line-height:1.55;}
+.scholr-landing .hero .lede{font-size:clamp(17px,1.45vw,21px);color:var(--muted);max-width:580px;margin:28px auto 0;line-height:1.55;}
 .scholr-landing .hero-actions{margin-top:36px;display:flex;justify-content:center;}
 .scholr-landing .hero-cta{padding:18px 38px;font-size:17px;font-weight:600;}
 /* Warp-style inline pill: email input + submit button in a single rounded
@@ -6960,17 +6956,6 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
     <div className="scholr-landing" ref={rootRef}>
       <style>{LANDING_CSS}</style>
 
-      {/* Warp-style sticky promo banner above the nav. Both bands stay
-          pinned on scroll, stacked. Real, current announcement only —
-          no inflated stats. Updates here are a one-line copy edit. */}
-      <div className="top-banner">
-        <span className="new-tag">New</span>
-        <a href="/for-professors" onClick={(e) => { e.preventDefault(); navigate('/for-professors'); }}>
-          Free for the 2026 academic year while in beta
-          <span className="arr"><Ic name="arrow-right" s={13} /></span>
-        </a>
-      </div>
-
       <header className={`nav${navScrolled ? ' scrolled' : ''}`}>
         <div className="wrap nav-inner">
           <a className="brand" href="/" onClick={goHome}><LandingLogo s={36} />Scholr</a>
@@ -7489,15 +7474,6 @@ function MarketingShell({ children, onSignIn, onInstructor, onStudent, currentPa
     <div className="scholr-landing">
       <style>{LANDING_CSS}</style>
       <style>{SUBPAGE_CSS}</style>
-      {/* Same sticky promo banner as the main landing — keeps chrome
-          consistent across every public-facing page. */}
-      <div className="top-banner">
-        <span className="new-tag">New</span>
-        <a href="/for-professors" onClick={go('/for-professors')}>
-          Free for the 2026 academic year while in beta
-          <span className="arr"><Ic name="arrow-right" s={13} /></span>
-        </a>
-      </div>
       <header className={`nav${navScrolled ? ' scrolled' : ''}`}>
         <div className="wrap nav-inner">
           <a className="brand" href="/" onClick={go('/')}><LandingLogo s={36} />Scholr</a>
