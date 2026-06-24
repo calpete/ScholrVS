@@ -609,13 +609,13 @@ function SmartSignIn({ onPickStudent, onPickProfessor, onBack }) {
 // ink buttons), scoped under .scholr-auth so nothing leaks into the app.
 const AUTH_CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500;1,6..72,600&family=Hanken+Grotesk:wght@400;500;600;700&display=swap');
-.scholr-auth{--font-display:"Newsreader",Georgia,serif;--font-body:"Hanken Grotesk",system-ui,sans-serif;--bg:#FBFBF9;--bg-2:#F3F2EF;--surface:#FFFFFF;--ink:#15161B;--ink-2:#2A2C33;--muted:#6B6E76;--muted-2:#9A9CA3;--line:#E7E4DD;--accent:#15161B;--radius-lg:22px;--radius-pill:999px;--shadow-sm:0 1px 2px rgba(21,22,27,.04),0 1px 3px rgba(21,22,27,.05);--shadow-float:0 40px 90px -38px rgba(21,22,27,.28),0 8px 26px -16px rgba(21,22,27,.16);min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 20px;background:var(--bg);font-family:var(--font-body);color:var(--ink);-webkit-font-smoothing:antialiased;}
+.scholr-auth{--font-display:"Newsreader",Georgia,serif;--font-body:"Hanken Grotesk",system-ui,sans-serif;--bg:#F3F4F6;--bg-2:#ECEEF2;--surface:#FFFFFF;--ink:#15161B;--ink-2:#2A2C33;--muted:#6B6E76;--muted-2:#9A9CA3;--line:#E1E3E8;--accent:#15161B;--radius-lg:22px;--radius-pill:999px;--shadow-sm:0 1px 2px rgba(21,22,27,.04),0 1px 3px rgba(21,22,27,.05);--shadow-float:0 40px 90px -38px rgba(21,22,27,.28),0 8px 26px -16px rgba(21,22,27,.16);min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 20px;background:radial-gradient(80% 70% at 100% 0%,rgba(255,255,255,1) 0%,rgba(255,255,255,0) 55%),radial-gradient(70% 60% at 0% 50%,rgba(255,255,255,.85) 0%,rgba(255,255,255,0) 60%),radial-gradient(60% 55% at 50% 100%,rgba(255,255,255,.7) 0%,rgba(255,255,255,0) 60%),linear-gradient(165deg,#F0F2F6 0%,#E7EAEF 55%,#E2E5EB 100%);background-attachment:fixed;font-family:var(--font-body);color:var(--ink);-webkit-font-smoothing:antialiased;}
 .scholr-auth *{box-sizing:border-box;margin:0;padding:0;}
 .scholr-auth ::selection{background:var(--ink);color:var(--bg);}
-.scholr-auth.prof{background:var(--bg-2);}
+.scholr-auth.prof{background:radial-gradient(80% 70% at 100% 0%,rgba(255,255,255,1) 0%,rgba(255,255,255,0) 55%),radial-gradient(60% 55% at 50% 100%,rgba(255,255,255,.7) 0%,rgba(255,255,255,0) 60%),linear-gradient(165deg,#E9ECF1 0%,#DFE2E8 100%);}
 .scholr-auth .auth-brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:21px;letter-spacing:-.02em;color:var(--ink);background:none;border:none;cursor:pointer;font-family:var(--font-body);margin-bottom:24px;}
 .scholr-auth .auth-brand .mark{width:32px;height:32px;flex:none;}
-.scholr-auth .auth-card{position:relative;width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:36px 34px;box-shadow:var(--shadow-float);}
+.scholr-auth .auth-card{position:relative;width:100%;max-width:400px;background:rgba(255,255,255,.65);border:1px solid rgba(255,255,255,.75);border-radius:var(--radius-lg);padding:36px 34px;box-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 36px 90px -32px rgba(21,22,27,.36),0 10px 28px -14px rgba(21,22,27,.18);-webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%);}
 .scholr-auth.shake{animation:auth-shake .4s ease-in-out;}
 @keyframes auth-shake{0%,100%{transform:translateX(0);}20%{transform:translateX(-7px);}40%{transform:translateX(7px);}60%{transform:translateX(-4px);}80%{transform:translateX(4px);}}
 .scholr-auth .auth-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-2);margin-bottom:16px;}
@@ -661,7 +661,7 @@ const AUTH_CSS = `
 .scholr-auth.shake{animation:none;}
 .scholr-auth.shake .auth-card{animation:auth-shake .4s ease-in-out;}
 .scholr-auth .auth-aside{position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:44px 52px;overflow:hidden;}
-.scholr-auth.stud .auth-aside{background:var(--bg-2);}
+.scholr-auth.stud .auth-aside{background:linear-gradient(165deg,#E9ECF1 0%,#DCDFE5 100%);}
 .scholr-auth.prof .auth-aside{background:var(--ink);color:#fff;}
 .scholr-auth.prof .auth-aside::after{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.05) 1.4px,transparent 1.4px);background-size:26px 26px;-webkit-mask-image:radial-gradient(85% 70% at 30% 28%,#000,transparent 75%);mask-image:radial-gradient(85% 70% at 30% 28%,#000,transparent 75%);pointer-events:none;}
 .scholr-auth .auth-aside>*{position:relative;z-index:1;}
@@ -839,11 +839,11 @@ function AuthLayout({ variant, onBack, shake, children }) {
 // one piece. Scoped under .scholr-portal so it never leaks into the chat
 // view or anything else.
 const PORTAL_CSS = `
-.scholr-portal{--font-display:"Newsreader",Georgia,serif;--font-body:"Hanken Grotesk",system-ui,sans-serif;--bg:#FBFBF9;--bg-2:#F3F2EF;--bg-3:#EFEEEA;--surface:#FFF;--ink:#15161B;--ink-2:#2A2C33;--muted:#6B6E76;--muted-2:#9A9CA3;--line:#E7E4DD;--radius-lg:22px;--shadow-sm:0 1px 2px rgba(21,22,27,.04),0 1px 3px rgba(21,22,27,.05);--shadow-card:0 1px 2px rgba(21,22,27,.04),0 14px 34px -18px rgba(21,22,27,.16);min-height:100dvh;background:var(--bg);color:var(--ink);font-family:var(--font-body);-webkit-font-smoothing:antialiased;}
+.scholr-portal{--font-display:"Newsreader",Georgia,serif;--font-body:"Hanken Grotesk",system-ui,sans-serif;--bg:#F3F4F6;--bg-2:#ECEEF2;--bg-3:#E5E7EC;--surface:#FFF;--ink:#15161B;--ink-2:#2A2C33;--muted:#6B6E76;--muted-2:#9A9CA3;--line:#E1E3E8;--radius-lg:22px;--shadow-sm:0 1px 2px rgba(21,22,27,.04),0 1px 3px rgba(21,22,27,.05);--shadow-card:0 1px 2px rgba(21,22,27,.04),0 14px 34px -18px rgba(21,22,27,.16);min-height:100dvh;background:radial-gradient(80% 70% at 100% 0%,rgba(255,255,255,1) 0%,rgba(255,255,255,0) 55%),radial-gradient(70% 60% at 0% 50%,rgba(255,255,255,.85) 0%,rgba(255,255,255,0) 60%),radial-gradient(60% 55% at 50% 100%,rgba(255,255,255,.7) 0%,rgba(255,255,255,0) 60%),linear-gradient(165deg,#F0F2F6 0%,#E7EAEF 55%,#E2E5EB 100%);background-attachment:fixed;color:var(--ink);font-family:var(--font-body);-webkit-font-smoothing:antialiased;}
 .scholr-portal *{box-sizing:border-box;margin:0;padding:0;}
 .scholr-portal .serif{font-family:var(--font-display);font-weight:500;letter-spacing:-.012em;}
 .scholr-portal .ital{font-style:italic;}
-.scholr-portal .pb-top{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;padding:16px 32px;background:color-mix(in srgb,var(--bg) 80%,transparent);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border-bottom:1px solid transparent;transition:border-color .2s ease;}
+.scholr-portal .pb-top{position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;padding:16px 32px;background:rgba(255,255,255,.4);backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);border-bottom:1px solid transparent;transition:border-color .2s ease,background .2s ease;}
 .scholr-portal .pb-top.scrolled{border-bottom-color:var(--line);}
 .scholr-portal .pb-brand{display:inline-flex;align-items:center;gap:11px;background:none;border:none;cursor:pointer;font-family:var(--font-body);font-weight:700;font-size:18px;letter-spacing:-.02em;color:var(--ink);min-width:0;}
 .scholr-portal .pb-brand .mark{width:30px;height:30px;flex:none;}
@@ -864,8 +864,8 @@ const PORTAL_CSS = `
 .scholr-portal .pb-grid{display:grid;grid-template-columns:1fr;gap:18px;}
 .scholr-portal .pb-grid.cols-2{grid-template-columns:repeat(2,1fr);}
 @media (max-width:780px){.scholr-portal .pb-grid.cols-2{grid-template-columns:1fr;}}
-.scholr-portal .pb-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-sm);transition:transform .2s ease,box-shadow .2s ease,border-color .2s;display:flex;flex-direction:column;}
-.scholr-portal .pb-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-card);border-color:var(--ink);}
+.scholr-portal .pb-card{background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.7);border-radius:var(--radius-lg);overflow:hidden;box-shadow:0 1px 2px rgba(21,22,27,.04),0 18px 40px -20px rgba(21,22,27,.14);transition:transform .2s ease,box-shadow .2s ease,border-color .2s;display:flex;flex-direction:column;-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);}
+.scholr-portal .pb-card:hover{transform:translateY(-3px);box-shadow:0 1px 2px rgba(21,22,27,.04),0 26px 50px -22px rgba(21,22,27,.2);border-color:rgba(255,255,255,.9);}
 .scholr-portal .pb-cover{position:relative;}
 .scholr-portal .pb-cover.editable{cursor:pointer;}
 .scholr-portal .pb-cover-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0);transition:background .2s;color:#fff;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;opacity:0;}
