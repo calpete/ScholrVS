@@ -6288,7 +6288,8 @@ html { scroll-behavior: smooth; }
 .scholr-landing .hero h1{font-family:var(--font-display);font-weight:500;font-size:clamp(40px,5.2vw,68px);line-height:1.04;letter-spacing:-.026em;color:var(--ink);}
 .scholr-landing .hero h1 .l2{display:block;font-style:italic;font-weight:500;}
 .scholr-landing .hero .lede{font-size:clamp(16.5px,1.35vw,19px);color:var(--muted);max-width:520px;margin:22px auto 0;line-height:1.55;}
-.scholr-landing .hero-actions{margin-top:30px;display:flex;justify-content:center;}
+.scholr-landing .hero-actions{margin-top:36px;display:flex;justify-content:center;}
+.scholr-landing .hero-cta{padding:18px 38px;font-size:17px;font-weight:600;}
 /* Warp-style inline pill: email input + submit button in a single rounded
    container. Input on the left expands, button anchored on the right.
    Same .btn-primary ink treatment as the rest of the landing so it stays
@@ -7005,34 +7006,12 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
             <h1>Every answer from<span className="l2">your <span className="squig">course materials</span>.</span></h1>
             <p className="lede">AI tutoring grounded in what your professor uploaded. Cited, accurate, and trustworthy.</p>
             <div className="hero-actions">
-              <form className="hero-pill" onSubmit={submitHero}>
-                <input
-                  type="email"
-                  value={heroEmail}
-                  onChange={(e) => setHeroEmail(e.target.value)}
-                  placeholder="What's your school email?"
-                  autoComplete="email"
-                  aria-label="School email"
-                />
-                <button type="submit" disabled={heroSubmitted}>
-                  {heroSubmitted ? (
-                    <><Ic name="check" s={15} />Got it — we'll be in touch</>
-                  ) : (
-                    <><span className="arr"><Ic name="arrow-right" s={15} /></span>See a Demo</>
-                  )}
-                </button>
-              </form>
-            </div>
-            <p className="hero-sub">Joining a class? <button type="button" onClick={() => setJoinOpen(true)}>Enter your join code <Ic name="arrow-right" s={15} /></button></p>
-            <div className="hero-meta">
-              <span className="hero-meta-dot" /> Free for the 2026 academic year · No credit card · Set up in minutes
+              <button type="button" className="btn btn-primary btn-lg btn-pill hero-cta" onClick={() => setDemoModalOpen(true)}>
+                Book a demo
+              </button>
             </div>
             </div>
           </div>
-          <a href="#why" className="hero-scroll" onClick={(e) => { e.preventDefault(); document.getElementById('why')?.scrollIntoView({ behavior: 'smooth' }); }} aria-label="Scroll to next section">
-            <span>Scroll</span>
-            <span className="hero-scroll-arr"><Ic name="chevron-down" s={14} /></span>
-          </a>
         </section>
 
         {/* PRODUCT MOCK */}
