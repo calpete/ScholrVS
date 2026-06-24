@@ -6269,7 +6269,9 @@ html { scroll-behavior: smooth; }
 /* Nav extends to the viewport edges (overrides the .wrap max-width
    cap) so the logo sits flush left and the buttons sit flush right —
    matches Kaizen's full-width nav. */
-.scholr-landing header.nav .wrap.nav-inner{max-width:none;padding:0 44px;}
+.scholr-landing header.nav .wrap.nav-inner{max-width:none;padding:0 88px;}
+@media (max-width:1100px){.scholr-landing header.nav .wrap.nav-inner{padding:0 48px;}}
+@media (max-width:680px){.scholr-landing header.nav .wrap.nav-inner{padding:0 24px;}}
 .scholr-landing .nav-inner{display:flex;align-items:center;gap:32px;height:76px;}
 .scholr-landing .nav-inner .brand{margin-right:auto;}
 .scholr-landing .brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:23px;letter-spacing:-.02em;color:var(--ink);background:none;border:none;cursor:pointer;font-family:var(--font-body);}
