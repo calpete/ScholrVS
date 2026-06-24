@@ -6,7 +6,7 @@ import {
   CheckCircle2, Copy, Check, ThumbsUp, ThumbsDown, X,
   Lock, WifiOff, Paperclip, Square, ArrowLeft, ExternalLink, Hash, Menu,
   ListChecks, RotateCcw, Sparkles, ChevronLeft, MoreHorizontal, Pencil, FolderOpen, Layers, GraduationCap,
-  Loader2, Lightbulb, Share2, Link as LinkIcon
+  Loader2, Lightbulb, Share2, Link as LinkIcon, ChevronDown
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -6654,6 +6654,73 @@ html { scroll-behavior: smooth; }
 .scholr-landing .chapter b{font-family:var(--font-display);font-weight:500;font-style:italic;font-size:22px;color:#C2603A;letter-spacing:-.01em;line-height:1;}
 .scholr-landing .chapter .ln{display:inline-block;width:28px;height:1.5px;background:currentColor;opacity:.5;border-radius:2px;transform:translateY(-4px);}
 
+/* ─── Nav mega-menu dropdowns — Kaizen-style multi-column ──────────── */
+.scholr-landing .nav-links{gap:6px;}
+.scholr-landing .nav-dd{position:relative;}
+.scholr-landing .nav-dd-trigger{display:inline-flex;align-items:center;gap:6px;background:none;border:0;padding:9px 14px;border-radius:10px;cursor:pointer;font-family:var(--font-body);font-size:15.5px;font-weight:500;color:var(--muted);transition:color .15s ease,background .15s ease;}
+.scholr-landing .nav-dd-trigger:hover,
+.scholr-landing .nav-dd.open .nav-dd-trigger{color:var(--ink);background:rgba(21,22,27,.04);}
+.scholr-landing .nav-dd-chev{transition:transform .25s cubic-bezier(.2,.7,.2,1);opacity:.7;}
+.scholr-landing .nav-dd.open .nav-dd-chev{transform:rotate(180deg);opacity:1;}
+.scholr-landing .nav-dd-bridge{position:absolute;top:100%;left:0;right:0;height:14px;}
+.scholr-landing .nav-dd-panel{
+  position:absolute;
+  top:calc(100% + 14px);
+  left:0;
+  width:580px;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:18px;
+  box-shadow:0 30px 80px -28px rgba(21,22,27,.32),0 6px 22px -10px rgba(21,22,27,.16);
+  padding:22px;
+  opacity:0;
+  transform:translateY(-6px) scale(.98);
+  pointer-events:none;
+  transition:opacity .22s cubic-bezier(.2,.7,.2,1),transform .22s cubic-bezier(.2,.7,.2,1);
+  z-index:50;
+}
+.scholr-landing .nav-dd.open .nav-dd-panel{opacity:1;transform:none;pointer-events:auto;}
+.scholr-landing .nav-dd-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:20px;}
+.scholr-landing .nav-dd-col{display:flex;flex-direction:column;gap:4px;min-width:0;}
+.scholr-landing .nav-dd-label{font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted-2);padding:4px 12px 10px;}
+.scholr-landing .nav-dd-link{display:flex;gap:13px;align-items:flex-start;padding:11px 12px;border-radius:11px;text-align:left;background:none;border:0;cursor:pointer;font-family:var(--font-body);transition:background .15s ease;color:var(--ink);}
+.scholr-landing .nav-dd-link:hover{background:var(--bg-2);}
+.scholr-landing .nav-dd-ic{width:32px;height:32px;border-radius:9px;background:#FFF1E3;color:#C2603A;display:grid;place-items:center;flex:none;border:1px solid #F4D2B6;}
+.scholr-landing .nav-dd-text{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.scholr-landing .nav-dd-text b{font-size:14.5px;font-weight:600;color:var(--ink);letter-spacing:-.005em;}
+.scholr-landing .nav-dd-text span{font-size:13px;color:var(--muted);line-height:1.4;}
+.scholr-landing .nav-dd-feature{display:flex;flex-direction:column;justify-content:space-between;border-radius:14px;background:linear-gradient(160deg,#1B1C22 0%,#2A2C33 100%);color:#FBFBF9;padding:18px 18px 16px;text-decoration:none;cursor:pointer;overflow:hidden;position:relative;transition:transform .2s ease;}
+.scholr-landing .nav-dd-feature:hover{transform:translateY(-2px);}
+.scholr-landing .nav-dd-feature.alt{background:linear-gradient(160deg,#3B2418 0%,#5B3925 100%);}
+.scholr-landing .nav-dd-feature-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;font-family:var(--font-display);font-weight:500;font-size:22px;line-height:1.05;letter-spacing:-.018em;}
+.scholr-landing .nav-dd-feature-arr{display:grid;place-items:center;width:30px;height:30px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);color:#fff;flex:none;transition:transform .2s ease,background .2s ease;}
+.scholr-landing .nav-dd-feature:hover .nav-dd-feature-arr{background:rgba(255,255,255,.18);transform:translateX(2px);}
+.scholr-landing .nav-dd-feature-art{display:flex;flex-direction:column;gap:5px;margin-top:18px;}
+.scholr-landing .nav-dd-feature-art .art-line{height:5px;border-radius:99px;background:rgba(255,255,255,.16);}
+.scholr-landing .nav-dd-feature-art .art-cite{margin-top:8px;display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:rgba(224,122,60,.18);border:1px solid rgba(224,122,60,.32);font-size:11px;font-weight:600;color:#FFC79B;align-self:flex-start;}
+.scholr-landing .nav-dd-feature-art .art-cite svg{color:#FFC79B;}
+.scholr-landing .nav-dd-feature-art.alt{margin-top:16px;}
+.scholr-landing .nav-dd-feature-art .art-quote{font-family:var(--font-display);font-style:italic;font-size:14px;line-height:1.4;color:rgba(255,255,255,.78);}
+.scholr-landing .nav-dd-foot{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.scholr-landing .nav-dd-foot-lbl{font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted-2);}
+.scholr-landing .nav-dd-foot-tag{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink-2);text-decoration:none;}
+.scholr-landing .nav-dd-foot-tag svg{color:var(--muted);}
+a.scholr-landing .nav-dd-foot-tag:hover,
+.scholr-landing .nav-dd-foot-tag:hover{color:var(--ink);}
+
+/* Resources dropdown is shorter — narrower panel, anchored under its own
+   trigger so it doesn't sprawl across the Product trigger area. */
+.scholr-landing .nav-dd:nth-of-type(2) .nav-dd-panel{left:auto;right:-110px;width:420px;}
+.scholr-landing .nav-dd:nth-of-type(2) .nav-dd-grid{grid-template-columns:1fr;gap:14px;}
+.scholr-landing .nav-dd:nth-of-type(2) .nav-dd-feature{flex-direction:row;align-items:center;padding:14px 16px;gap:14px;}
+.scholr-landing .nav-dd:nth-of-type(2) .nav-dd-feature-top{font-size:16px;flex:1;align-items:center;}
+.scholr-landing .nav-dd:nth-of-type(2) .nav-dd-feature-top span:first-child{white-space:nowrap;}
+.scholr-landing .nav-dd:nth-of-type(2) .nav-dd-feature-art{display:none;}
+
+@media (max-width:940px){
+  .scholr-landing .nav-dd{display:none;}
+}
+
 /* Sticker badge — a slightly rotated tag in the corner of a section */
 .scholr-landing .sticker{display:inline-block;padding:7px 14px;background:#FFE6D2;color:#8E3F19;border:1px solid #F2C5A3;border-radius:8px;font-family:var(--font-body);font-size:12.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;transform:rotate(-1.4deg);box-shadow:0 2px 8px -3px rgba(194,96,58,.35);margin-bottom:22px;}
 `;
@@ -6752,6 +6819,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
   // submission is logged server-side either way (Render console becomes
   // the audit trail if Resend hiccups).
   const [heroSubmitted, setHeroSubmitted] = useState(false);
+  const [navDD, setNavDD] = useState(null);
   // Empty-email submit opens the full contact modal so we still capture a
   // lead instead of dropping the visitor onto the signup form. ContactModal
   // collects name, email, institution, and message — strictly more info
@@ -6793,10 +6861,77 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
         <div className="wrap nav-inner">
           <a className="brand" href="/" onClick={goHome}><LandingLogo s={36} />Scholr</a>
           <nav className="nav-links">
-            <a href="/how-it-works" onClick={(e) => { e.preventDefault(); navigate('/how-it-works'); }}>How it works</a>
-            <a href="/for-professors" onClick={(e) => { e.preventDefault(); navigate('/for-professors'); }}>For professors</a>
-            <a href="/for-students" onClick={(e) => { e.preventDefault(); navigate('/for-students'); }}>For students</a>
-            <a href="/about" onClick={(e) => { e.preventDefault(); navigate('/about'); }}>About</a>
+            <div className={`nav-dd ${navDD === 'product' ? 'open' : ''}`} onMouseEnter={() => setNavDD('product')} onMouseLeave={() => setNavDD(null)}>
+              <button type="button" className="nav-dd-trigger">Product <ChevronDown size={14} className="nav-dd-chev" /></button>
+              <div className="nav-dd-bridge" />
+              <div className="nav-dd-panel" role="menu" aria-label="Product menu">
+                <div className="nav-dd-grid">
+                  <div className="nav-dd-col">
+                    <div className="nav-dd-label">Explore Scholr</div>
+                    <a className="nav-dd-link" href="/how-it-works" onClick={(e) => { e.preventDefault(); setNavDD(null); navigate('/how-it-works'); }}>
+                      <span className="nav-dd-ic"><Layers size={17} /></span>
+                      <span className="nav-dd-text"><b>How it works</b><span>Set up once, tutoring all term.</span></span>
+                    </a>
+                    <a className="nav-dd-link" href="/for-professors" onClick={(e) => { e.preventDefault(); setNavDD(null); navigate('/for-professors'); }}>
+                      <span className="nav-dd-ic"><GraduationCap size={17} /></span>
+                      <span className="nav-dd-text"><b>For professors</b><span>Stop answering the same question 50 times.</span></span>
+                    </a>
+                    <a className="nav-dd-link" href="/for-students" onClick={(e) => { e.preventDefault(); setNavDD(null); navigate('/for-students'); }}>
+                      <span className="nav-dd-ic"><BookOpen size={17} /></span>
+                      <span className="nav-dd-text"><b>For students</b><span>Office hours that never close.</span></span>
+                    </a>
+                  </div>
+                  <a className="nav-dd-feature" href="/how-it-works" onClick={(e) => { e.preventDefault(); setNavDD(null); navigate('/how-it-works'); }}>
+                    <div className="nav-dd-feature-top">
+                      <span>The Scholr<br />Difference</span>
+                      <span className="nav-dd-feature-arr"><ChevronRight size={18} /></span>
+                    </div>
+                    <div className="nav-dd-feature-art" aria-hidden="true">
+                      <div className="art-line" style={{ width: '80%' }} />
+                      <div className="art-line" style={{ width: '60%' }} />
+                      <div className="art-line" style={{ width: '70%' }} />
+                      <div className="art-cite">
+                        <span><Hash size={11} /> Lecture 7 · slide 12</span>
+                      </div>
+                    </div>
+                  </a>
+                </div>
+                <div className="nav-dd-foot">
+                  <span className="nav-dd-foot-lbl">On Scholr</span>
+                  <span className="nav-dd-foot-tag"><Sparkles size={13} /> Free for 2026 in beta</span>
+                  <span className="nav-dd-foot-tag"><CheckCircle2 size={13} /> Every answer cited</span>
+                </div>
+              </div>
+            </div>
+            <div className={`nav-dd ${navDD === 'resources' ? 'open' : ''}`} onMouseEnter={() => setNavDD('resources')} onMouseLeave={() => setNavDD(null)}>
+              <button type="button" className="nav-dd-trigger">Resources <ChevronDown size={14} className="nav-dd-chev" /></button>
+              <div className="nav-dd-bridge" />
+              <div className="nav-dd-panel" role="menu" aria-label="Resources menu">
+                <div className="nav-dd-grid">
+                  <div className="nav-dd-col">
+                    <div className="nav-dd-label">Company</div>
+                    <a className="nav-dd-link" href="/about" onClick={(e) => { e.preventDefault(); setNavDD(null); navigate('/about'); }}>
+                      <span className="nav-dd-ic"><Lightbulb size={17} /></span>
+                      <span className="nav-dd-text"><b>About Scholr</b><span>Why we built a tutor grounded in the course.</span></span>
+                    </a>
+                    <button type="button" className="nav-dd-link" onClick={() => { setNavDD(null); setTalkOpen(true); }}>
+                      <span className="nav-dd-ic"><MessageSquare size={17} /></span>
+                      <span className="nav-dd-text"><b>Talk to our team</b><span>Tell us about your course — we'll show you what fits.</span></span>
+                    </button>
+                  </div>
+                  <a className="nav-dd-feature alt" href="/about" onClick={(e) => { e.preventDefault(); setNavDD(null); navigate('/about'); }}>
+                    <div className="nav-dd-feature-top">
+                      <span>Read our story</span>
+                      <span className="nav-dd-feature-arr"><ChevronRight size={18} /></span>
+                    </div>
+                  </a>
+                </div>
+                <div className="nav-dd-foot">
+                  <span className="nav-dd-foot-lbl">Get in touch</span>
+                  <a className="nav-dd-foot-tag" href="mailto:hello@scholr.study"><ExternalLink size={12} /> hello@scholr.study</a>
+                </div>
+              </div>
+            </div>
           </nav>
           <div className="nav-right">
             <button type="button" className="btn btn-ghost btn-pill" onClick={onSignIn}>Sign in</button>
