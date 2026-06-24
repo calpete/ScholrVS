@@ -6274,14 +6274,14 @@ html { scroll-behavior: smooth; }
    The wrap already caps at 1120px; the hero's inner column caps tighter
    so the headline reads as a confident two-line statement rather than
    a giant centered banner. */
-.scholr-landing .hero{text-align:left;padding:0;position:relative;min-height:calc(100vh - 112px);display:flex;align-items:center;}
+.scholr-landing .hero{text-align:center;padding:0;position:relative;min-height:calc(100vh - 112px);display:flex;align-items:center;}
 .scholr-landing .hero .wrap{width:100%;padding-top:24px;padding-bottom:64px;}
-.scholr-landing .hero .hero-col{max-width:780px;}
-.scholr-landing .hero .chip{margin-bottom:28px;}
-.scholr-landing .hero h1{font-family:var(--font-display);font-weight:500;font-size:clamp(40px,5.6vw,76px);line-height:1.02;letter-spacing:-.025em;color:var(--ink);}
+.scholr-landing .hero .hero-col{max-width:820px;margin:0 auto;}
+.scholr-landing .hero .chip{margin-bottom:24px;}
+.scholr-landing .hero h1{font-family:var(--font-display);font-weight:500;font-size:clamp(40px,5.2vw,68px);line-height:1.04;letter-spacing:-.026em;color:var(--ink);}
 .scholr-landing .hero h1 .l2{display:block;font-style:italic;font-weight:500;}
-.scholr-landing .hero .lede{font-size:clamp(17px,1.5vw,20px);color:var(--muted);max-width:520px;margin:26px 0 0;line-height:1.55;}
-.scholr-landing .hero-actions{margin-top:34px;display:flex;justify-content:flex-start;}
+.scholr-landing .hero .lede{font-size:clamp(16.5px,1.35vw,19px);color:var(--muted);max-width:520px;margin:22px auto 0;line-height:1.55;}
+.scholr-landing .hero-actions{margin-top:30px;display:flex;justify-content:center;}
 /* Warp-style inline pill: email input + submit button in a single rounded
    container. Input on the left expands, button anchored on the right.
    Same .btn-primary ink treatment as the rest of the landing so it stays
@@ -6294,7 +6294,13 @@ html { scroll-behavior: smooth; }
 .scholr-landing .hero-pill button[type=submit] svg{width:15px;height:15px;}
 .scholr-landing .hero-pill button[type=submit]:hover{background:#000;transform:translateY(-1px);}
 .scholr-landing .hero-pill button[type=submit] .arr{display:inline-flex;}
-.scholr-landing .hero-sub{margin-top:26px;font-size:16px;color:var(--muted-2);}
+.scholr-landing .hero-sub{margin-top:22px;font-size:14.5px;color:var(--muted-2);text-align:center;}
+.scholr-landing .hero-meta{margin-top:26px;display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted-2);font-weight:500;letter-spacing:.01em;}
+.scholr-landing .hero-meta-dot{width:6px;height:6px;border-radius:99px;background:#E07A3C;flex:none;box-shadow:0 0 0 4px rgba(224,122,60,.18);}
+.scholr-landing .hero-scroll{position:absolute;bottom:36px;left:50%;transform:translateX(-50%);display:inline-flex;flex-direction:column;align-items:center;gap:6px;font-family:var(--font-body);font-size:11.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-2);text-decoration:none;cursor:pointer;opacity:.7;transition:opacity .2s ease,transform .2s ease;}
+.scholr-landing .hero-scroll:hover{opacity:1;transform:translate(-50%,2px);}
+.scholr-landing .hero-scroll-arr{display:grid;place-items:center;width:24px;height:24px;border-radius:99px;border:1px solid var(--line);color:var(--ink);animation:lp-bounce 2.2s ease-in-out infinite;}
+@keyframes lp-bounce{0%,100%{transform:translateY(0);}50%{transform:translateY(4px);}}
 .scholr-landing .hero-sub a{color:var(--ink);font-weight:700;margin-left:6px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;}
 .scholr-landing .hero-sub a svg{width:15px;height:15px;transition:transform .2s ease;}
 .scholr-landing .hero-sub a:hover svg{transform:translateX(3px);}
@@ -6963,7 +6969,6 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
         <section className="hero">
           <div className="wrap stagger">
             <div className="hero-col">
-            <span className="chip"><span className="dot live" /> Course-grounded AI tutoring</span>
             <h1>Every answer from<span className="l2">your <span className="squig">course materials</span>.</span></h1>
             <p className="lede">AI tutoring grounded in what your professor uploaded. Cited, accurate, and trustworthy.</p>
             <div className="hero-actions">
@@ -6986,8 +6991,15 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
               </form>
             </div>
             <p className="hero-sub">Joining a class? <button type="button" onClick={() => setJoinOpen(true)}>Enter your join code <Ic name="arrow-right" s={15} /></button></p>
+            <div className="hero-meta">
+              <span className="hero-meta-dot" /> Free for the 2026 academic year · No credit card · Set up in minutes
+            </div>
             </div>
           </div>
+          <a href="#why" className="hero-scroll" onClick={(e) => { e.preventDefault(); document.getElementById('why')?.scrollIntoView({ behavior: 'smooth' }); }} aria-label="Scroll to next section">
+            <span>Scroll</span>
+            <span className="hero-scroll-arr"><Ic name="chevron-down" s={14} /></span>
+          </a>
         </section>
 
         {/* PRODUCT MOCK */}
