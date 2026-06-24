@@ -6215,10 +6215,11 @@ html { scroll-behavior: smooth; }
   --maxw:1280px;
   font-family:var(--font-body); color:var(--ink); line-height:1.55; font-size:17px;
   background:
-    radial-gradient(70% 80% at 110% -10%,rgba(255,255,255,.95) 0%,rgba(255,255,255,0) 60%),
-    radial-gradient(60% 70% at -10% 60%,rgba(255,255,255,.85) 0%,rgba(255,255,255,0) 65%),
-    radial-gradient(50% 60% at 60% 110%,rgba(255,255,255,.55) 0%,rgba(255,255,255,0) 65%),
-    linear-gradient(180deg,#EEF0F4 0%,#E5E7EC 100%);
+    radial-gradient(80% 70% at 100% 0%,rgba(255,255,255,1) 0%,rgba(255,255,255,0) 55%),
+    radial-gradient(70% 60% at 0% 50%,rgba(255,255,255,.85) 0%,rgba(255,255,255,0) 60%),
+    radial-gradient(60% 55% at 50% 100%,rgba(255,255,255,.7) 0%,rgba(255,255,255,0) 60%),
+    radial-gradient(45% 40% at 75% 65%,rgba(225,229,236,.4) 0%,rgba(225,229,236,0) 65%),
+    linear-gradient(165deg,#F0F2F6 0%,#E7EAEF 55%,#E2E5EB 100%);
   background-attachment:fixed;
   overflow-x:hidden; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
 }
@@ -6370,7 +6371,7 @@ html { scroll-behavior: smooth; }
 .scholr-landing .step h3{font-weight:700;font-size:19px;letter-spacing:-.01em;margin-bottom:8px;}
 .scholr-landing .step p{font-size:15px;color:var(--muted);line-height:1.55;}
 .scholr-landing .principles{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;}
-.scholr-landing .principle{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:36px 34px;box-shadow:var(--shadow-sm);transition:transform .2s ease,box-shadow .2s ease;}
+.scholr-landing .principle{background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.7);border-radius:var(--radius);padding:36px 34px;box-shadow:0 1px 2px rgba(21,22,27,.04),0 18px 40px -20px rgba(21,22,27,.14);transition:transform .2s ease,box-shadow .2s ease;-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);}
 .scholr-landing .principle:hover{transform:translateY(-3px);box-shadow:var(--shadow-card);}
 .scholr-landing .principle .idx{display:flex;align-items:center;gap:13px;margin-bottom:20px;}
 .scholr-landing .principle .idx b{font-family:var(--font-display);font-style:italic;font-weight:500;font-size:21px;color:var(--ink);}
@@ -6378,7 +6379,7 @@ html { scroll-behavior: smooth; }
 .scholr-landing .principle h3{font-family:var(--font-display);font-weight:500;font-size:25px;letter-spacing:-.02em;margin-bottom:11px;}
 .scholr-landing .principle p{font-size:16px;color:var(--muted);line-height:1.6;}
 .scholr-landing .bento{display:grid;grid-template-columns:repeat(6,1fr);gap:18px;}
-.scholr-landing .feat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:30px;display:flex;flex-direction:column;box-shadow:var(--shadow-sm);transition:transform .18s ease,box-shadow .18s ease,border-color .18s;}
+.scholr-landing .feat{background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.7);border-radius:var(--radius);padding:30px;display:flex;flex-direction:column;box-shadow:0 1px 2px rgba(21,22,27,.04),0 18px 40px -20px rgba(21,22,27,.14);transition:transform .18s ease,box-shadow .18s ease,border-color .18s;-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%);}
 .scholr-landing .feat:hover{transform:translateY(-3px);box-shadow:var(--shadow-card);}
 .scholr-landing .feat .ic-box{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);color:var(--ink);display:grid;place-items:center;margin-bottom:22px;}
 .scholr-landing .feat .ic-box svg{width:22px;height:22px;stroke-width:1.75;}
@@ -6393,9 +6394,9 @@ html { scroll-behavior: smooth; }
 .scholr-landing .feat.dark .mini-cites>span{font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);display:inline-flex;align-items:center;gap:6px;}
 .scholr-landing .feat.dark .mini-cites>span .d{width:6px;height:6px;border-radius:999px;background:currentColor;opacity:.65;}
 .scholr-landing .split{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
-.scholr-landing .aud{border-radius:var(--radius);padding:42px;border:1px solid var(--line);box-shadow:var(--shadow-sm);}
+.scholr-landing .aud{border-radius:var(--radius);padding:42px;border:1px solid rgba(255,255,255,.7);box-shadow:0 1px 2px rgba(21,22,27,.04),0 22px 50px -22px rgba(21,22,27,.18);}
 .scholr-landing .aud.prof{background:var(--ink);color:#fff;border-color:transparent;}
-.scholr-landing .aud.stud{background:var(--surface);}
+.scholr-landing .aud.stud{background:rgba(255,255,255,.55);-webkit-backdrop-filter:blur(20px) saturate(160%);backdrop-filter:blur(20px) saturate(160%);}
 .scholr-landing .aud .kicker{display:inline-flex;align-items:center;gap:9px;font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:22px;}
 .scholr-landing .aud.prof .kicker{color:rgba(255,255,255,.7);}
 .scholr-landing .aud.stud .kicker{color:var(--muted-2);}
@@ -6415,7 +6416,7 @@ html { scroll-behavior: smooth; }
 .scholr-landing .aud.prof .btn-ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.25);}
 .scholr-landing .aud.prof .btn-ghost:hover{border-color:#fff;}
 .scholr-landing .analytics-grid{display:grid;grid-template-columns:.95fr 1.05fr;gap:60px;align-items:center;}
-.scholr-landing .dash{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-card);overflow:hidden;}
+.scholr-landing .dash{background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.7);border-radius:var(--radius);box-shadow:0 1px 2px rgba(21,22,27,.04),0 22px 50px -22px rgba(21,22,27,.18);overflow:hidden;-webkit-backdrop-filter:blur(20px) saturate(170%);backdrop-filter:blur(20px) saturate(170%);}
 .scholr-landing .dash-top{padding:18px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;}
 .scholr-landing .dash-top .t{font-weight:700;font-size:15.5px;}
 .scholr-landing .dash-top .wk{font-size:12.5px;color:var(--muted);border:1px solid var(--line);border-radius:var(--radius-pill);padding:4px 12px;}
@@ -6520,7 +6521,7 @@ html { scroll-behavior: smooth; }
 .scholr-landing .mq-track.rev{animation-duration:52s;animation-direction:reverse;}
 .scholr-landing .mq-band:hover .mq-track{animation-play-state:paused;}
 @keyframes lp-mq{from{transform:translateX(0);}to{transform:translateX(-50%);}}
-.scholr-landing .q-chip{display:inline-flex;align-items:center;gap:10px;padding:11px 19px;border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--surface);font-size:15px;font-weight:500;color:var(--ink-2);white-space:nowrap;box-shadow:var(--shadow-sm);}
+.scholr-landing .q-chip{display:inline-flex;align-items:center;gap:10px;padding:11px 19px;border:1px solid rgba(255,255,255,.7);border-radius:var(--radius-pill);background:rgba(255,255,255,.55);font-size:15px;font-weight:500;color:var(--ink-2);white-space:nowrap;box-shadow:0 1px 2px rgba(21,22,27,.04);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);}
 .scholr-landing .q-chip .qm{color:var(--muted-2);display:inline-flex;flex:none;}
 .scholr-landing .q-chip .qm svg{width:15px;height:15px;}
 .scholr-landing .manifesto{background:var(--ink);color:#fff;text-align:center;padding:124px 0;position:relative;overflow:hidden;}
@@ -6597,16 +6598,7 @@ html { scroll-behavior: smooth; }
    radii, mixed hover behaviors, single peach accent reused from the top
    banner, and a hand-drawn squiggle under a hero phrase. ────────── */
 .scholr-landing{position:relative;}
-.scholr-landing::before{
-  content:"";
-  position:fixed;
-  inset:0;
-  z-index:1;
-  pointer-events:none;
-  opacity:.04;
-  mix-blend-mode:multiply;
-  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .9 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-}
+/* Grain layer killed — page renders smooth 4K gradient instead of paper texture */
 /* Keep banner + nav above the grain WITHOUT changing their position. They
    were position:fixed before — setting position:relative would unstick
    them. Bump z-index past the grain layer instead. */
