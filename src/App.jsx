@@ -1987,7 +1987,7 @@ function CourseManager({ token, course, onBack, authHeaders, onLogout }) {
           Mobile gets pushed below the fixed mobile top bar; desktop has
           no top bar so the hero sits flush at the very top. */}
       <main className="flex-1 flex flex-col overflow-hidden relative" style={isDesktop ? undefined : { paddingTop: 'calc(3.5rem + env(safe-area-inset-top))' }}>
-        <div className="flex-1 overflow-y-auto bg-[#FBFBF9]">
+        <div className="flex-1 overflow-y-auto" style={{ background: 'radial-gradient(80% 70% at 100% 0%,rgba(255,255,255,1) 0%,rgba(255,255,255,0) 55%),radial-gradient(70% 60% at 0% 50%,rgba(255,255,255,.85) 0%,rgba(255,255,255,0) 60%),radial-gradient(60% 55% at 50% 100%,rgba(255,255,255,.7) 0%,rgba(255,255,255,0) 60%),linear-gradient(165deg,#F0F2F6 0%,#E7EAEF 55%,#E2E5EB 100%)' }}>
           {/* ── UNIFIED HERO ── Color + pattern come from the course's
               chosen cover (grayscale palette: graphite / charcoal / slate /
               silver / paper × three line patterns). Text ink flips dark
