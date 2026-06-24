@@ -6266,6 +6266,10 @@ html { scroll-behavior: smooth; }
 .scholr-landing .top-banner a:hover .arr{transform:translateX(3px);}
 .scholr-landing header.nav{position:fixed;top:0;left:0;right:0;z-index:60;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border-bottom:1px solid transparent;transition:border-color .25s ease,background .25s ease;}
 .scholr-landing header.nav.scrolled{border-bottom-color:var(--line);}
+/* Nav extends to the viewport edges (overrides the .wrap max-width
+   cap) so the logo sits flush left and the buttons sit flush right —
+   matches Kaizen's full-width nav. */
+.scholr-landing header.nav .wrap.nav-inner{max-width:none;padding:0 44px;}
 .scholr-landing .nav-inner{display:flex;align-items:center;gap:32px;height:76px;}
 .scholr-landing .nav-inner .brand{margin-right:auto;}
 .scholr-landing .brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:23px;letter-spacing:-.02em;color:var(--ink);background:none;border:none;cursor:pointer;font-family:var(--font-body);}
