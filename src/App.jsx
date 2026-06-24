@@ -6259,7 +6259,10 @@ html { scroll-behavior: smooth; }
 .scholr-landing .top-banner a:hover .arr{transform:translateX(3px);}
 .scholr-landing header.nav{position:fixed;top:36px;left:0;right:0;z-index:60;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border-bottom:1px solid transparent;transition:border-color .25s ease,background .25s ease;}
 .scholr-landing header.nav.scrolled{border-bottom-color:var(--line);}
-.scholr-landing .nav-inner{display:flex;align-items:center;justify-content:space-between;height:76px;}
+.scholr-landing .nav-inner{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:76px;column-gap:24px;}
+.scholr-landing .nav-inner .brand{justify-self:start;}
+.scholr-landing .nav-inner .nav-links{justify-self:center;}
+.scholr-landing .nav-inner .nav-right{justify-self:end;}
 .scholr-landing .brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:23px;letter-spacing:-.02em;color:var(--ink);background:none;border:none;cursor:pointer;font-family:var(--font-body);}
 .scholr-landing .brand .mark{width:36px;height:36px;flex:none;}
 .scholr-landing .nav-links{display:flex;align-items:center;gap:32px;}
@@ -6271,7 +6274,8 @@ html { scroll-behavior: smooth; }
    The wrap already caps at 1120px; the hero's inner column caps tighter
    so the headline reads as a confident two-line statement rather than
    a giant centered banner. */
-.scholr-landing .hero{text-align:left;padding:88px 0 64px;position:relative;}
+.scholr-landing .hero{text-align:left;padding:0;position:relative;min-height:calc(100vh - 112px);display:flex;align-items:center;}
+.scholr-landing .hero .wrap{width:100%;padding-top:24px;padding-bottom:64px;}
 .scholr-landing .hero .hero-col{max-width:780px;}
 .scholr-landing .hero .chip{margin-bottom:28px;}
 .scholr-landing .hero h1{font-family:var(--font-display);font-weight:500;font-size:clamp(40px,5.6vw,76px);line-height:1.02;letter-spacing:-.025em;color:var(--ink);}
@@ -6725,6 +6729,93 @@ a.scholr-landing .nav-dd-foot-tag:hover,
 .scholr-landing .sticker{display:inline-block;padding:7px 14px;background:#FFE6D2;color:#8E3F19;border:1px solid #F2C5A3;border-radius:8px;font-family:var(--font-body);font-size:12.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;transform:rotate(-1.4deg);box-shadow:0 2px 8px -3px rgba(194,96,58,.35);margin-bottom:22px;}
 `;
 
+// Shared mega-menu dropdowns used by both the main landing and the
+// marketing subpages. Owns its own open-state and closes on item click.
+// onTalk is optional — if not provided, the Talk-to-our-team item falls
+// back to a mailto: link so the subpages still capture leads without
+// needing their own modal wiring.
+function LandingNavLinks({ navigate, onTalk }) {
+  const [dd, setDD] = useState(null);
+  const close = () => setDD(null);
+  const goAndClose = (path) => (e) => { if (e) e.preventDefault(); close(); navigate(path); };
+  const talkClick = () => { close(); if (onTalk) onTalk(); else window.location.href = 'mailto:hello@scholr.study?subject=Talk%20to%20the%20Scholr%20team'; };
+  return (
+    <nav className="nav-links">
+      <div className={`nav-dd ${dd === 'product' ? 'open' : ''}`} onMouseEnter={() => setDD('product')} onMouseLeave={close}>
+        <button type="button" className="nav-dd-trigger">Product <ChevronDown size={14} className="nav-dd-chev" /></button>
+        <div className="nav-dd-bridge" />
+        <div className="nav-dd-panel" role="menu" aria-label="Product menu">
+          <div className="nav-dd-grid">
+            <div className="nav-dd-col">
+              <div className="nav-dd-label">Explore Scholr</div>
+              <a className="nav-dd-link" href="/how-it-works" onClick={goAndClose('/how-it-works')}>
+                <span className="nav-dd-ic"><Layers size={17} /></span>
+                <span className="nav-dd-text"><b>How it works</b><span>Set up once, tutoring all term.</span></span>
+              </a>
+              <a className="nav-dd-link" href="/for-professors" onClick={goAndClose('/for-professors')}>
+                <span className="nav-dd-ic"><GraduationCap size={17} /></span>
+                <span className="nav-dd-text"><b>For professors</b><span>Stop answering the same question 50 times.</span></span>
+              </a>
+              <a className="nav-dd-link" href="/for-students" onClick={goAndClose('/for-students')}>
+                <span className="nav-dd-ic"><BookOpen size={17} /></span>
+                <span className="nav-dd-text"><b>For students</b><span>Office hours that never close.</span></span>
+              </a>
+            </div>
+            <a className="nav-dd-feature" href="/how-it-works" onClick={goAndClose('/how-it-works')}>
+              <div className="nav-dd-feature-top">
+                <span>The Scholr<br />Difference</span>
+                <span className="nav-dd-feature-arr"><ChevronRight size={18} /></span>
+              </div>
+              <div className="nav-dd-feature-art" aria-hidden="true">
+                <div className="art-line" style={{ width: '80%' }} />
+                <div className="art-line" style={{ width: '60%' }} />
+                <div className="art-line" style={{ width: '70%' }} />
+                <div className="art-cite">
+                  <span><Hash size={11} /> Lecture 7 · slide 12</span>
+                </div>
+              </div>
+            </a>
+          </div>
+          <div className="nav-dd-foot">
+            <span className="nav-dd-foot-lbl">On Scholr</span>
+            <span className="nav-dd-foot-tag"><Sparkles size={13} /> Free for 2026 in beta</span>
+            <span className="nav-dd-foot-tag"><CheckCircle2 size={13} /> Every answer cited</span>
+          </div>
+        </div>
+      </div>
+      <div className={`nav-dd ${dd === 'resources' ? 'open' : ''}`} onMouseEnter={() => setDD('resources')} onMouseLeave={close}>
+        <button type="button" className="nav-dd-trigger">Resources <ChevronDown size={14} className="nav-dd-chev" /></button>
+        <div className="nav-dd-bridge" />
+        <div className="nav-dd-panel" role="menu" aria-label="Resources menu">
+          <div className="nav-dd-grid">
+            <div className="nav-dd-col">
+              <div className="nav-dd-label">Company</div>
+              <a className="nav-dd-link" href="/about" onClick={goAndClose('/about')}>
+                <span className="nav-dd-ic"><Lightbulb size={17} /></span>
+                <span className="nav-dd-text"><b>About Scholr</b><span>Why we built a tutor grounded in the course.</span></span>
+              </a>
+              <button type="button" className="nav-dd-link" onClick={talkClick}>
+                <span className="nav-dd-ic"><MessageSquare size={17} /></span>
+                <span className="nav-dd-text"><b>Talk to our team</b><span>Tell us about your course — we'll show you what fits.</span></span>
+              </button>
+            </div>
+            <a className="nav-dd-feature alt" href="/about" onClick={goAndClose('/about')}>
+              <div className="nav-dd-feature-top">
+                <span>Read our story</span>
+                <span className="nav-dd-feature-arr"><ChevronRight size={18} /></span>
+              </div>
+            </a>
+          </div>
+          <div className="nav-dd-foot">
+            <span className="nav-dd-foot-lbl">Get in touch</span>
+            <a className="nav-dd-foot-tag" href="mailto:hello@scholr.study"><ExternalLink size={12} /> hello@scholr.study</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
 function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnchor }) {
   const navigate = useNavigate();
   const rootRef = useRef(null);
@@ -6819,7 +6910,6 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
   // submission is logged server-side either way (Render console becomes
   // the audit trail if Resend hiccups).
   const [heroSubmitted, setHeroSubmitted] = useState(false);
-  const [navDD, setNavDD] = useState(null);
   // Empty-email submit opens the full contact modal so we still capture a
   // lead instead of dropping the visitor onto the signup form. ContactModal
   // collects name, email, institution, and message — strictly more info
@@ -6860,79 +6950,7 @@ function LandingPage({ onStudent, onInstructor, onSignIn, onJoinCode, initialAnc
       <header className={`nav${navScrolled ? ' scrolled' : ''}`}>
         <div className="wrap nav-inner">
           <a className="brand" href="/" onClick={goHome}><LandingLogo s={36} />Scholr</a>
-          <nav className="nav-links">
-            <div className={`nav-dd ${navDD === 'product' ? 'open' : ''}`} onMouseEnter={() => setNavDD('product')} onMouseLeave={() => setNavDD(null)}>
-              <button type="button" className="nav-dd-trigger">Product <ChevronDown size={14} className="nav-dd-chev" /></button>
-              <div className="nav-dd-bridge" />
-              <div className="nav-dd-panel" role="menu" aria-label="Product menu">
-                <div className="nav-dd-grid">
-                  <div className="nav-dd-col">
-                    <div className="nav-dd-label">Explore Scholr</div>
-                    <a className="nav-dd-link" href="/how-it-works" onClick={(e) => { e.preventDefault(); setNavDD(null); navigate('/how-it-works'); }}>
-                      <span className="nav-dd-ic"><Layers size={17} /></span>
-                      <span className="nav-dd-text"><b>How it works</b><span>Set up once, tutoring all term.</span></span>
-                    </a>
-                    <a className="nav-dd-link" href="/for-professors" onClick={(e) => { e.preventDefault(); setNavDD(null); navigate('/for-professors'); }}>
-                      <span className="nav-dd-ic"><GraduationCap size={17} /></span>
-                      <span className="nav-dd-text"><b>For professors</b><span>Stop answering the same question 50 times.</span></span>
-                    </a>
-                    <a className="nav-dd-link" href="/for-students" onClick={(e) => { e.preventDefault(); setNavDD(null); navigate('/for-students'); }}>
-                      <span className="nav-dd-ic"><BookOpen size={17} /></span>
-                      <span className="nav-dd-text"><b>For students</b><span>Office hours that never close.</span></span>
-                    </a>
-                  </div>
-                  <a className="nav-dd-feature" href="/how-it-works" onClick={(e) => { e.preventDefault(); setNavDD(null); navigate('/how-it-works'); }}>
-                    <div className="nav-dd-feature-top">
-                      <span>The Scholr<br />Difference</span>
-                      <span className="nav-dd-feature-arr"><ChevronRight size={18} /></span>
-                    </div>
-                    <div className="nav-dd-feature-art" aria-hidden="true">
-                      <div className="art-line" style={{ width: '80%' }} />
-                      <div className="art-line" style={{ width: '60%' }} />
-                      <div className="art-line" style={{ width: '70%' }} />
-                      <div className="art-cite">
-                        <span><Hash size={11} /> Lecture 7 · slide 12</span>
-                      </div>
-                    </div>
-                  </a>
-                </div>
-                <div className="nav-dd-foot">
-                  <span className="nav-dd-foot-lbl">On Scholr</span>
-                  <span className="nav-dd-foot-tag"><Sparkles size={13} /> Free for 2026 in beta</span>
-                  <span className="nav-dd-foot-tag"><CheckCircle2 size={13} /> Every answer cited</span>
-                </div>
-              </div>
-            </div>
-            <div className={`nav-dd ${navDD === 'resources' ? 'open' : ''}`} onMouseEnter={() => setNavDD('resources')} onMouseLeave={() => setNavDD(null)}>
-              <button type="button" className="nav-dd-trigger">Resources <ChevronDown size={14} className="nav-dd-chev" /></button>
-              <div className="nav-dd-bridge" />
-              <div className="nav-dd-panel" role="menu" aria-label="Resources menu">
-                <div className="nav-dd-grid">
-                  <div className="nav-dd-col">
-                    <div className="nav-dd-label">Company</div>
-                    <a className="nav-dd-link" href="/about" onClick={(e) => { e.preventDefault(); setNavDD(null); navigate('/about'); }}>
-                      <span className="nav-dd-ic"><Lightbulb size={17} /></span>
-                      <span className="nav-dd-text"><b>About Scholr</b><span>Why we built a tutor grounded in the course.</span></span>
-                    </a>
-                    <button type="button" className="nav-dd-link" onClick={() => { setNavDD(null); setTalkOpen(true); }}>
-                      <span className="nav-dd-ic"><MessageSquare size={17} /></span>
-                      <span className="nav-dd-text"><b>Talk to our team</b><span>Tell us about your course — we'll show you what fits.</span></span>
-                    </button>
-                  </div>
-                  <a className="nav-dd-feature alt" href="/about" onClick={(e) => { e.preventDefault(); setNavDD(null); navigate('/about'); }}>
-                    <div className="nav-dd-feature-top">
-                      <span>Read our story</span>
-                      <span className="nav-dd-feature-arr"><ChevronRight size={18} /></span>
-                    </div>
-                  </a>
-                </div>
-                <div className="nav-dd-foot">
-                  <span className="nav-dd-foot-lbl">Get in touch</span>
-                  <a className="nav-dd-foot-tag" href="mailto:hello@scholr.study"><ExternalLink size={12} /> hello@scholr.study</a>
-                </div>
-              </div>
-            </div>
-          </nav>
+          <LandingNavLinks navigate={navigate} onTalk={() => setTalkOpen(true)} />
           <div className="nav-right">
             <button type="button" className="btn btn-ghost btn-pill" onClick={onSignIn}>Sign in</button>
             <button type="button" className="btn btn-primary btn-pill" onClick={onInstructor}>Get started</button>
@@ -7459,12 +7477,7 @@ function MarketingShell({ children, onSignIn, onInstructor, onStudent, currentPa
       <header className={`nav${navScrolled ? ' scrolled' : ''}`}>
         <div className="wrap nav-inner">
           <a className="brand" href="/" onClick={go('/')}><LandingLogo s={36} />Scholr</a>
-          <nav className="nav-links">
-            <a href="/how-it-works"   className={isActive('/how-it-works')   ? 'active' : ''} onClick={go('/how-it-works')}>How it works</a>
-            <a href="/for-professors" className={isActive('/for-professors') ? 'active' : ''} onClick={go('/for-professors')}>For professors</a>
-            <a href="/for-students"   className={isActive('/for-students')   ? 'active' : ''} onClick={go('/for-students')}>For students</a>
-            <a href="/about"          className={isActive('/about')          ? 'active' : ''} onClick={go('/about')}>About</a>
-          </nav>
+          <LandingNavLinks navigate={navigate} />
           <div className="nav-right">
             <button type="button" className="btn btn-ghost btn-pill" onClick={onSignIn}>Sign in</button>
             <button type="button" className="btn btn-primary btn-pill" onClick={onInstructor}>Get started</button>
