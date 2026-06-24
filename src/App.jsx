@@ -6576,12 +6576,21 @@ html { scroll-behavior: smooth; }
   mix-blend-mode:multiply;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .9 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
-.scholr-landing .top-banner,
-.scholr-landing header.nav,
+/* Keep banner + nav above the grain WITHOUT changing their position. They
+   were position:fixed before — setting position:relative would unstick
+   them. Bump z-index past the grain layer instead. */
+.scholr-landing .top-banner{z-index:70;}
+.scholr-landing header.nav{z-index:60;}
 .scholr-landing main,
 .scholr-landing footer.foot,
-.scholr-landing .brand-signoff,
-.scholr-landing .lp-modal{position:relative;z-index:2;}
+.scholr-landing .brand-signoff{position:relative;z-index:2;}
+.scholr-landing .lp-modal{z-index:100;}
+
+/* Connect banner + nav visually — solid cream nav background means
+   there's no grain bleeding through the seam between the two fixed
+   bars, so they read as one continuous strip when pinned. */
+.scholr-landing header.nav{background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none;}
+.scholr-landing header.nav.scrolled{box-shadow:0 1px 0 var(--line);}
 
 /* Hand-drawn squiggle under a hero phrase — peach (reused from banner) */
 .scholr-landing .squig{position:relative;display:inline-block;}
