@@ -1379,6 +1379,34 @@ const userRateLimit = (max) => (req, res, next) => {
   next();
 };
 
+// Daily per-user spending caps — soft ceiling on how many AI-cost
+// requests a single student can make in a 24-hour window. Set well
+// above normal usage so honest students never see the limit, but low
+// enough that a stuck/runaway tab can't drain the budget overnight.
+// In-memory: server restart resets the counter, which favors users —
+// fine for a soft cap. Bumped to a persistent table later if needed.
+const USER_DAILY_BUCKETS = new Map(); // key: `${userId}:${kind}` → { count, resetAt }
+const userDailyLimit = (max, kind) => (req, res, next) => {
+  const userId = req.user?.id;
+  if (!userId) return next();
+  const key = `${userId}:${kind}`;
+  const now = Date.now();
+  const entry = USER_DAILY_BUCKETS.get(key) || { count: 0, resetAt: now + 24 * 60 * 60 * 1000 };
+  if (entry.resetAt < now) { entry.count = 0; entry.resetAt = now + 24 * 60 * 60 * 1000; }
+  entry.count++;
+  USER_DAILY_BUCKETS.set(key, entry);
+  // Keep the map bounded — evict the oldest entries past 50k.
+  if (USER_DAILY_BUCKETS.size > 50000) {
+    const oldest = [...USER_DAILY_BUCKETS.entries()].sort((a, b) => a[1].resetAt - b[1].resetAt).slice(0, 10000);
+    for (const [k] of oldest) USER_DAILY_BUCKETS.delete(k);
+  }
+  if (entry.count > max) {
+    const hoursLeft = Math.max(1, Math.ceil((entry.resetAt - now) / (60 * 60 * 1000)));
+    return res.status(429).json({ error: `You've hit your daily limit for ${kind}. Resets in ~${hoursLeft}h.` });
+  }
+  next();
+};
+
 // Tiny in-memory rate limiter for auth endpoints. Not a substitute for
 // a real WAF or distributed limiter, but it makes credential-stuffing,
 // signup-spam, and unauthenticated-POST DOS against the box meaningfully
@@ -3311,7 +3339,7 @@ Output ONLY a JSON array, nothing else, no markdown, no commentary. Example:
 });
 
 // ── Chat — uses Gemini URIs instead of re-uploading PDFs ─────────────────────
-app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), requireCourseAccess, async (req, res) => {
+app.post('/course/:courseId/chat', requireAuth, userRateLimit(20), userDailyLimit(100, 'chat'), requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const message = req.body?.message;
   const history = req.body?.history || [];
@@ -4214,7 +4242,7 @@ async function deduplicateAfterInsert(table, studentId, courseId, insertedId, to
   }
 }
 
-app.post('/course/:courseId/quiz', requireAuth, requireCourseAccess, async (req, res) => {
+app.post('/course/:courseId/quiz', requireAuth, userDailyLimit(20, 'quizzes'), requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const { topic } = req.body;
   // Clamp count so the model never sees an absurd value (cost + UX guard).
@@ -4333,7 +4361,7 @@ Generate the TOPIC line then all ${quizCount} questions now:`;
 // Flashcards — same pattern as /quiz: a one-shot generation grounded in the
 // course materials. Returns parsed cards with front/back/source so the
 // client can show them in a flippable panel.
-app.post('/course/:courseId/flashcards', requireAuth, requireCourseAccess, async (req, res) => {
+app.post('/course/:courseId/flashcards', requireAuth, userDailyLimit(20, 'flashcards'), requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const { topic } = req.body;
   const requestedCount = parseInt(req.body.count, 10);
@@ -4527,7 +4555,7 @@ app.delete('/student/flashcard-decks/:id', requireAuth, async (req, res) => {
 // own table so the Tests folder in the sidebar stays distinct from Quizzes.
 // The taking UX defers all feedback until the end (no per-question reveal),
 // but that's a client-side concern — the data is identical.
-app.post('/course/:courseId/test', requireAuth, requireCourseAccess, async (req, res) => {
+app.post('/course/:courseId/test', requireAuth, userDailyLimit(8, 'tests'), requireCourseAccess, async (req, res) => {
   const { courseId } = req.params;
   const { topic } = req.body;
   const requestedCount = parseInt(req.body.count, 10);
